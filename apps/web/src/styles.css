@@ -103,7 +103,7 @@ img { max-width: 100%; }
 .brand-crop { position: relative; display: block; width: 120px; height: 42px; overflow: hidden; }
 .brand-mark, .brand-wordmark { position: absolute; display: block; object-fit: contain; transition: opacity .28s ease, transform .32s ease; }
 .brand-mark { top: 1px; left: 1px; width: 40px; height: 40px; }
-.brand-wordmark { top: 11px; left: 0; width: 112px; height: 20px; }
+.brand-wordmark { top: 7px; left: 0; width: 112px; height: 27px; }
 .brand-image-light, .brand-image-dark { display: block; }
 .brand-image-dark { display: none; }
 .mark-visible .brand-mark { opacity: 1; transform: scale(1); }
@@ -449,8 +449,8 @@ img { max-width: 100%; }
 .form-error { margin: 0; color: #b42318 !important; font-size: calc((13px) * var(--desktop-type-scale, 1)) !important; }
 .auth-page { max-width: 620px; min-height: calc(100dvh - var(--header-height)); padding-top: 28px; padding-bottom: 38px; display: grid; align-items: center; }
 .auth-page-card { width: 100%; max-height: none; box-shadow: 0 14px 45px rgb(0 0 0 / 9%); }
-.auth-dialog .brand-crop, .login-required-dialog .brand-crop { width: 140px; height: 24px; margin: 0 auto 14px; }
-.auth-dialog .brand-wordmark, .login-required-dialog .brand-wordmark { top: 0; left: 0; width: 140px; height: 24px; }
+.auth-dialog .brand-crop, .login-required-dialog .brand-crop { width: 140px; height: 34px; margin: 0 auto 14px; }
+.auth-dialog .brand-wordmark, .login-required-dialog .brand-wordmark { top: 0; left: 0; width: 140px; height: 34px; }
 .google-button { width: 100%; min-height: 48px; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink); background: var(--surface); cursor: pointer; font: 700 calc((14px) * var(--desktop-type-scale, 1))/1 "Outfit", sans-serif; }
 .auth-divider { display: flex; align-items: center; gap: 12px; margin: 15px 0; color: var(--muted); font-size: calc((12px) * var(--desktop-type-scale, 1)); }
 .auth-divider::before, .auth-divider::after { flex: 1; height: 1px; background: var(--line); content: ""; }
@@ -514,7 +514,7 @@ img { max-width: 100%; }
   .brand-button { width: 144px; height: 48px; }
   .brand-crop { width: 144px; height: 48px; }
   .brand-mark { width: 46px; height: 46px; }
-  .brand-wordmark { top: 14px; width: 109px; height: 20px; }
+  .brand-wordmark { top: 11px; width: 109px; height: 26px; }
   .balance-pill { min-width: 124px; height: 48px; font-size: calc((20px) * var(--desktop-type-scale, 1)); }
   .balance-pill img { width: 24px; height: 24px; }
   .avatar-button, .header-back { width: 48px; height: 48px; }
@@ -609,7 +609,7 @@ img { max-width: 100%; }
   .nav-tab { min-width: 154px; min-height: 54px; padding: 0 24px; font-size: calc((15px) * var(--desktop-type-scale, 1)); }
   .dialog { width: min(calc(100vw - 64px), 620px); padding: 32px; border-radius: 26px; }
   .auth-dialog .brand-crop, .login-required-dialog .brand-crop { width: 112px; height: 28px; margin: 0 auto 14px; }
-  .auth-dialog .brand-wordmark, .login-required-dialog .brand-wordmark { top: 4px; left: 0; width: 112px; height: 20px; }
+  .auth-dialog .brand-wordmark, .login-required-dialog .brand-wordmark { top: 0; left: 0; width: 112px; height: 28px; }
   .auth-page { max-width: 760px; min-height: calc(100dvh - var(--header-height) - var(--nav-height)); }
   .auth-page-card { padding: 42px; }
 }
