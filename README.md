@@ -24,6 +24,10 @@ In a nutshell:
 - **Backend & Database:** Supabase (PostgreSQL, Edge Functions, and Authentication) to manage user accounts and points.
 - **Hosting:** Vercel for the web app and cloud hosting for the ML scoring service.
 
+## Setup
+
+See [SETUP.md](SETUP.md) for Vercel deployment, connecting a real Supabase backend, secure avatar uploads, and training/deploying the camera model.
+
 ---
 
 

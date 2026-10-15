@@ -1,6 +1,6 @@
 -- Runs with `supabase test db`; all mock rows are rolled back.
 begin;
-select plan(14);
+select plan(16);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values
@@ -21,6 +21,8 @@ select is((select count(*)::integer from public.profiles), 1, 'student sees only
 select is((select count(*)::integer from public.habit_submissions), 1, 'student sees only their proof');
 select is((select count(*)::integer from public.greenbit_ledger), 1, 'student sees only their ledger entries');
 select is((select balance::integer from public.greenbit_balances where user_id = auth.uid()), 300, 'student sees their own balance');
+select is(has_column_privilege(current_user, 'public.profiles', 'avatar_path', 'UPDATE'), false, 'student cannot publish an avatar path directly');
+select is(has_column_privilege(current_user, 'public.profiles', 'avatar_upload_at', 'UPDATE'), false, 'student cannot manipulate the avatar upload limit');
 select is(has_table_privilege(current_user, 'public.greenbit_ledger', 'INSERT'), false, 'student cannot write the ledger');
 select is(has_table_privilege(current_user, 'public.greenbit_ledger', 'UPDATE'), false, 'student cannot edit the ledger');
 select is(has_table_privilege(current_user, 'public.greenbit_ledger', 'DELETE'), false, 'student cannot delete ledger entries');

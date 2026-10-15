@@ -31,7 +31,7 @@ def main() -> None:
     train_dir = args.data / "train"
     val_dir = args.data / "val"
     if not train_dir.is_dir() or not val_dir.is_dir():
-        raise SystemExit("Expected --data/train and --data/val folders. See TRAIN.md for the image layout.")
+        raise SystemExit("Expected --data/train and --data/val folders. See SETUP.md for the image layout.")
 
     train_transform = transforms.Compose([
         transforms.Resize((224, 224)),

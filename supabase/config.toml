@@ -47,6 +47,9 @@ verify_jwt = false
 [functions.welcome-bonus]
 verify_jwt = true
 
+[functions.upload-profile-avatar]
+verify_jwt = true
+
 [functions.flag-anomalies]
 verify_jwt = false
 

@@ -16,4 +16,3 @@ ml/model/*.pt
 ml/model/*.pth
 *.log
 .DS_Store
-TRAIN.md

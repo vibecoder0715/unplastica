@@ -1,14 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { HABITS, type HabitCode } from "@unplastica/shared";
 import { Icon, type IconName } from "../components/Icon";
-import { isSupabaseConfigured, supabase } from "../lib/supabase";
+import { isSupabaseConfigured, supabase, uploadProfileAvatar } from "../lib/supabase";
 import { formatPoints } from "../lib/format";
 import { getLanguage, translate, type Language } from "../lib/i18n";
 
 type Page = "home" | "earn" | "events" | "settings" | "login";
 type Theme = "light" | "dark" | "system";
+type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice?: Promise<{ outcome: string }> };
+type InstallEnvironment = { standalone: boolean; insideApp: boolean; iosSafari: boolean };
 const LanguageContext = createContext<Language>("English");
 function useCopy() {
   const language = useContext(LanguageContext);
@@ -19,6 +21,8 @@ type Profile = {
   username: string;
   phone: string;
   tagline: string;
+  avatar_path: string | null;
+  avatar_url: string | null;
   preferences: { theme?: Theme; language?: string; notifications?: boolean };
 };
 
@@ -27,6 +31,8 @@ const guestProfile: Profile = {
   username: "guest",
   phone: "",
   tagline: "",
+  avatar_path: null,
+  avatar_url: null,
   preferences: { theme: "light", language: "English", notifications: true },
 };
 const habitImages: Record<HabitCode, string> = {
@@ -61,6 +67,14 @@ function normalizePhone(value: string) {
   if (digits.startsWith("0")) return "+60" + digits.slice(1);
   return "+60" + digits;
 }
+function detectInstallEnvironment(): InstallEnvironment {
+  const agent = navigator.userAgent;
+  return {
+    standalone: matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+    insideApp: /Instagram|FBAN|FBAV|FB_IAB|WhatsApp|Line\//i.test(agent),
+    iosSafari: /iPhone|iPad|iPod/i.test(agent) && /Safari/i.test(agent) && !/CriOS|FxiOS|EdgiOS|Instagram|FBAN|FBAV|FB_IAB|WhatsApp|Line\//i.test(agent),
+  };
+}
 
 export default function App() {
   const [page, setPage] = useState<Page>(readPage);
@@ -81,6 +95,9 @@ export default function App() {
   const [sample, setSample] = useState(false);
   const [toast, setToast] = useState("");
   const [notifications, setNotifications] = useState(true);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [installEnvironment, setInstallEnvironment] = useState<InstallEnvironment>(detectInstallEnvironment);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const t = useCallback((key: string, values?: Record<string, string | number>) => translate(language, key, values), [language]);
   userRef.current = user;
 
@@ -96,16 +113,22 @@ export default function App() {
   const loadAccount = useCallback(async (activeUser: User | null) => {
     if (!activeUser || !supabase) { setProfile(null); setBalance(0); return; }
     const [profileResult, balanceResult] = await Promise.all([
-      supabase.from("profiles").select("display_name,username,phone,tagline,preferences").eq("id", activeUser.id).maybeSingle(),
+      supabase.from("profiles").select("display_name,username,phone,tagline,preferences,avatar_path").eq("id", activeUser.id).maybeSingle(),
       supabase.from("greenbit_balances").select("balance").eq("user_id", activeUser.id).maybeSingle(),
     ]);
     const row = profileResult.data;
     const metadata = activeUser.user_metadata;
+    const avatarPath = typeof row?.avatar_path === "string" ? row.avatar_path : null;
+    const { data: signedAvatar } = avatarPath
+      ? await supabase.storage.from("profile-avatars").createSignedUrl(avatarPath, 3600)
+      : { data: null };
     setProfile({
       display_name: row?.display_name || metadata?.display_name || activeUser.email?.split("@")[0] || "Plastic-Free Warrior",
       username: row?.username || metadata?.username || activeUser.email?.split("@")[0] || "warrior",
       phone: row?.phone || metadata?.phone || activeUser.phone || "",
       tagline: row?.tagline || metadata?.tagline || "Refusing plastic, one meal at a time.",
+      avatar_path: avatarPath,
+      avatar_url: signedAvatar?.signedUrl ?? null,
       preferences: row?.preferences || {},
     });
     setBalance(Number(balanceResult.data?.balance ?? 0));
@@ -180,6 +203,23 @@ export default function App() {
     return () => window.removeEventListener("scroll", update);
   }, []);
   useEffect(() => {
+    setInstallEnvironment(detectInstallEnvironment());
+    const beforeInstall = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const installed = () => {
+      setInstallEnvironment((current) => ({ ...current, standalone: true }));
+      setInstallPrompt(null);
+    };
+    window.addEventListener("beforeinstallprompt", beforeInstall);
+    window.addEventListener("appinstalled", installed);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", beforeInstall);
+      window.removeEventListener("appinstalled", installed);
+    };
+  }, []);
+  useEffect(() => {
     if (ready && page === "earn" && !user) {
       history.replaceState({}, "", "/");
       setPage("home");
@@ -213,11 +253,32 @@ export default function App() {
     setShowLoginGate(false);
     navigate("login");
   };
+  const installApp = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    setInstallPrompt(null);
+  };
+  const uploadAvatar = async (file: File) => {
+    if (file.size > 50 * 1024) { notify(t("profile.photoTooLarge")); return; }
+    if (file.type !== "image/jpeg" && file.type !== "image/png") { notify(t("profile.photoType")); return; }
+    if (!user) { navigate("login"); return; }
+    setAvatarBusy(true);
+    try {
+      await uploadProfileAvatar(file);
+      await loadAccount(user);
+      notify(t("profile.photoUploaded"));
+    } catch (error) {
+      console.error("Profile photo upload failed", error);
+      notify(error instanceof Error && error.message.includes("50 KB") ? error.message : t("profile.photoError"));
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   return (
     <LanguageContext.Provider value={language}>
     <div className="app-shell">
-      <Header page={page} balance={balance} scrolled={scrolled} onProfile={openSettings} onHome={() => navigate("home")} />
+      <Header page={page} balance={balance} scrolled={scrolled} avatarUrl={profile?.avatar_url ?? null} onProfile={openSettings} onHome={() => navigate("home")} />
       <main className={"page page-" + page}>
         {page === "home" && <HomePage onEnter={() => requestLogin("earn")} />}
         {page === "earn" && <EarnPage
@@ -237,13 +298,18 @@ export default function App() {
           onNotification={(value) => { setNotifications(value); void savePreference("notifications", value); }}
           onLanguage={(value) => { setLanguage(value); void savePreference("language", value); }}
           onTheme={(value) => { setTheme(value); void savePreference("theme", value); }}
-          onAuth={() => { pendingPage.current = "home"; sessionStorage.setItem("unplastica-return-to", "home"); navigate("login"); }}
+          installAvailable={Boolean(installPrompt)}
+          installEnvironment={installEnvironment}
+          onInstall={installApp}
+          avatarBusy={avatarBusy}
+          onUploadAvatar={uploadAvatar}
+          onAuth={() => { pendingPage.current = "settings"; sessionStorage.setItem("unplastica-return-to", "settings"); navigate("login"); }}
           onSignOut={async () => { await supabase?.auth.signOut(); navigate("home"); notify(t("common.logoutSuccess")); }}
         />}
         {page === "login" && <AuthPage onAuthenticated={() => { const target = sessionStorage.getItem("unplastica-return-to") as Page | null; sessionStorage.removeItem("unplastica-return-to"); navigate(target && target !== "login" ? target : "home"); }} />}
       </main>
       {page !== "login" && <BottomNav page={page} onNavigate={(target) => target === "earn" ? requestLogin("earn") : navigate(target)} />}
-      {page !== "login" && <InstallPrompt />}
+      {page !== "login" && <InstallPrompt prompt={installPrompt} environment={installEnvironment} onInstall={installApp} />}
       <UpdateNotice />
       {toast && <div className="toast" role="status">{toast}</div>}
       {showLoginGate && <LoginRequiredDialog onClose={() => setShowLoginGate(false)} onLogin={startLogin} />}
@@ -259,7 +325,7 @@ export default function App() {
   );
 }
 
-function Header({ page, balance, scrolled, onProfile, onHome }: { page: Page; balance: number; scrolled: boolean; onProfile: () => void; onHome: () => void }) {
+function Header({ page, balance, scrolled, avatarUrl, onProfile, onHome }: { page: Page; balance: number; scrolled: boolean; avatarUrl: string | null; onProfile: () => void; onHome: () => void }) {
   const t = useCopy();
   return (
     <header className={"topbar topbar-" + page}>
@@ -273,7 +339,7 @@ function Header({ page, balance, scrolled, onProfile, onHome }: { page: Page; ba
             <BrandLogo scrolled={scrolled} />
           </button>
           {page !== "login" && <div className="balance-pill"><img src="/assets/brand/greenbits.png" alt="" /><strong>{formatPoints(balance)}</strong></div>}
-          {page !== "login" && <button className="avatar-button" onClick={onProfile} aria-label={t("common.profile")}><Icon name="user" /></button>}
+          {page !== "login" && <button className="avatar-button" onClick={onProfile} aria-label={t("common.profile")}>{avatarUrl ? <img className="header-avatar-photo" src={avatarUrl} alt="" /> : <Icon name="user" />}</button>}
         </>}
       </div>
     </header>
@@ -404,13 +470,36 @@ function Criterion({ icon, percent, title, detail }: { icon: IconName; percent: 
 
 function SettingsPage(props: {
   profile: Profile; email: string; guest: boolean; notifications: boolean; language: Language; theme: Theme;
+  installAvailable: boolean; installEnvironment: InstallEnvironment; onInstall: () => Promise<void>;
+  avatarBusy: boolean; onUploadAvatar: (file: File) => void;
   onNotification: (value: boolean) => void; onLanguage: (value: Language) => void; onTheme: (value: Theme) => void;
   onAuth: () => void; onSignOut: () => void;
 }) {
   const t = useCopy();
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   const initials = props.profile.display_name.trim().split(/\s+/).map((word) => word[0]).join("").slice(0, 2).toUpperCase();
+  const chooseAvatar = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (file) props.onUploadAvatar(file);
+  };
   return <div className="content settings-content">
-    <div className="profile-identity"><div className="profile-avatar">{initials}<span><Icon name="shield" size={16} /></span></div><h2>{props.profile.display_name}</h2></div>
+    {!props.installEnvironment.standalone && <section className="download-app-card">
+      <span className="download-app-icon"><Icon name="download" size={21} /></span>
+      <div className="download-app-copy"><strong>{t("install.keep")}</strong><span>{t("install.help")}</span></div>
+      <button className="download-app-button" onClick={() => props.installAvailable ? void props.onInstall() : setShowInstallHelp((value) => !value)}>{t("settings.downloadApp")}</button>
+      {showInstallHelp && <p className="download-app-help">{props.installEnvironment.insideApp ? t("install.browserHelp") : props.installEnvironment.iosSafari ? t("install.iosHelp") : t("install.manualHelp")}</p>}
+    </section>}
+    <div className="profile-identity">
+      <div className="profile-avatar">{props.profile.avatar_url ? <img src={props.profile.avatar_url} alt="" /> : initials}<span><Icon name="shield" size={16} /></span></div>
+      <h2>{props.profile.display_name}</h2>
+      {props.guest ? <button className="profile-photo-upload" onClick={props.onAuth}><Icon name="camera" size={18} />{t("profile.loginToUpload")}</button> :
+        <label className={"profile-photo-upload " + (props.avatarBusy ? "is-busy" : "")}>
+          <Icon name="camera" size={18} /><span>{props.avatarBusy ? t("profile.uploading") : props.profile.avatar_url ? t("profile.changePhoto") : t("profile.uploadPhoto")}</span>
+          <input type="file" accept="image/jpeg,image/png" onChange={chooseAvatar} disabled={props.avatarBusy} />
+        </label>}
+      <p className="profile-photo-note">{t("profile.photoLimit")}</p>
+    </div>
     <div className="profile-details">
       <DetailRow label={t("settings.username")} value={props.guest ? t("settings.guest") : "@" + props.profile.username} icon="users" />
       {!props.guest && props.email && <DetailRow label={t("settings.email")} value={props.email} icon="mail" />}
@@ -509,7 +598,7 @@ function AuthPage({ onAuthenticated }: { onAuthenticated: () => void }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="primary-button" disabled={busy}>{busy ? t("common.wait") : awaitingPhoneCode ? t("auth.verify") : mode === "signup" ? t("auth.signup") : t("auth.login")}</button>
     </form>
-    {!awaitingPhoneCode && <button className="text-button" onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError(""); setNotice(""); }}>{mode === "signup" ? t("auth.hasAccount") : t("auth.newAccount")}</button>}
+    {!awaitingPhoneCode && <button className="text-button auth-mode-link" onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError(""); setNotice(""); }}>{mode === "signup" ? t("auth.hasAccount") : t("auth.newAccount")}</button>}
   </section></div>;
 }
 
@@ -646,37 +735,18 @@ function Modal({ children, onClose, labelledBy }: { children: ReactNode; onClose
   </div>;
 }
 
-function InstallPrompt() {
+function InstallPrompt({ prompt, environment, onInstall }: { prompt: InstallPromptEvent | null; environment: InstallEnvironment; onInstall: () => Promise<void> }) {
   const t = useCopy();
-  const [prompt, setPrompt] = useState<{ prompt: () => Promise<void>; userChoice?: Promise<{ outcome: string }> } | null>(null);
   const [visible, setVisible] = useState(false);
-  const [insideApp, setInsideApp] = useState(false);
-  const [apple, setApple] = useState(false);
-  const [standalone, setStandalone] = useState(false);
   useEffect(() => {
-    const agent = navigator.userAgent;
-    const isStandalone = matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
-    const inApp = /Instagram|FBAN|FBAV|FB_IAB|WhatsApp|Line\//i.test(agent);
-    const isApple = /iPhone|iPad|iPod/i.test(agent);
-    setStandalone(isStandalone);
-    setInsideApp(inApp);
-    setApple(isApple && /Safari/i.test(agent) && !inApp);
-    setVisible(!isStandalone && (inApp || isApple));
-    const beforeInstall = (event: Event) => {
-      event.preventDefault();
-      setPrompt(event as Event & { prompt: () => Promise<void> });
-      setVisible(true);
-    };
-    const installed = () => { setStandalone(true); setVisible(false); };
-    window.addEventListener("beforeinstallprompt", beforeInstall);
-    window.addEventListener("appinstalled", installed);
-    return () => { window.removeEventListener("beforeinstallprompt", beforeInstall); window.removeEventListener("appinstalled", installed); };
-  }, []);
-  if (!visible || standalone) return null;
+    if (environment.standalone) setVisible(false);
+    else if (environment.insideApp || environment.iosSafari || prompt) setVisible(true);
+  }, [environment, prompt]);
+  if (!visible || environment.standalone) return null;
   return <aside className="install-prompt" aria-live="polite">
-    {insideApp ? <><strong>{t("install.openBrowser")}</strong><span>{t("install.browserHelp")}</span></> :
-      apple ? <><strong>{t("install.title")}</strong><span>{t("install.iosHelp")}</span></> :
-        <><strong>{t("install.keep")}</strong><span>{t("install.help")}</span>{prompt && <button onClick={async () => { await prompt.prompt(); setPrompt(null); setVisible(false); }}>{t("install.button")}</button>}</>}
+    {environment.insideApp ? <><strong>{t("install.openBrowser")}</strong><span>{t("install.browserHelp")}</span></> :
+      environment.iosSafari ? <><strong>{t("install.title")}</strong><span>{t("install.iosHelp")}</span></> :
+        <><strong>{t("install.keep")}</strong><span>{t("install.help")}</span>{prompt && <button onClick={async () => { await onInstall(); setVisible(false); }}>{t("install.button")}</button>}</>}
     <button className="install-close" aria-label={t("common.dismiss")} onClick={() => setVisible(false)}><Icon name="close" size={18} /></button>
   </aside>;
 }
