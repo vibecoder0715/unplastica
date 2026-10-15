@@ -9,6 +9,7 @@ coverage/
 .vite/
 supabase/.temp/
 supabase/.branches/
+.vercel/
 ml/.venv/
 ml/data/
 ml/model/*.pt
