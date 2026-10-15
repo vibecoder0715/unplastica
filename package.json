@@ -1,0 +1,14 @@
+{
+  "name": "unplastica",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "pnpm --filter @unplastica/web dev",
+    "build": "pnpm --filter @unplastica/web build",
+    "preview": "pnpm --filter @unplastica/web preview",
+    "typecheck": "pnpm --filter @unplastica/web typecheck",
+    "test": "pnpm --filter @unplastica/web test"
+  }
+}
+

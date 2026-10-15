@@ -1,0 +1,6 @@
+{
+  "version": "5",
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.57.0": "119dc185b1310fd98a9ee7cb6a660879a2562ea3730ebed9b80e85ecc8c7e3ee"
+  }
+}

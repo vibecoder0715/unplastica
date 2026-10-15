@@ -1,0 +1,110 @@
+import { admin, isResponse, requireVerifiedUser } from "../_shared/clients.ts";
+import { env, json, options } from "../_shared/http.ts";
+
+const maxBytes = 10 * 1024 * 1024;
+function sha256(bytes: Uint8Array): Promise<ArrayBuffer> {
+  return crypto.subtle.digest("SHA-256", bytes.buffer as ArrayBuffer);
+}
+function hex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+function isImage(bytes: Uint8Array, type: string): boolean {
+  if (type === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (type === "image/png") return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  if (type === "image/webp") return String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
+  return false;
+}
+
+Deno.serve(async (request) => {
+  const preflight = options(request);
+  if (preflight) return preflight;
+  if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+  try {
+    const user = await requireVerifiedUser(request);
+    if (isResponse(user)) return user;
+    const body = await request.json().catch(() => null);
+    const submissionId = body && typeof body.submission_id === "string" ? body.submission_id : "";
+    if (!/^[0-9a-f-]{36}$/i.test(submissionId)) return json({ error: "Invalid submission." }, 400);
+
+    const db = admin();
+    const { data: submission, error: lookupError } = await db.from("habit_submissions")
+      .select("id,user_id,habit_code,storage_path,content_type,status,expires_at,score,points_awarded")
+      .eq("id", submissionId).eq("user_id", user.id).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!submission) return json({ error: "Submission not found." }, 404);
+    if (new Date(submission.expires_at).getTime() < Date.now()) return json({ error: "This proof has expired." }, 410);
+    if (submission.status === "approved") return json({ status: "approved", points: submission.points_awarded, score: submission.score });
+    if (submission.status === "rejected" || submission.status === "expired") return json({ status: submission.status, points: 0 });
+    if (submission.status !== "pending_upload" && submission.status !== "uploaded") return json({ error: "This proof is not ready." }, 409);
+
+    const { data: file, error: downloadError } = await db.storage.from("proof-media").download(submission.storage_path);
+    if (downloadError || !file) return json({ error: "Upload the proof photo before checking it." }, 409);
+    if (file.size > maxBytes) return json({ error: "The proof is larger than allowed." }, 413);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!isImage(bytes, submission.content_type)) {
+      await db.from("habit_submissions").update({ status: "rejected", scored_at: new Date().toISOString() }).eq("id", submission.id).eq("user_id", user.id);
+      return json({ status: "rejected", reason: "unsupported_image" }, 422);
+    }
+    const proofHash = hex(await sha256(bytes));
+    if (submission.status === "pending_upload") {
+      const { error } = await db.from("habit_submissions").update({ status: "uploaded" })
+        .eq("id", submission.id).eq("user_id", user.id).eq("status", "pending_upload");
+      if (error) throw error;
+    }
+
+    const form = new FormData();
+    form.set("file", new Blob([bytes], { type: submission.content_type }), "proof-image");
+    form.set("habit_code", submission.habit_code);
+    let modelResponse: Response;
+    try {
+      modelResponse = await fetch(env("ML_SCORER_URL").replace(/\/$/, "") + "/score", {
+        method: "POST", headers: { Authorization: `Bearer ${env("ML_SCORER_API_KEY")}` }, body: form,
+        signal: AbortSignal.timeout(25000),
+      });
+    } catch (error) {
+      console.error("ML scorer unavailable", error);
+      return json({ code: "model_unavailable", error: "The scoring service is not available yet." }, 503);
+    }
+    if (!modelResponse.ok) {
+      console.error("ML scorer returned", modelResponse.status);
+      return json({ code: "model_unavailable", error: "The scoring service could not check this photo." }, 503);
+    }
+    const output = await modelResponse.json().catch(() => null) as {
+      predicted_label?: unknown; confidence?: unknown; model_version?: unknown;
+    } | null;
+    const confidence = typeof output?.confidence === "number" ? output.confidence : NaN;
+    const label = typeof output?.predicted_label === "string" ? output.predicted_label : "";
+    const modelVersion = typeof output?.model_version === "string" ? output.model_version.slice(0, 80) : "unknown";
+    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1 || !label) {
+      return json({ code: "model_unavailable", error: "The scoring service returned an invalid result." }, 503);
+    }
+    const threshold = Number(Deno.env.get("ML_SCORE_THRESHOLD") ?? "0.85");
+    if (!Number.isFinite(threshold) || threshold < 0.5 || threshold > 1) throw new Error("ML_SCORE_THRESHOLD must be between 0.50 and 1.00");
+    if (confidence < threshold || label !== submission.habit_code) {
+      const { error } = await db.from("habit_submissions").update({
+        status: "rejected", score: confidence, predicted_label: label, model_version: modelVersion,
+        proof_sha256: proofHash, scored_at: new Date().toISOString(),
+      }).eq("id", submission.id).eq("user_id", user.id).eq("status", "uploaded");
+      if (error) throw error;
+      return json({ status: "rejected", score: confidence, threshold, reason: label !== submission.habit_code ? "habit_mismatch" : "below_threshold" });
+    }
+    const { data: awarded, error: awardError } = await db.rpc("award_greenbits", {
+      p_submission_id: submission.id,
+      p_user_id: user.id,
+      p_score: confidence,
+      p_threshold: threshold,
+      p_predicted_label: label,
+      p_model_version: modelVersion,
+      p_proof_sha256: proofHash,
+    });
+    if (awardError) {
+      if (awardError.message.includes("proof_already_used")) return json({ status: "rejected", reason: "proof_already_used" }, 409);
+      throw awardError;
+    }
+    const result = Array.isArray(awarded) ? awarded[0] : awarded;
+    return json({ status: result?.status ?? "approved", points: result?.points ?? 0, score: confidence });
+  } catch (error) {
+    console.error("verify-scan", error);
+    return json({ error: "Could not verify this proof." }, 500);
+  }
+});
