@@ -282,14 +282,10 @@ function Header({ page, balance, scrolled, onProfile, onHome }: { page: Page; ba
 
 function BrandLogo({ scrolled = true }: { scrolled?: boolean }) {
   return <span className={"brand-crop " + (scrolled ? "wordmark-visible" : "mark-visible")} aria-hidden="true">
-    <svg className="brand-mark" viewBox="134 0 322 282" role="presentation">
-      <image className="brand-image-light" href="/assets/brand/unplastica-light.png" width="612" height="408" />
-      <image className="brand-image-dark" href="/assets/brand/unplastica-dark.png" width="612" height="408" />
-    </svg>
-    <svg className="brand-wordmark" viewBox="36 274 540 88" role="presentation">
-      <image className="brand-image-light" href="/assets/brand/unplastica-light.png" width="612" height="408" />
-      <image className="brand-image-dark" href="/assets/brand/unplastica-dark.png" width="612" height="408" />
-    </svg>
+    <img className="brand-mark brand-image-light" src="/assets/brand/brand-mark-light.png" alt="" />
+    <img className="brand-mark brand-image-dark" src="/assets/brand/brand-mark-dark.png" alt="" />
+    <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png" alt="" />
+    <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png" alt="" />
   </span>;
 }
 
@@ -365,7 +361,14 @@ function EventsPage({ onSample }: { onSample: () => void }) {
     { title: t("events.pioneer"), detail: t("events.pioneerDetail"), image: "/assets/events/apu-mark.png" },
   ];
   return <div className="content events-content">
-    <section className="event-intro"><h1>{t("events.title")}</h1></section>
+    <section className="event-intro">
+      <h1>{t("events.headline")}</h1>
+      <article className="campus-feature">
+        <img className="campus-feature-logo" src="/assets/events/apu-mark.png" alt="APU logo" />
+        <h2>{t("events.campusName")}</h2>
+        <p>{t("events.campusFullName")}</p>
+      </article>
+    </section>
     <section className="prizes">
       <div className="section-heading"><h2>{t("events.prizes")}</h2><span>{t("events.pool")}</span></div>
       <article className="champion-prize"><span className="prize-icon"><Icon name="trophy" /></span><strong>{t("events.champion")}</strong><b>RM<br />500</b></article>

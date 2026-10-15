@@ -13,4 +13,12 @@ describe("hard-coded interface languages", () => {
   it("interpolates the awarded Greenbits amount", () => {
     expect(translate("中文", "camera.success", { points: 500 })).toContain("500 Greenbits");
   });
+
+  it.each([
+    ["English", "APU Campus"],
+    ["Bahasa Melayu", "Kampus APU"],
+    ["中文", "APU 校园"],
+  ] as const)("translates the tournament campus card in %s", (language, expected) => {
+    expect(translate(language, "events.campusName")).toBe(expected);
+  });
 });
