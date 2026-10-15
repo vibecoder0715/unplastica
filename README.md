@@ -8,7 +8,7 @@ Unplastica is a phone-first, installable web app that rewards verified low-plast
 2. Copy \`.env.example\` to \`.env\`.
 3. For visual-only preview, leave the Supabase values blank.
 4. Run \`pnpm install\`, then \`pnpm dev\`.
-5. Open the printed local URL. The demo surface is intentionally read-only until Supabase is configured.
+5. Open the printed local URL. Visitors are guests until Supabase is configured: they can browse, but earning features ask them to log in.
 
 ## Deploy a preview to Vercel
 
@@ -18,6 +18,8 @@ Unplastica is a phone-first, installable web app that rewards verified low-plast
 4. Deploy. Vercel provides HTTPS, which is required for PWA installation and camera access.
 
 See [docs/supabase-and-vercel-setup.md](docs/supabase-and-vercel-setup.md) for the complete free-tier setup, including database migrations, Storage, Edge Function secrets, and the retention cron.
+
+The auth screen supports verified email or phone + password, username/email/phone login, Google OAuth, and English, Bahasa Melayu, and Chinese UI. Supabase provider settings must be completed before live sign-in is available. A verified account receives a one-time 500 Greenbits welcome bonus from the server after first sign-in.
 
 ## Security model
 

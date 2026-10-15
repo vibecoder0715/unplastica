@@ -5,7 +5,7 @@ export const admin = () => createClient(env("SUPABASE_URL"), env("SUPABASE_SERVI
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
 
-export async function requireVerifiedUser(request: Request): Promise<{ id: string; email: string } | Response> {
+export async function requireVerifiedUser(request: Request): Promise<{ id: string; email: string | null } | Response> {
   const match = request.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i);
   if (!match) return json({ error: "Sign in with a verified email first." }, 401);
   const client = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), {
@@ -14,10 +14,10 @@ export async function requireVerifiedUser(request: Request): Promise<{ id: strin
   });
   const { data, error } = await client.auth.getUser(match[1]);
   const user: User | null = data.user;
-  if (error || !user || !user.email || !user.email_confirmed_at) {
-    return json({ error: "A verified email address is required." }, 401);
+  if (error || !user || (!user.email_confirmed_at && !user.phone_confirmed_at)) {
+    return json({ error: "A verified email address or phone number is required." }, 401);
   }
-  return { id: user.id, email: user.email };
+  return { id: user.id, email: user.email ?? null };
 }
 
 export function isResponse(value: unknown): value is Response {

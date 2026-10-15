@@ -41,6 +41,12 @@ verify_jwt = true
 [functions.redeem-voucher]
 verify_jwt = true
 
+[functions.sign-in]
+verify_jwt = false
+
+[functions.welcome-bonus]
+verify_jwt = true
+
 [functions.flag-anomalies]
 verify_jwt = false
 
