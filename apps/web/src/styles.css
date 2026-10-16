@@ -488,7 +488,8 @@ img { max-width: 100%; }
 .auth-page-card { width: 100%; max-height: none; box-shadow: 0 14px 45px rgb(0 0 0 / 9%); }
 .auth-dialog .brand-crop, .login-required-dialog .brand-crop { width: 140px; height: 34px; margin: 0 auto 14px; }
 .auth-dialog .brand-wordmark, .login-required-dialog .brand-wordmark { top: 0; left: 0; width: 140px; height: 34px; }
-.google-button { width: 100%; min-height: 48px; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink); background: var(--surface); cursor: pointer; font: 700 calc((14px) * var(--desktop-type-scale, 1))/1 "Outfit", sans-serif; }
+.google-button, .microsoft-button { width: 100%; min-height: 48px; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink); background: var(--surface); cursor: pointer; font: 700 calc((14px) * var(--desktop-type-scale, 1))/1 "Outfit", sans-serif; transition: background 0.15s ease, border-color 0.15s ease; }
+.google-button:hover, .microsoft-button:hover { background: var(--surface-low); border-color: var(--muted); }
 .auth-divider { display: flex; align-items: center; gap: 12px; margin: 15px 0; color: var(--muted); font-size: calc((12px) * var(--desktop-type-scale, 1)); }
 .auth-divider::before, .auth-divider::after { flex: 1; height: 1px; background: var(--line); content: ""; }
 .auth-method { grid-template-columns: 1fr 1fr; margin: 15px 0; }

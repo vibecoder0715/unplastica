@@ -33,7 +33,7 @@ Deno.serve(async (request: Request) => {
     if (!loginId) return fail();
 
     const providers = (user.app_metadata?.providers as string[] | undefined) || [];
-    const isOAuthOnly = providers.includes("google") && !providers.includes("email") && !providers.includes("phone");
+    const isOAuthOnly = (providers.includes("google") || providers.includes("azure")) && !providers.includes("email") && !providers.includes("phone");
 
     // Auto-confirm email if unconfirmed so users are never locked out after signup
     if (user.email && !user.email_confirmed_at) {
@@ -50,7 +50,7 @@ Deno.serve(async (request: Request) => {
     if (error || !data?.session) {
       if (isOAuthOnly) {
         return json({
-          error: "This account was registered with Google. Please log in using 'Continue with Google', or set up a password in Settings."
+          error: "This account was registered with Google / Microsoft OAuth. Please log in using the OAuth button, or set up a password in Settings."
         }, 401);
       }
       return fail();

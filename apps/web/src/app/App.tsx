@@ -19,6 +19,7 @@ function useCopy() {
 type Profile = {
   display_name: string;
   username: string;
+  email: string;
   phone: string;
   tagline: string;
   avatar_path: string | null;
@@ -29,6 +30,7 @@ type Profile = {
 const guestProfile: Profile = {
   display_name: "Guest account",
   username: "guest",
+  email: "",
   phone: "",
   tagline: "",
   avatar_path: null,
@@ -120,7 +122,7 @@ export default function App() {
     const klStartUtc = new Date(`${klDateStr}T00:00:00.000+08:00`).toISOString();
 
     const [profileResult, balanceResult, dailyResult] = await Promise.all([
-      supabase.from("profiles").select("display_name,username,phone,tagline,preferences,avatar_path").eq("id", activeUser.id).maybeSingle(),
+      supabase.from("profiles").select("display_name,username,email,phone,tagline,preferences,avatar_path").eq("id", activeUser.id).maybeSingle(),
       supabase.from("greenbit_balances").select("balance").eq("user_id", activeUser.id).maybeSingle(),
       supabase.from("habit_submissions").select("habit_code").eq("user_id", activeUser.id).eq("status", "approved").gte("created_at", klStartUtc),
     ]);
@@ -150,9 +152,12 @@ export default function App() {
       ? row.username
       : metadata?.username || mockDefaultUsername;
 
+    const userEmail = (row?.email || metadata?.email || activeUser.email || "").trim();
+
     setProfile({
       display_name: displayName,
       username: username,
+      email: userEmail,
       phone: row?.phone || metadata?.phone || activeUser.phone || "",
       tagline: row?.tagline || metadata?.tagline || "Refusing plastic, one meal at a time.",
       avatar_path: avatarPath,
@@ -387,24 +392,79 @@ export default function App() {
     }
   };
 
-  const updateProfile = async (updated: { display_name: string; username: string; phone: string; tagline: string }) => {
+  const updateProfile = async (updated: { display_name: string; username: string; email?: string; phone: string; tagline: string }) => {
     if (!supabase || !user) return;
     const cleanUsername = updated.username.trim().toLowerCase();
+    const cleanEmail = (updated.email ?? "").trim().toLowerCase();
+    const cleanPhone = updated.phone.trim();
+
+    // Check duplicate phone if non-empty
+    if (cleanPhone) {
+      const { data: existingPhone } = await supabase
+        .from("profiles")
+        .select("id")
+        .neq("id", user.id)
+        .eq("phone", cleanPhone)
+        .maybeSingle();
+      if (existingPhone) {
+        const err = new Error("This phone number is already registered to another account. Please use a different phone number.");
+        notify(err.message);
+        throw err;
+      }
+    }
+
+    // Check duplicate email if non-empty
+    if (cleanEmail) {
+      const { data: existingEmail } = await supabase
+        .from("profiles")
+        .select("id")
+        .neq("id", user.id)
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+      if (existingEmail) {
+        const err = new Error("This email / Gmail is already registered to another account. Please use a different email.");
+        notify(err.message);
+        throw err;
+      }
+    }
+
     const { error: profileErr } = await supabase.from("profiles").update({
       display_name: updated.display_name.trim(),
       username: cleanUsername,
-      phone: updated.phone.trim(),
+      email: cleanEmail || user.email || "",
+      phone: cleanPhone,
       tagline: updated.tagline.trim(),
     }).eq("id", user.id);
+
     if (profileErr) {
-      notify("Failed to update profile: " + profileErr.message);
-      throw profileErr;
+      let friendlyMsg = "Failed to update profile: " + profileErr.message;
+      if (profileErr.message.includes("profiles_phone_unique") || profileErr.message.includes("phone")) {
+        friendlyMsg = "This phone number is already registered to another account. Please use a different phone number.";
+      } else if (profileErr.message.includes("profiles_email_unique") || profileErr.message.includes("email")) {
+        friendlyMsg = "This email / Gmail is already registered to another account. Please use a different email.";
+      } else if (profileErr.message.includes("profiles_username") || profileErr.message.includes("unique")) {
+        friendlyMsg = "This username is already taken. Please choose another.";
+      }
+      notify(friendlyMsg);
+      throw new Error(friendlyMsg);
     }
-    await supabase.auth.updateUser({
-      data: { display_name: updated.display_name.trim(), username: cleanUsername }
+
+    const userUpdatePayload: { data: Record<string, string>; email?: string } = {
+      data: {
+        display_name: updated.display_name.trim(),
+        username: cleanUsername,
+        phone: cleanPhone,
+      },
+    };
+    if (cleanEmail && cleanEmail !== user.email?.toLowerCase()) {
+      userUpdatePayload.email = cleanEmail;
+    }
+    await supabase.auth.updateUser(userUpdatePayload).catch((e) => {
+      console.warn("Auth user update notice:", e);
     });
+
     await loadAccount(user);
-    notify("Profile & username updated successfully!");
+    notify("Profile updated successfully!");
   };
 
   const updatePassword = async (newPassword: string) => {
@@ -675,7 +735,7 @@ function SettingsPage(props: {
   avatarBusy: boolean; onUploadAvatar: (file: File) => void;
   onNotification: (value: boolean) => void; onLanguage: (value: Language) => void; onTheme: (value: Theme) => void;
   onAuth: () => void; onSignOut: () => void;
-  onUpdateProfile?: (updated: { display_name: string; username: string; phone: string; tagline: string }) => Promise<void>;
+  onUpdateProfile?: (updated: { display_name: string; username: string; email?: string; phone: string; tagline: string }) => Promise<void>;
   onUpdatePassword?: (password: string) => Promise<void>;
 }) {
   const t = useCopy();
@@ -684,6 +744,7 @@ function SettingsPage(props: {
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [editName, setEditName] = useState(props.profile.display_name);
   const [editUsername, setEditUsername] = useState(props.profile.username);
+  const [editEmail, setEditEmail] = useState(props.profile.email || props.email || "");
   const [editPhone, setEditPhone] = useState(props.profile.phone);
   const [editTagline, setEditTagline] = useState(props.profile.tagline);
   const [newPassword, setNewPassword] = useState("");
@@ -694,12 +755,31 @@ function SettingsPage(props: {
   const [passwordError, setPasswordError] = useState("");
   const initials = props.profile.display_name.trim().split(/\s+/).map((word) => word[0]).join("").slice(0, 2).toUpperCase();
 
+  const displayEmail = (props.profile.email || props.email || "").trim();
+
   const isGoogleOAuth = Boolean(
     props.user?.app_metadata?.providers?.includes("google") ||
     props.user?.app_metadata?.provider === "google" ||
     props.user?.identities?.some((id) => id.provider === "google") ||
-    (props.email && props.email.toLowerCase().endsWith("@gmail.com"))
+    displayEmail.toLowerCase().endsWith("@gmail.com")
   );
+
+  const isMicrosoftOAuth = Boolean(
+    props.user?.app_metadata?.providers?.includes("azure") ||
+    props.user?.app_metadata?.provider === "azure" ||
+    props.user?.identities?.some((id) => id.provider === "azure") ||
+    displayEmail.toLowerCase().endsWith("@outlook.com") ||
+    displayEmail.toLowerCase().endsWith("@hotmail.com") ||
+    displayEmail.toLowerCase().endsWith("@live.com")
+  );
+
+  useEffect(() => {
+    setEditName(props.profile.display_name);
+    setEditUsername(props.profile.username);
+    setEditEmail(props.profile.email || props.email || "");
+    setEditPhone(props.profile.phone);
+    setEditTagline(props.profile.tagline);
+  }, [props.profile, props.email]);
 
   const chooseAvatar = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
@@ -716,13 +796,14 @@ function SettingsPage(props: {
       await props.onUpdateProfile({
         display_name: editName,
         username: editUsername,
+        email: editEmail,
         phone: editPhone,
         tagline: editTagline,
       });
       setShowEditProfile(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to update profile";
-      setProfileError(msg.includes("unique") || msg.includes("profiles_username") ? "This username is already taken. Please choose another." : msg);
+      setProfileError(msg);
     } finally {
       setSavingProfile(false);
     }
@@ -770,7 +851,13 @@ function SettingsPage(props: {
       {isGoogleOAuth && (
         <div className="oauth-status-badge">
           <GoogleMark />
-          <span>Google Connected{props.email ? `: ${props.email}` : ""}</span>
+          <span>Google Connected{displayEmail ? `: ${displayEmail}` : ""}</span>
+        </div>
+      )}
+      {isMicrosoftOAuth && (
+        <div className="oauth-status-badge" style={{ borderColor: "#00a4ef" }}>
+          <MicrosoftMark />
+          <span>Microsoft Connected{displayEmail ? `: ${displayEmail}` : ""}</span>
         </div>
       )}
       {props.guest ? <button className="profile-photo-upload" onClick={props.onAuth}><Icon name="camera" size={18} />{t("profile.loginToUpload")}</button> :
@@ -783,13 +870,13 @@ function SettingsPage(props: {
     <div className="profile-details">
       <DetailRow label={t("settings.username")} value={props.guest ? t("settings.guest") : "@" + props.profile.username} icon="users" />
       <DetailRow
-        label={isGoogleOAuth || !props.email || props.guest ? "Google Account (Gmail)" : t("settings.email")}
-        value={props.email ? props.email : props.guest ? "Guest (Log in via OAuth to connect Gmail)" : "Not linked"}
+        label={isMicrosoftOAuth ? "Outlook / Microsoft Account" : isGoogleOAuth || displayEmail.toLowerCase().endsWith("@gmail.com") ? "Google Account (Gmail)" : t("settings.email")}
+        value={displayEmail ? displayEmail : props.guest ? "Guest (Log in to connect email/OAuth)" : "Not linked (tap Edit Profile to add)"}
         icon="mail"
       />
       <DetailRow
         label={t("settings.phone")}
-        value={props.profile.phone ? props.profile.phone : props.guest ? "Guest (Log in to add phone)" : "Not linked (optional)"}
+        value={props.profile.phone ? props.profile.phone : props.guest ? "Guest (Log in to add phone)" : "Not linked (tap Edit Profile to add)"}
         icon="user"
       />
       {!props.guest && props.profile.tagline && <DetailRow label={t("settings.tagline")} value={props.profile.tagline} icon="bulb" />}
@@ -818,9 +905,18 @@ function SettingsPage(props: {
 
     {showEditProfile && (
       <section className="settings-edit-card">
-        <h4>Edit Profile & Username</h4>
-        <p>Set a custom username so you can log in directly using your username instead of email.</p>
+        <h4>Edit Profile & Credentials</h4>
+        <p>Set a custom username, display name, email/Gmail, and phone number directly.</p>
         <form onSubmit={(e) => void handleSaveProfile(e)}>
+          <label>Display Name
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value.slice(0, 80))}
+              placeholder="e.g. User 6s37a29f31"
+              required
+            />
+          </label>
           <label>Username
             <input
               type="text"
@@ -831,34 +927,37 @@ function SettingsPage(props: {
               maxLength={40}
               required
             />
+            <span className="field-hint">3–40 characters: letters, numbers, underscore, hyphen.</span>
           </label>
-          <label>Display Name
+          <label>Email / Gmail Address
             <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value.slice(0, 80))}
-              placeholder="e.g. User 6s37a29f31"
-              required
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value.trim().toLowerCase())}
+              placeholder="e.g. warrior2026@gmail.com"
             />
+            <span className="field-hint">Type your Gmail or email address here directly. Each email can only belong to one account.</span>
           </label>
           <label>Phone Number
             <input
               type="tel"
               value={editPhone}
-              onChange={(e) => setEditPhone(e.target.value)}
+              onChange={(e) => setEditPhone(e.target.value.slice(0, 32))}
               placeholder="+60 12 345 6789"
             />
+            <span className="field-hint">Type your phone number here directly. Must be unique across all accounts.</span>
           </label>
           <label>Tagline
             <input
               type="text"
               value={editTagline}
               onChange={(e) => setEditTagline(e.target.value.slice(0, 160))}
+              placeholder="Refusing plastic, one meal at a time."
             />
           </label>
           {profileError && <p className="form-error" role="alert">{profileError}</p>}
           <button className="settings-save-button" disabled={savingProfile}>
-            {savingProfile ? "Saving…" : "Save Profile & Username"}
+            {savingProfile ? "Saving…" : "Save Profile & Credentials"}
           </button>
         </form>
       </section>
@@ -1095,10 +1194,37 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
     });
     if (oauthError) { setError(t("auth.oauthError")); setBusy(false); }
   };
+  const microsoft = async () => {
+    if (!supabase) { setError(t("auth.setupNeeded")); return; }
+    setBusy(true); setError("");
+    const returnTo = sessionStorage.getItem("unplastica-return-to") || "home";
+    sessionStorage.setItem("unplastica-return-to", returnTo);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        scopes: "email openid profile",
+        redirectTo: `${window.location.origin}/`,
+        queryParams: {
+          prompt: "select_account",
+        },
+      },
+    });
+    if (oauthError) {
+      if (oauthError.message.includes("provider is not enabled") || oauthError.message.includes("azure")) {
+        setError("Microsoft / Outlook OAuth requires Azure credentials in Supabase Dashboard. You can also log in directly using your Outlook email!");
+      } else {
+        setError(oauthError.message || t("auth.oauthError"));
+      }
+      setBusy(false);
+    }
+  };
   return <div className="content auth-page"><section className="dialog auth-dialog auth-page-card">
     <BrandLogo scrolled /><h2 id="auth-title">{mode === "signup" ? t("auth.signupTitle") : t("auth.loginTitle")}</h2>
     <p>{t("auth.subtitle")}</p>
-    <button className="google-button" type="button" onClick={() => void google()} disabled={busy}><GoogleMark />{t("auth.google")}</button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "8px 0" }}>
+      <button className="google-button" style={{ margin: 0 }} type="button" onClick={() => void google()} disabled={busy}><GoogleMark />{t("auth.google")}</button>
+      <button className="microsoft-button" style={{ margin: 0 }} type="button" onClick={() => void microsoft()} disabled={busy}><MicrosoftMark />Continue with Microsoft / Outlook</button>
+    </div>
     <div className="auth-divider"><span>{t("auth.or")}</span></div>
     {mode === "signup" && <div className="segmented auth-method"><button className={method === "email" ? "active" : ""} onClick={() => { setMethod("email"); setIdentifier(""); setNotice(""); setAwaitingPhoneCode(false); }}>{t("auth.emailMode")}</button><button className={method === "phone" ? "active" : ""} onClick={() => { setMethod("phone"); setIdentifier(""); setNotice(""); setAwaitingPhoneCode(false); }}>{t("auth.phoneMode")}</button></div>}
     <form onSubmit={(event) => void submit(event)}>
@@ -1222,6 +1348,17 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
 
 function GoogleMark() {
   return <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5h6.7c3.9-3.6 6-8.8 6-14.9Z"/><path fill="#34A853" d="M24 44c5.4 0 10-1.8 13.4-4.8l-6.6-5.1c-1.8 1.2-4.1 2-6.8 2-5.2 0-9.6-3.5-11.2-8.2H6v5.2A20 20 0 0 0 24 44Z"/><path fill="#FBBC05" d="M12.8 27.9a12 12 0 0 1 0-7.7V15H6a20 20 0 0 0 0 18.1l6.8-5.2Z"/><path fill="#EA4335" d="M24 12c2.9 0 5.5 1 7.5 3l5.8-5.8C33.9 5.8 29.4 4 24 4A20 20 0 0 0 6 15l6.8 5.2C14.4 15.5 18.8 12 24 12Z"/></svg>;
+}
+
+function MicrosoftMark() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 21 21" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+    </svg>
+  );
 }
 
 function LoginRequiredDialog({ onClose, onLogin }: { onClose: () => void; onLogin: () => void }) {
