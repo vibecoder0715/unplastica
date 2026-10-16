@@ -775,16 +775,99 @@ function InstallPrompt({ prompt, environment, onInstall }: { prompt: InstallProm
 
 function UpdateNotice() {
   const t = useCopy();
-  const [update, setUpdate] = useState<((reloadPage?: boolean) => Promise<void>) | null>(null);
-  const [available, setAvailable] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    let alive = true;
+
+    let refreshing = false;
+    let pollTimer: number | undefined;
+    let cleanupListeners: (() => void) | undefined;
+
+    const onControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      setUpdating(true);
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
     void import("virtual:pwa-register").then(({ registerSW }) => {
-      const refresh = registerSW({ immediate: true, onNeedRefresh: () => setAvailable(true) });
-      if (alive) setUpdate(() => refresh);
+      const updateSW = registerSW({
+        immediate: true,
+        onNeedRefresh() {
+          setUpdating(true);
+          void updateSW(true);
+        },
+        onRegisteredSW(_swUrl, registration) {
+          if (!registration) return;
+
+          // If a worker is already waiting (e.g. from previous background fetch in PWA), activate it immediately
+          if (registration.waiting) {
+            setUpdating(true);
+            void updateSW(true);
+            return;
+          }
+
+          let lastCheck = 0;
+          const checkForUpdates = () => {
+            const now = Date.now();
+            // Throttle checks to once every 10 seconds to avoid spamming the network
+            if (now - lastCheck < 10_000 || !navigator.onLine) return;
+            lastCheck = now;
+            registration.update().catch(() => {});
+          };
+
+          // 1. Initial check when app opens
+          checkForUpdates();
+
+          // 2. Poll every 25 seconds while app is running
+          pollTimer = window.setInterval(checkForUpdates, 25_000);
+
+          // 3. Handlers for when phone or laptop PWA is resumed/brought to foreground
+          const onVisibleOrFocus = () => {
+            if (document.visibilityState === "visible") checkForUpdates();
+          };
+          const onPageShow = () => checkForUpdates();
+          const onOnline = () => checkForUpdates();
+
+          document.addEventListener("visibilitychange", onVisibleOrFocus);
+          window.addEventListener("focus", onVisibleOrFocus);
+          window.addEventListener("pageshow", onPageShow);
+          window.addEventListener("online", onOnline);
+
+          // 4. Also listen for new worker installation
+          registration.addEventListener("updatefound", () => {
+            const installing = registration.installing;
+            if (!installing) return;
+            installing.addEventListener("statechange", () => {
+              if (installing.state === "installed" && navigator.serviceWorker.controller) {
+                setUpdating(true);
+                void updateSW(true);
+              }
+            });
+          });
+
+          cleanupListeners = () => {
+            document.removeEventListener("visibilitychange", onVisibleOrFocus);
+            window.removeEventListener("focus", onVisibleOrFocus);
+            window.removeEventListener("pageshow", onPageShow);
+            window.removeEventListener("online", onOnline);
+          };
+        },
+      });
     });
-    return () => { alive = false; };
+
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      if (pollTimer) window.clearInterval(pollTimer);
+      if (cleanupListeners) cleanupListeners();
+    };
   }, []);
-  return available ? <div className="update-notice" role="status"><span>{t("update.notice")}</span><button onClick={() => void update?.(true)}>{t("update.refresh")}</button></div> : null;
+
+  return updating ? (
+    <div className="update-notice force-update-pill" role="status">
+      <span>{t("update.notice")}</span>
+    </div>
+  ) : null;
 }
