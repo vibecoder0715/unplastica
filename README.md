@@ -1,34 +1,32 @@
-# Unplastica (Beta)
+# Unplastica
 
-> **Note:** Unplastica is currently in **Beta**. We are actively testing and improving features.
+Live website: [https://unplastica.vercel.app](https://unplastica.vercel.app)
 
-- **Demo website:** https://unplastica.vercel.app/
-- **Real website:** Pending...
-
-Unplastica is a fun, gamified app that helps you cut down on single-use plastic. Whenever you make an eco-friendly choice—like using a reusable bag, refilling your water bottle, or using your own food container—just take a photo. Our smart machine learning detects your action and rewards you with **Greenbits** points!
-
-# Features
-
-- 📸 **Smart Action Detection:** Snap a photo of your plastic-free habit. Our machine learning model automatically checks your action.
-- 🎮 **Gamified Habits & Points:** Earn **Greenbits** for every green action you take. Build daily streaks and level up your eco profile.
-- 📱 **Mobile-First & Installable:** Works smoothly in your phone browser and installs right to your home screen like a native app (PWA).
-- 🌐 **Multi-Language Support:** Easy to use with English, Bahasa Melayu, and Chinese language options.
-- 🔒 **Private & Secure:** Proof photos are kept private, and points are protected with secure backend verification.
-
-# Tech stack
-
-In a nutshell:
-
-- **Frontend:** React 19, TypeScript, and Vite built as an installable Progressive Web App (PWA).
-- **Machine Learning:** PyTorch (MobileNetV3) & FastAPI service to detect and score eco-friendly habit photos.
-- **Backend & Database:** Supabase (PostgreSQL, Edge Functions, and Authentication) to manage user accounts and points.
-- **Hosting:** Vercel for the web app and cloud hosting for the ML scoring service.
-
-## Setup
-
-See [SETUP.md](SETUP.md) for Vercel deployment, connecting a real Supabase backend, secure avatar uploads, and training/deploying the camera model.
+Unplastica turns plastic-free habits into a fun daily game. Snap a photo of your reusable container, bag, or bottle, get verified by AI, and earn Greenbits rewards. Greenbits used for in-game purchases.
 
 ---
 
+## Mission & Vision
 
+- **Mission:** Make cutting down single-use plastic simple, rewarding, and part of everyday life.
+- **Vision:** A clean future free from single-use plastic, powered by positive daily habits.
 
+---
+
+## Features
+
+- **AI Habit Scanner:** Snap a photo of your reusable items. The app checks your habit in seconds.
+- **Daily Quotas & Greenbits:** Earn points for eco-friendly choices with fair daily limits.
+- **Your Eco Sanctuary:** Grow your virtual sanctuary and care for animals as you reduce waste.
+- **PWA & Offline-Ready:** Install directly to your phone's home screen like a normal mobile app.
+- **Campus Challenges:** Compete in local university eco-challenges and win real community prizes.
+- **Multi-Language:** Available in English, Bahasa Melayu, and Chinese.
+
+---
+
+## Tech Stack
+
+- **Web App:** React with Vite, styled with responsive CSS and running as a Progressive Web App (PWA).
+- **AI Model:** MobileNetV3 image model running directly in your browser and on the cloud.
+- **Backend & Cloud:** Supabase for secure accounts, database storage, and points ledger.
+- **Hosting:** Vercel for fast global delivery.

@@ -136,9 +136,22 @@ export default function App() {
     const { data: signedAvatar } = avatarPath
       ? await supabase.storage.from("profile-avatars").createSignedUrl(avatarPath, 3600)
       : { data: null };
+
+    const shortId = activeUser.id.replace(/-/g, "").slice(0, 10);
+    const mockDefaultName = `User ${shortId}`;
+    const mockDefaultUsername = `user_${shortId}`;
+
+    const displayName = row?.display_name && row.display_name !== "Plastic-Free Warrior" && !row.display_name.includes("@")
+      ? row.display_name
+      : metadata?.display_name || mockDefaultName;
+
+    const username = row?.username && row.username !== "warrior" && !row.username.includes("@")
+      ? row.username
+      : metadata?.username || mockDefaultUsername;
+
     setProfile({
-      display_name: row?.display_name || metadata?.display_name || activeUser.email?.split("@")[0] || "Plastic-Free Warrior",
-      username: row?.username || metadata?.username || activeUser.email?.split("@")[0] || "warrior",
+      display_name: displayName,
+      username: username,
       phone: row?.phone || metadata?.phone || activeUser.phone || "",
       tagline: row?.tagline || metadata?.tagline || "Refusing plastic, one meal at a time.",
       avatar_path: avatarPath,
@@ -161,7 +174,20 @@ export default function App() {
       setUser(data.session?.user ?? null);
       await loadAccount(data.session?.user ?? null);
       setReady(true);
-      if (readPage() === "earn" && !data.session?.user) { history.replaceState({}, "", "/"); pendingPage.current = "earn"; setPage("home"); setShowLoginGate(true); }
+      if (data.session?.user) {
+        if (location.pathname === "/login" || readPage() === "login") {
+          const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
+          sessionStorage.removeItem("unplastica-return-to");
+          const destination = target && target !== "login" ? target : "home";
+          history.replaceState({}, "", pagePath(destination));
+          setPage(destination);
+        }
+      } else if (readPage() === "earn") {
+        history.replaceState({}, "", "/");
+        pendingPage.current = "earn";
+        setPage("home");
+        setShowLoginGate(true);
+      }
     });
     const authClient = supabase;
     const { data } = authClient.auth.onAuthStateChange((event, next) => {
@@ -169,15 +195,16 @@ export default function App() {
       setUser(next?.user ?? null);
       window.setTimeout(() => {
         void loadAccount(next?.user ?? null);
-        if (next?.user && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
-          void authClient.functions.invoke("welcome-bonus").then(() => loadAccount(next.user));
-          const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
-          if (target && ["home", "earn", "events", "settings"].includes(target)) {
+        if (next?.user) {
+          if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+            void authClient.functions.invoke("welcome-bonus").then(() => loadAccount(next.user));
+          }
+          if (location.pathname === "/login" || readPage() === "login") {
+            const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
             sessionStorage.removeItem("unplastica-return-to");
-            if (location.pathname === "/login") {
-              history.replaceState({}, "", pagePath(target));
-              setPage(target);
-            }
+            const destination = target && target !== "login" ? target : "home";
+            history.replaceState({}, "", pagePath(destination));
+            setPage(destination);
           }
         }
       }, 0);
@@ -364,7 +391,7 @@ export default function App() {
           onUpdateProfile={updateProfile}
           onUpdatePassword={updatePassword}
         />}
-        {page === "login" && <AuthPage onAuthenticated={() => { const target = sessionStorage.getItem("unplastica-return-to") as Page | null; sessionStorage.removeItem("unplastica-return-to"); navigate(target && target !== "login" ? target : "home"); }} />}
+        {page === "login" && <AuthPage user={user} onAuthenticated={() => { const target = sessionStorage.getItem("unplastica-return-to") as Page | null; sessionStorage.removeItem("unplastica-return-to"); navigate(target && target !== "login" ? target : "home"); }} />}
       </main>
       {page !== "login" && <BottomNav page={page} onNavigate={(target) => target === "earn" ? requestLogin("earn") : navigate(target)} />}
       {page !== "login" && <InstallPrompt prompt={installPrompt} environment={installEnvironment} onInstall={installApp} />}
@@ -697,7 +724,7 @@ function SettingsPage(props: {
               type="text"
               value={editUsername}
               onChange={(e) => setEditUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 40))}
-              placeholder="e.g. warrior2026"
+              placeholder="e.g. user_6s37a29f31"
               minLength={3}
               maxLength={40}
               required
@@ -708,6 +735,7 @@ function SettingsPage(props: {
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value.slice(0, 80))}
+              placeholder="e.g. User 6s37a29f31"
               required
             />
           </label>
@@ -791,8 +819,11 @@ function DetailRow({ label, value, icon }: { label: string; value: string; icon:
   return <div className="detail-row"><div><span>{label}</span><strong>{value}</strong></div><span className="detail-icon"><Icon name={icon} size={19} /></span></div>;
 }
 
-function AuthPage({ onAuthenticated }: { onAuthenticated: () => void }) {
+function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticated: () => void }) {
   const t = useCopy();
+  useEffect(() => {
+    if (user) onAuthenticated();
+  }, [user, onAuthenticated]);
   const [mode, setMode] = useState<"signup" | "login">("login");
   const [method, setMethod] = useState<"email" | "phone">("email");
   const [name, setName] = useState("");
@@ -948,7 +979,12 @@ function AuthPage({ onAuthenticated }: { onAuthenticated: () => void }) {
   const google = async () => {
     if (!supabase) { setError(t("auth.setupNeeded")); return; }
     setBusy(true); setError("");
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/login` } });
+    const returnTo = sessionStorage.getItem("unplastica-return-to") || "home";
+    sessionStorage.setItem("unplastica-return-to", returnTo);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/` },
+    });
     if (oauthError) { setError(t("auth.oauthError")); setBusy(false); }
   };
   return <div className="content auth-page"><section className="dialog auth-dialog auth-page-card">
@@ -958,14 +994,64 @@ function AuthPage({ onAuthenticated }: { onAuthenticated: () => void }) {
     <div className="auth-divider"><span>{t("auth.or")}</span></div>
     {mode === "signup" && <div className="segmented auth-method"><button className={method === "email" ? "active" : ""} onClick={() => { setMethod("email"); setIdentifier(""); setNotice(""); setAwaitingPhoneCode(false); }}>{t("auth.emailMode")}</button><button className={method === "phone" ? "active" : ""} onClick={() => { setMethod("phone"); setIdentifier(""); setNotice(""); setAwaitingPhoneCode(false); }}>{t("auth.phoneMode")}</button></div>}
     <form onSubmit={(event) => void submit(event)}>
-      {mode === "signup" && <><label>{t("auth.name")}<input autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} required /></label><label>{t("auth.username")}<input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 40))} minLength={3} maxLength={40} required /></label></>}
-      {awaitingPhoneCode ? <label>{t("auth.code")}<input inputMode="numeric" autoComplete="one-time-code" value={phoneCode} onChange={(event) => setPhoneCode(event.target.value)} required /></label> : <label>{mode === "login" ? t("auth.identifier") : method === "phone" ? t("auth.phone") : t("auth.email")}<input type={mode === "signup" && method === "email" ? "email" : "text"} inputMode={mode === "signup" && method === "phone" ? "tel" : "text"} autoComplete={mode === "signup" ? method === "email" ? "email" : "tel" : "username"} placeholder={mode === "signup" && method === "phone" ? "+60 12 345 6789" : ""} value={identifier} onChange={(event) => setIdentifier(event.target.value)} required /></label>}
+      {mode === "signup" && (
+        <>
+          <label>
+            {t("auth.name")}
+            <input
+              autoComplete="name"
+              placeholder="e.g. User 6s37a29f31"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            {t("auth.username")}
+            <input
+              autoComplete="username"
+              placeholder="e.g. user_6s37a29f31"
+              value={username}
+              onChange={(event) => setUsername(event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 40))}
+              minLength={3}
+              maxLength={40}
+              required
+            />
+          </label>
+        </>
+      )}
+      {awaitingPhoneCode ? (
+        <label>
+          {t("auth.code")}
+          <input inputMode="numeric" autoComplete="one-time-code" placeholder="123456" value={phoneCode} onChange={(event) => setPhoneCode(event.target.value)} required />
+        </label>
+      ) : (
+        <label>
+          {mode === "login" ? t("auth.identifier") : method === "phone" ? t("auth.phone") : t("auth.email")}
+          <input
+            type={mode === "signup" && method === "email" ? "email" : "text"}
+            inputMode={mode === "signup" && method === "phone" ? "tel" : "text"}
+            autoComplete={mode === "signup" ? (method === "email" ? "email" : "tel") : "username"}
+            placeholder={
+              mode === "signup" && method === "phone"
+                ? "+60 12 345 6789"
+                : mode === "login"
+                ? "e.g. user_6s37a29f31 or user_6s37a29f31@gmail.com"
+                : "e.g. user_6s37a29f31@gmail.com"
+            }
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
+            required
+          />
+        </label>
+      )}
       {!awaitingPhoneCode && (
         <label>
           {t("auth.password")}
           <input
             type="password"
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            placeholder="••••••••"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             minLength={8}
