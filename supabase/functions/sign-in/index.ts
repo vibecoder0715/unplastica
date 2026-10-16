@@ -1,10 +1,16 @@
+// @ts-ignore
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.0";
 import { admin } from "../_shared/clients.ts";
 import { env, json, options } from "../_shared/http.ts";
 
+declare const Deno: {
+  serve: (handler: (request: Request) => Promise<Response> | Response) => void;
+  env: { get: (key: string) => string | undefined };
+};
+
 const fail = () => json({ error: "Invalid username or password." }, 401);
 
-Deno.serve(async (request) => {
+Deno.serve(async (request: Request) => {
   const preflight = options(request);
   if (preflight) return preflight;
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);

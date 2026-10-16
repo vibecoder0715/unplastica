@@ -290,6 +290,28 @@ img { max-width: 100%; }
 .habit-labels { display: flex; flex-direction: column; gap: 4px; }
 .habit-labels strong { font: 700 calc((16px) * var(--desktop-type-scale, 1))/1.25 "Outfit", sans-serif; }
 .habit-labels b { color: var(--leaf); font: 700 calc((16px) * var(--desktop-type-scale, 1))/1.2 "Space Grotesk", sans-serif; }
+.daily-quota-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(46, 125, 50, 0.12);
+  color: var(--forest);
+  border: 1px solid rgba(46, 125, 50, 0.25);
+  margin-left: 4px;
+}
+.daily-quota-pill.capped {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+.habit-row.is-capped {
+  opacity: 0.8;
+}
+.camera-frame.is-capped {
+  opacity: 0.75;
+}
 .info-button { width: 38px; height: 38px; border: 0; display: grid; place-items: center; color: var(--muted); background: transparent; cursor: pointer; }
 .info-button:hover { color: var(--leaf); }
 

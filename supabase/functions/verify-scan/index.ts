@@ -15,7 +15,12 @@ function isImage(bytes: Uint8Array, type: string): boolean {
   return false;
 }
 
-Deno.serve(async (request) => {
+declare const Deno: {
+  serve: (handler: (request: Request) => Promise<Response> | Response) => void;
+  env: { get: (key: string) => string | undefined };
+};
+
+Deno.serve(async (request: Request) => {
   const preflight = options(request);
   if (preflight) return preflight;
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -78,7 +83,7 @@ Deno.serve(async (request) => {
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1 || !label) {
       return json({ code: "model_unavailable", error: "The scoring service returned an invalid result." }, 503);
     }
-    const threshold = Number(Deno.env.get("ML_SCORE_THRESHOLD") ?? "0.85");
+    const threshold = Number(Deno.env.get("ML_SCORE_THRESHOLD") ?? "0.75");
     if (!Number.isFinite(threshold) || threshold < 0.5 || threshold > 1) throw new Error("ML_SCORE_THRESHOLD must be between 0.50 and 1.00");
     if (confidence < threshold || label !== submission.habit_code) {
       const { error } = await db.from("habit_submissions").update({
@@ -86,7 +91,7 @@ Deno.serve(async (request) => {
         proof_sha256: proofHash, scored_at: new Date().toISOString(),
       }).eq("id", submission.id).eq("user_id", user.id).eq("status", "uploaded");
       if (error) throw error;
-      return json({ status: "rejected", score: confidence, threshold, reason: label !== submission.habit_code ? "habit_mismatch" : "below_threshold" });
+      return json({ status: "rejected", error: "Failed: Non-habit/ disposable object detected." });
     }
     const { data: awarded, error: awardError } = await db.rpc("award_greenbits", {
       p_submission_id: submission.id,
@@ -98,11 +103,14 @@ Deno.serve(async (request) => {
       p_proof_sha256: proofHash,
     });
     if (awardError) {
-      if (awardError.message.includes("proof_already_used")) return json({ status: "rejected", reason: "proof_already_used" }, 409);
+      if (awardError.message.includes("proof_already_used")) return json({ status: "rejected", error: "Error: Proof already used." }, 409);
+      if (awardError.message.includes("daily_limit_reached")) {
+        return json({ status: "rejected", code: "daily_limit_reached", error: "Daily limit reached for this habit today." }, 429);
+      }
       throw awardError;
     }
     const result = Array.isArray(awarded) ? awarded[0] : awarded;
-    return json({ status: result?.status ?? "approved", points: result?.points ?? 0, score: confidence });
+    return json({ status: result?.status ?? "approved", points: result?.points ?? 0 });
   } catch (error) {
     console.error("verify-scan", error);
     return json({ error: "Could not verify this proof." }, 500);

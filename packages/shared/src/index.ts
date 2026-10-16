@@ -62,5 +62,14 @@ export const HABITS: readonly HabitDefinition[] = [
   },
 ];
 
-export const ML_SCORE_THRESHOLD_DEFAULT = 0.85;
+export const ML_SCORE_THRESHOLD_DEFAULT = 0.75;
 
+export const DAILY_HABIT_LIMITS: Record<HabitCode, number> = {
+  box_cutlery: 3,
+  recycle_bags: 1,
+  self_bottle_refill: 1,
+  greenery_furniture: 1,
+  handicraft_projects: 1,
+  beeswax_food_wraps: 1,
+  bulk_pantry_refill: 1,
+};

@@ -101,6 +101,8 @@ export default function App() {
   const t = useCallback((key: string, values?: Record<string, string | number>) => translate(language, key, values), [language]);
   userRef.current = user;
 
+  const [dailyUsage, setDailyUsage] = useState<Record<string, number>>({});
+
   const notify = useCallback((message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 4000);
@@ -111,11 +113,23 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
   const loadAccount = useCallback(async (activeUser: User | null) => {
-    if (!activeUser || !supabase) { setProfile(null); setBalance(0); return; }
-    const [profileResult, balanceResult] = await Promise.all([
+    if (!activeUser || !supabase) { setProfile(null); setBalance(0); setDailyUsage({}); return; }
+    const klNow = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const klDateStr = klNow.toISOString().slice(0, 10);
+    const klStartUtc = new Date(`${klDateStr}T00:00:00.000+08:00`).toISOString();
+
+    const [profileResult, balanceResult, dailyResult] = await Promise.all([
       supabase.from("profiles").select("display_name,username,phone,tagline,preferences,avatar_path").eq("id", activeUser.id).maybeSingle(),
       supabase.from("greenbit_balances").select("balance").eq("user_id", activeUser.id).maybeSingle(),
+      supabase.from("habit_submissions").select("habit_code").eq("user_id", activeUser.id).eq("status", "approved").gte("created_at", klStartUtc),
     ]);
+    const usage: Record<string, number> = {};
+    if (dailyResult.data) {
+      for (const item of dailyResult.data) {
+        usage[item.habit_code] = (usage[item.habit_code] || 0) + 1;
+      }
+    }
+    setDailyUsage(usage);
     const row = profileResult.data;
     const metadata = activeUser.user_metadata;
     const avatarPath = typeof row?.avatar_path === "string" ? row.avatar_path : null;
@@ -313,9 +327,20 @@ export default function App() {
         {page === "home" && <HomePage onEnter={() => requestLogin("earn")} />}
         {page === "earn" && <EarnPage
           selected={selectedHabit}
+          dailyUsage={dailyUsage}
           onSelect={setSelectedHabit}
           onInfo={setInfoHabit}
-          onCamera={() => guest ? requestLogin("earn") : selectedHabit ? setCamera(true) : notify(t("earn.chooseFirst"))}
+          onCamera={() => {
+            if (guest) { requestLogin("earn"); return; }
+            if (!selectedHabit) { notify(t("earn.chooseFirst")); return; }
+            const limit = selectedHabit === "box_cutlery" ? 3 : 1;
+            const used = dailyUsage[selectedHabit] || 0;
+            if (used >= limit) {
+              notify(`Daily limit reached for this habit (${limit} time${limit > 1 ? "s" : ""}/day: 3 times/day for Box & Cutlery, 1 time/day for others). Come back tomorrow!`);
+              return;
+            }
+            setCamera(true);
+          }}
         />}
         {page === "events" && <EventsPage onSample={() => setSample(true)} />}
         {page === "settings" && <SettingsPage
@@ -420,34 +445,58 @@ function HomePage({ onEnter }: { onEnter: () => void }) {
   </div>;
 }
 
-function EarnPage({ selected, onSelect, onInfo, onCamera }: {
+function EarnPage({ selected, dailyUsage, onSelect, onInfo, onCamera }: {
   selected: HabitCode | null;
+  dailyUsage: Record<string, number>;
   onSelect: (code: HabitCode) => void;
   onInfo: (code: HabitCode) => void;
   onCamera: () => void;
 }) {
   const t = useCopy();
   const habit = HABITS.find((item) => item.code === selected);
+  const selectedLimit = selected === "box_cutlery" ? 3 : 1;
+  const selectedUsed = (selected && dailyUsage[selected]) || 0;
+  const isSelectedCapped = selectedUsed >= selectedLimit;
+
   return <div className="content earn-content">
     <section className="earn-heading"><h1><span>{t("earn.titleStart")}</span><img src="/assets/brand/greenbits.png" alt="Greenbits" /><span>{t("earn.titleEnd")}</span></h1><p>{t("earn.subtitle")}</p></section>
     <section className="camera-section">
-      <div className="section-heading"><h2>{t("earn.checker")}</h2><span className="status-chip"><i />{t("common.ready")}</span></div>
-      <button className="camera-frame" onClick={onCamera}>
+      <div className="section-heading"><h2>{t("earn.checker")}</h2><span className="status-chip"><i />{isSelectedCapped ? "Daily limit reached" : t("common.ready")}</span></div>
+      <button className={"camera-frame " + (isSelectedCapped ? "is-capped" : "")} onClick={onCamera}>
         <i className="frame-corner corner-top-left" /><i className="frame-corner corner-top-right" />
         <i className="frame-corner corner-bottom-left" /><i className="frame-corner corner-bottom-right" />
         <span className="camera-helper"><Icon name="camera" size={25} /></span>
-        <span className="camera-copy"><strong>{habit ? t("habit." + habit.code) : t("camera.title")}</strong><span>{habit ? t("earn.reward", { points: habit.points }) : t("earn.hold")}</span></span>
+        <span className="camera-copy">
+          <strong>{habit ? t("habit." + habit.code) : t("camera.title")}</strong>
+          <span>{isSelectedCapped ? "Daily limit reached for this habit today (resets at midnight)" : habit ? t("earn.reward", { points: habit.points }) : t("earn.hold")}</span>
+        </span>
         <span className="camera-action"><Icon name="camera" size={25} /></span>
       </button>
     </section>
     <section className="habit-section">
       <div className="section-heading"><h2>{t("earn.habits")}</h2><span className="count-chip">7 <small>{t("earn.actions")}</small></span></div>
-      <div className="habit-list">{HABITS.map((item) => <article key={item.code} className={"habit-row " + (selected === item.code ? "selected" : "")}>
-        <button className="habit-select" onClick={() => onSelect(item.code)} aria-pressed={selected === item.code}>
-          <img src={habitImages[item.code]} alt="" /><span className="habit-labels"><strong>{t("habit." + item.code)}</strong><b>+{item.points}</b></span>
-        </button>
-        <button className="info-button" aria-label={t("common.about", { habit: t("habit." + item.code) })} onClick={() => onInfo(item.code)}><Icon name="info" /></button>
-      </article>)}</div>
+      <div className="habit-list">{HABITS.map((item) => {
+        const limit = item.code === "box_cutlery" ? 3 : 1;
+        const used = dailyUsage[item.code] || 0;
+        const capped = used >= limit;
+        return (
+          <article key={item.code} className={"habit-row " + (selected === item.code ? "selected" : "") + (capped ? " is-capped" : "")}>
+            <button className="habit-select" onClick={() => onSelect(item.code)} aria-pressed={selected === item.code}>
+              <img src={habitImages[item.code]} alt="" />
+              <span className="habit-labels">
+                <strong>{t("habit." + item.code)}</strong>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <b>+{item.points}</b>
+                  <span className={"daily-quota-pill" + (capped ? " capped" : "")}>
+                    {capped ? "Daily limit reached" : `${used}/${limit} today`}
+                  </span>
+                </span>
+              </span>
+            </button>
+            <button className="info-button" aria-label={t("common.about", { habit: t("habit." + item.code) })} onClick={() => onInfo(item.code)}><Icon name="info" /></button>
+          </article>
+        );
+      })}</div>
     </section>
   </div>;
 }
@@ -999,6 +1048,17 @@ type ModelDetection = {
   message: string;
 };
 
+let ortSessionPromise: Promise<any> | null = null;
+function getOrtSession(ort: any) {
+  if (!ortSessionPromise) {
+    ortSessionPromise = ort.InferenceSession.create("/model/model.onnx").catch((err: any) => {
+      ortSessionPromise = null;
+      throw err;
+    });
+  }
+  return ortSessionPromise;
+}
+
 async function runModelDetection(blob: Blob, targetHabit: string): Promise<ModelDetection> {
   try {
     const ort = (window as unknown as { ort?: any }).ort;
@@ -1028,7 +1088,7 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
           floatData[2 * 224 * 224 + i] = (b - mean[2]) / std[2];
         }
 
-        const session = await ort.InferenceSession.create("/model/model.onnx");
+        const session = await getOrtSession(ort);
         const tensor = new ort.Tensor("float32", floatData, [1, 3, 224, 224]);
         const results = await session.run({ input: tensor });
         const output = results.output.data as Float32Array;
@@ -1053,19 +1113,15 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
           "handicraft_projects", "other", "recycle_bags", "self_bottle_refill"
         ];
         const detectedLabel = classes[bestIdx] || "other";
-        const verified = detectedLabel === targetHabit && bestProb >= 0.85;
+        const verified = detectedLabel === targetHabit && bestProb >= 0.75;
 
         return {
           label: detectedLabel,
           confidence: bestProb,
           verified,
           message: verified
-            ? `✓ AI Habit Verified: ${detectedLabel.replace(/_/g, " ")} (${Math.round(bestProb * 100)}% match)`
-            : detectedLabel === "other"
-            ? `⚠ AI Flagged: Non-habit / disposable object detected (${Math.round(bestProb * 100)}% confidence)`
-            : detectedLabel !== targetHabit
-            ? `⚠ AI Flagged: Image appears to be ${detectedLabel.replace(/_/g, " ")} instead of ${targetHabit.replace(/_/g, " ")}`
-            : `⚠ AI Flagged: Confidence ${Math.round(bestProb * 100)}% is below 85% requirement`,
+            ? "Verified"
+            : "Failed: Non-habit/ disposable object detected.",
         };
       }
     }
@@ -1082,11 +1138,12 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
     });
     if (res.ok) {
       const data = await res.json();
+      const verified = Boolean(data.verified);
       return {
         label: data.predicted_label || targetHabit,
         confidence: data.confidence || 0.95,
-        verified: true,
-        message: `✓ AI Habit Verified (${Math.round((data.confidence || 0.95) * 100)}%)`,
+        verified,
+        message: verified ? "Verified" : "Failed: Non-habit/ disposable object detected.",
       };
     }
   } catch {}
@@ -1095,7 +1152,7 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
     label: targetHabit,
     confidence: 0.95,
     verified: true,
-    message: "✓ AI Ready for submission",
+    message: "Verified",
   };
 }
 
@@ -1105,6 +1162,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   const stream = useRef<MediaStream | null>(null);
   const photoUrlRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const detectionIdRef = useRef(0);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
@@ -1124,7 +1182,10 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
         if (!alive) { active.getTracks().forEach((track) => track.stop()); return; }
         stream.current = active;
         setCameraReady(true);
-        if (video.current) video.current.srcObject = active;
+        if (video.current) {
+          video.current.srcObject = active;
+          video.current.play().catch(() => {});
+        }
       } catch { if (alive) setError(t("camera.allow")); }
     })();
     return () => {
@@ -1135,6 +1196,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   }, []);
 
   const setSelectedPhoto = (blob: Blob) => {
+    const currentId = ++detectionIdRef.current;
     if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
     setPhoto(blob);
     const nextUrl = URL.createObjectURL(blob);
@@ -1143,18 +1205,38 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
     setDetecting(true);
     setDetection(null);
     void runModelDetection(blob, habitCode || "").then((res) => {
+      if (detectionIdRef.current !== currentId) return;
       setDetection(res);
       setDetecting(false);
     });
   };
 
+  const handleRetake = () => {
+    detectionIdRef.current++;
+    setPhoto(null);
+    if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
+    photoUrlRef.current = "";
+    setPhotoUrl("");
+    setDetection(null);
+    setDetecting(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (video.current && stream.current) {
+      if (video.current.srcObject !== stream.current) {
+        video.current.srcObject = stream.current;
+      }
+      video.current.play().catch(() => {});
+    }
+  };
+
   const capture = async () => {
-    if (!video.current?.videoWidth) return;
+    if (!video.current) return;
     const element = video.current;
-    const factor = Math.min(1, 1600 / element.videoWidth);
+    const width = element.videoWidth || 640;
+    const height = element.videoHeight || 480;
+    const factor = Math.min(1, 1600 / width);
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(element.videoWidth * factor);
-    canvas.height = Math.round(element.videoHeight * factor);
+    canvas.width = Math.round(width * factor);
+    canvas.height = Math.round(height * factor);
     canvas.getContext("2d")?.drawImage(element, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
     if (blob) setSelectedPhoto(blob);
@@ -1171,7 +1253,15 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
     setBusy(true);
     try {
       const created = await supabase.functions.invoke("create-proof-upload", { body: { habit_code: habitCode, content_type: photo.type, size_bytes: photo.size } });
-      if (created.error) throw created.error;
+      if (created.error) {
+        const context = (created.error as { context?: Response }).context;
+        const details = context ? await context.clone().json().catch(() => null) : null;
+        if (details?.code === "daily_limit_reached" || details?.error?.includes("Daily limit")) {
+          onComplete("Daily limit reached for this habit today.");
+          return;
+        }
+        throw created.error;
+      }
       const storage = await supabase.storage.from("proof-media").uploadToSignedUrl(created.data.path, created.data.token, photo);
       if (storage.error) throw storage.error;
       const result = await supabase.functions.invoke("verify-scan", { body: { submission_id: created.data.submission_id } });
@@ -1182,10 +1272,18 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
           onComplete(t("camera.savedNoModel"));
           return;
         }
+        if (details?.code === "daily_limit_reached" || details?.error?.includes("Daily limit")) {
+          onComplete("Daily limit reached for this habit today.");
+          return;
+        }
         throw result.error;
       }
-      onComplete(result.data?.status === "approved" ? t("camera.success", { points: habit?.points ?? result.data.points }) : t("camera.failed"));
-    } catch { onComplete(t("camera.failed")); }
+      if (result.data?.status === "rejected") {
+        onComplete(result.data?.error || "Failed: Non-habit/ disposable object detected.");
+        return;
+      }
+      onComplete(result.data?.status === "approved" ? t("camera.success", { points: habit?.points ?? result.data.points }) : "Failed: Non-habit/ disposable object detected.");
+    } catch { onComplete("Failed: Non-habit/ disposable object detected."); }
     finally { setBusy(false); }
   };
 
@@ -1193,11 +1291,24 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
     <button className="dialog-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
     <h2 id="camera-title">{t("camera.title")}</h2><p>{habit ? t("habit." + habit.code) : ""} · +{habit?.points} Greenbits</p>
     <div className={"camera-preview " + (photoUrl ? "has-photo" : "")}>
-      {photoUrl ? <img src={photoUrl} alt={t("camera.alt")} /> : <video ref={video} autoPlay muted playsInline />}
+      <video
+        ref={video}
+        autoPlay
+        muted
+        playsInline
+        style={{ display: photoUrl ? "none" : "block", width: "100%", height: "100%", objectFit: "cover" }}
+      />
+      {photoUrl && (
+        <img
+          src={photoUrl}
+          alt={t("camera.alt")}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      )}
       {!photoUrl && error && <span>{error}</span>}
     </div>
 
-    {detecting && <div className="ai-detection-pill detecting">AI Evaluating photo with MobileNetV3 model…</div>}
+    {detecting && <div className="ai-detection-pill detecting">Scanning photo…</div>}
     {detection && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
         {detection.message}
@@ -1208,13 +1319,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       {photoUrl ? (
         <button
           className="secondary-button"
-          onClick={() => {
-            setPhoto(null);
-            if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
-            photoUrlRef.current = "";
-            setPhotoUrl("");
-            setDetection(null);
-          }}
+          onClick={handleRetake}
         >
           {t("camera.retake")}
         </button>

@@ -1,10 +1,15 @@
 import { admin, isResponse, requireVerifiedUser } from "../_shared/clients.ts";
 import { env, json, options } from "../_shared/http.ts";
 
+declare const Deno: {
+  serve: (handler: (request: Request) => Promise<Response> | Response) => void;
+  env: { get: (key: string) => string | undefined };
+};
+
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxBytes = 10 * 1024 * 1024;
 
-Deno.serve(async (request) => {
+Deno.serve(async (request: Request) => {
   const preflight = options(request);
   if (preflight) return preflight;
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -24,6 +29,27 @@ Deno.serve(async (request) => {
     const db = admin();
     const { data: habit } = await db.from("habit_definitions").select("code").eq("code", habit_code).eq("enabled", true).maybeSingle();
     if (!habit) return json({ error: "That habit is not available." }, 400);
+
+    // Enforce daily limit: 3 times/day for box_cutlery, 1 time/day for others (Asia/Kuala_Lumpur UTC+8)
+    const maxPerDay = habit_code === "box_cutlery" ? 3 : 1;
+    const klNow = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const klDateStr = klNow.toISOString().slice(0, 10);
+    const klStartUtc = new Date(`${klDateStr}T00:00:00.000+08:00`).toISOString();
+
+    const { count: todayApprovedCount } = await db.from("habit_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("habit_code", habit_code)
+      .eq("status", "approved")
+      .gte("created_at", klStartUtc);
+
+    if ((todayApprovedCount ?? 0) >= maxPerDay) {
+      return json({
+        code: "daily_limit_reached",
+        error: `Daily limit reached for this habit (${maxPerDay} time${maxPerDay > 1 ? "s" : ""}/day). Come back tomorrow!`
+      }, 429);
+    }
+
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count, error: countError } = await db.from("habit_submissions")
       .select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", since);

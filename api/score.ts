@@ -28,7 +28,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         "recycle_bags",
         "self_bottle_refill",
       ],
-      threshold: 0.85,
+      threshold: 0.75,
     });
   }
 
