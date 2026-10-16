@@ -1423,7 +1423,6 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
     </div>
     <label className="consent-row"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>{t("camera.consent")}</span></label>
     <button className="primary-button submit-proof" disabled={!photo || !consent || busy} onClick={() => void submit()}>{busy ? t("camera.checking") : t("camera.submit")}</button>
-    <p className="camera-footnote">{t("camera.server")}</p>
   </div></Modal>;
 }
 
