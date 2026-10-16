@@ -10,7 +10,7 @@ import torch
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
 from torchvision import transforms
-from torchvision.models import mobilenet_v3_small
+from torchvision.models import mobilenet_v3_small, mobilenet_v3_large, efficientnet_b0
 
 MODEL_PATH = Path(os.environ.get("MODEL_PATH", "model/best.pt"))
 API_KEY = os.environ.get("ML_SCORER_API_KEY", "")
@@ -26,8 +26,18 @@ if not MODEL_PATH.is_file():
 checkpoint = torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
 classes: list[str] = checkpoint["classes"]
 model_version: str = checkpoint.get("version", "unversioned")
-model = mobilenet_v3_small(weights=None)
-model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, len(classes))
+arch: str = checkpoint.get("arch", "mobilenet_v3_small")
+
+if arch == "mobilenet_v3_large":
+    model = mobilenet_v3_large(weights=None)
+    model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, len(classes))
+elif arch == "efficientnet_b0":
+    model = efficientnet_b0(weights=None)
+    model.classifier[1] = torch.nn.Linear(model.classifier[1].in_features, len(classes))
+else:
+    model = mobilenet_v3_small(weights=None)
+    model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, len(classes))
+
 model.load_state_dict(checkpoint["state_dict"])
 model.to(DEVICE).eval()
 

@@ -449,7 +449,7 @@ function EventsPage({ onSample }: { onSample: () => void }) {
       <p><Icon name="check" />{t("events.measure")}</p>
       <div className="social-rule"><strong>*{t("events.social")}</strong></div>
       <img className="social-media-strip" src="/assets/brand/social-media.png" alt="Instagram, Facebook, YouTube, TikTok, RedNote, and X" />
-      <p className="hashtag-note">*{t("events.tag")} <b>#UnplasticaAPU</b></p>
+      <p className="hashtag-note">*{t("events.tag")} <b>#unplastica</b> and <b>#unplasticaAPU</b></p>
     </div></section>
     <section className="criteria"><h2>{t("events.judging")}</h2><div className="criteria-grid">
       <Criterion icon="leaf" percent="40%" title={t("events.impact")} detail={t("events.diversion")} />
@@ -598,7 +598,29 @@ function AuthPage({ onAuthenticated }: { onAuthenticated: () => void }) {
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="primary-button" disabled={busy}>{busy ? t("common.wait") : awaitingPhoneCode ? t("auth.verify") : mode === "signup" ? t("auth.signup") : t("auth.login")}</button>
     </form>
-    {!awaitingPhoneCode && <button className="text-button auth-mode-link" onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError(""); setNotice(""); }}>{mode === "signup" ? t("auth.hasAccount") : t("auth.newAccount")}</button>}
+    {!awaitingPhoneCode && (
+      <button
+        type="button"
+        className="text-button auth-mode-link"
+        onClick={() => {
+          setMode(mode === "signup" ? "login" : "signup");
+          setError("");
+          setNotice("");
+        }}
+      >
+        {mode === "signup" ? (
+          <>
+            <span className="auth-mode-prefix">{t("auth.hasAccountPrefix")}</span>{" "}
+            <strong className="auth-highlight auth-highlight-login">{t("auth.hasAccountAction")}</strong>
+          </>
+        ) : (
+          <>
+            <span className="auth-mode-prefix">{t("auth.newAccountPrefix")}</span>{" "}
+            <strong className="auth-highlight auth-highlight-signup">{t("auth.newAccountAction")}</strong>
+          </>
+        )}
+      </button>
+    )}
   </section></div>;
 }
 
