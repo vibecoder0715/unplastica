@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "prompt",
+      registerType: "autoUpdate",
       includeAssets: ["offline.html", "robots.txt", "icons/*.png", "apple-touch-icon.png"],
       manifest: {
         name: "Unplastica",
@@ -30,12 +30,13 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: "/offline.html",
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ["**/*.{html,js,css,webmanifest}"],
         globIgnores: ["**/assets/habits/**", "**/*.mp4", "**/*.map"],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: false,
+        skipWaiting: true,
         runtimeCaching: [
           {
             urlPattern: ({ url }) =>
