@@ -88,6 +88,7 @@ export default function App() {
   const [balance, setBalance] = useState(0);
   const [ready, setReady] = useState(!isSupabaseConfigured);
   const [showLoginGate, setShowLoginGate] = useState(false);
+  const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
   const pendingPage = useRef<Page>("home");
   const [selectedHabit, setSelectedHabit] = useState<HabitCode | null>(null);
   const [infoHabit, setInfoHabit] = useState<HabitCode | null>(null);
@@ -159,6 +160,13 @@ export default function App() {
       preferences: row?.preferences || {},
     });
     setBalance(Number(balanceResult.data?.balance ?? 0));
+
+    if (activeUser) {
+      const isDefault = (username.startsWith("user_") || !row?.display_name || row.display_name.startsWith("User ") || row.display_name === "Plastic-Free Warrior") && !localStorage.getItem("unplastica_username_prompted_" + activeUser.id);
+      if (isDefault) {
+        setShowUsernamePrompt(true);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -168,28 +176,91 @@ export default function App() {
       setPage(next);
     };
     window.addEventListener("popstate", pop);
-    if (!supabase) return () => window.removeEventListener("popstate", pop);
-    void supabase.auth.getSession().then(async ({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      await loadAccount(data.session?.user ?? null);
-      setReady(true);
-      if (data.session?.user) {
-        if (location.pathname === "/login" || readPage() === "login") {
-          const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
-          sessionStorage.removeItem("unplastica-return-to");
-          const destination = target && target !== "login" ? target : "home";
-          history.replaceState({}, "", pagePath(destination));
-          setPage(destination);
-        }
-      } else if (readPage() === "earn") {
-        history.replaceState({}, "", "/");
-        pendingPage.current = "earn";
-        setPage("home");
-        setShowLoginGate(true);
-      }
-    });
     const authClient = supabase;
+    if (!authClient) return () => window.removeEventListener("popstate", pop);
+
+    const initAuth = async () => {
+      try {
+        // 1. Check if OAuth returned with ?code= in URL query (PKCE flow)
+        const searchParams = new URLSearchParams(window.location.search);
+        const code = searchParams.get("code");
+        if (code) {
+          const { data, error } = await authClient.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.warn("PKCE code exchange error:", error.message);
+          } else if (data.session) {
+            setSession(data.session);
+            setUser(data.session.user);
+            await loadAccount(data.session.user);
+            history.replaceState({}, "", window.location.pathname);
+            if (location.pathname === "/login" || readPage() === "login") {
+              const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
+              sessionStorage.removeItem("unplastica-return-to");
+              const destination = target && target !== "login" ? target : "home";
+              history.replaceState({}, "", pagePath(destination));
+              setPage(destination);
+            }
+            setReady(true);
+            return;
+          }
+        }
+
+        // 2. Check if OAuth returned with hash tokens (#access_token=...)
+        if (window.location.hash.includes("access_token")) {
+          const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+          const accessToken = hashParams.get("access_token");
+          const refreshToken = hashParams.get("refresh_token");
+          if (accessToken && refreshToken) {
+            const { data, error } = await authClient.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (!error && data.session) {
+              setSession(data.session);
+              setUser(data.session.user);
+              await loadAccount(data.session.user);
+              history.replaceState({}, "", window.location.pathname);
+              if (location.pathname === "/login" || readPage() === "login") {
+                const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
+                sessionStorage.removeItem("unplastica-return-to");
+                const destination = target && target !== "login" ? target : "home";
+                history.replaceState({}, "", pagePath(destination));
+                setPage(destination);
+              }
+              setReady(true);
+              return;
+            }
+          }
+        }
+
+        // 3. Existing session
+        const { data: { session } } = await authClient.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+        await loadAccount(session?.user ?? null);
+        if (session?.user) {
+          if (location.pathname === "/login" || readPage() === "login") {
+            const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
+            sessionStorage.removeItem("unplastica-return-to");
+            const destination = target && target !== "login" ? target : "home";
+            history.replaceState({}, "", pagePath(destination));
+            setPage(destination);
+          }
+        } else if (readPage() === "earn") {
+          history.replaceState({}, "", "/");
+          pendingPage.current = "earn";
+          setPage("home");
+          setShowLoginGate(true);
+        }
+      } catch (err) {
+        console.error("Auth init exception:", err);
+      } finally {
+        setReady(true);
+      }
+    };
+
+    void initAuth();
+
     const { data } = authClient.auth.onAuthStateChange((event, next) => {
       setSession(next);
       setUser(next?.user ?? null);
@@ -405,6 +476,27 @@ export default function App() {
       />}
       {sample && <SampleDialog onClose={() => setSample(false)} />}
       {infoHabit && <HabitInfoDialog code={infoHabit} onClose={() => setInfoHabit(null)} />}
+      {showUsernamePrompt && user && profile && (
+        <UsernamePromptDialog
+          initialUsername={profile.username}
+          initialName={profile.display_name}
+          onSave={async (newUsername, newName) => {
+            await updateProfile({
+              username: newUsername,
+              display_name: newName,
+              phone: profile.phone,
+              tagline: profile.tagline,
+            });
+            localStorage.setItem("unplastica_username_prompted_" + user.id, "true");
+            setShowUsernamePrompt(false);
+            notify("Username updated successfully!");
+          }}
+          onDismiss={() => {
+            localStorage.setItem("unplastica_username_prompted_" + user.id, "true");
+            setShowUsernamePrompt(false);
+          }}
+        />
+      )}
     </div>
     </LanguageContext.Provider>
   );
@@ -604,7 +696,9 @@ function SettingsPage(props: {
 
   const isGoogleOAuth = Boolean(
     props.user?.app_metadata?.providers?.includes("google") ||
-    props.user?.app_metadata?.provider === "google"
+    props.user?.app_metadata?.provider === "google" ||
+    props.user?.identities?.some((id) => id.provider === "google") ||
+    (props.email && props.email.toLowerCase().endsWith("@gmail.com"))
   );
 
   const chooseAvatar = (event: ChangeEvent<HTMLInputElement>) => {
@@ -676,7 +770,7 @@ function SettingsPage(props: {
       {isGoogleOAuth && (
         <div className="oauth-status-badge">
           <GoogleMark />
-          <span>Google Account Connected</span>
+          <span>Google Connected{props.email ? `: ${props.email}` : ""}</span>
         </div>
       )}
       {props.guest ? <button className="profile-photo-upload" onClick={props.onAuth}><Icon name="camera" size={18} />{t("profile.loginToUpload")}</button> :
@@ -688,8 +782,16 @@ function SettingsPage(props: {
     </div>
     <div className="profile-details">
       <DetailRow label={t("settings.username")} value={props.guest ? t("settings.guest") : "@" + props.profile.username} icon="users" />
-      {!props.guest && props.email && <DetailRow label={t("settings.email")} value={props.email} icon="mail" />}
-      {!props.guest && props.profile.phone && <DetailRow label={t("settings.phone")} value={props.profile.phone} icon="user" />}
+      <DetailRow
+        label={isGoogleOAuth || !props.email || props.guest ? "Google Account (Gmail)" : t("settings.email")}
+        value={props.email ? props.email : props.guest ? "Guest (Log in via OAuth to connect Gmail)" : "Not linked"}
+        icon="mail"
+      />
+      <DetailRow
+        label={t("settings.phone")}
+        value={props.profile.phone ? props.profile.phone : props.guest ? "Guest (Log in to add phone)" : "Not linked (optional)"}
+        icon="user"
+      />
       {!props.guest && props.profile.tagline && <DetailRow label={t("settings.tagline")} value={props.profile.tagline} icon="bulb" />}
     </div>
 
@@ -983,7 +1085,13 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
     sessionStorage.setItem("unplastica-return-to", returnTo);
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/` },
+      options: {
+        redirectTo: `${window.location.origin}/`,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
     });
     if (oauthError) { setError(t("auth.oauthError")); setBusy(false); }
   };
@@ -1445,6 +1553,87 @@ function HabitInfoDialog({ code, onClose }: { code: HabitCode; onClose: () => vo
     <button className="dialog-close" onClick={onClose} aria-label={t("common.close")}><Icon name="close" /></button><img src={habitImages[code]} alt="" />
     <h2 id="habit-info-title">{t("habit." + code)}</h2><p>{t("habitDescription." + code)}</p><strong>+{habit.points} Greenbits</strong><button className="primary-button" onClick={onClose}>{t("common.ok")}</button>
   </div></Modal>;
+}
+
+function UsernamePromptDialog({
+  initialUsername,
+  initialName,
+  onSave,
+  onDismiss,
+}: {
+  initialUsername: string;
+  initialName: string;
+  onSave: (username: string, name: string) => Promise<void>;
+  onDismiss: () => void;
+}) {
+  const [username, setUsername] = useState(initialUsername.startsWith("user_") ? "" : initialUsername);
+  const [name, setName] = useState(initialName.startsWith("User ") ? "" : initialName);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!username.trim()) {
+      setError("Please enter a username.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await onSave(username.trim().toLowerCase(), name.trim() || username.trim());
+      onDismiss();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to save username";
+      setError(msg.includes("unique") || msg.includes("profiles_username") ? "This username is already taken. Please choose another." : msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onDismiss} labelledBy="username-prompt-title">
+      <div className="dialog auth-dialog" style={{ maxWidth: 440 }}>
+        <button className="dialog-close" onClick={onDismiss} aria-label="Close"><Icon name="close" /></button>
+        <BrandLogo scrolled />
+        <h2 id="username-prompt-title">Welcome! Choose Your Username</h2>
+        <p>You can set a custom username now for easy login and display, or keep your auto-generated ID.</p>
+        <form onSubmit={(e) => void handleSubmit(e)}>
+          <label>
+            Username
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 40))}
+              placeholder={initialUsername || "e.g. warrior2026"}
+              minLength={3}
+              maxLength={40}
+              autoFocus
+              required
+            />
+            <span className="field-hint">3–40 characters: letters, numbers, underscore, hyphen.</span>
+          </label>
+          <label>
+            Display Name (Optional)
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value.slice(0, 80))}
+              placeholder={initialName || "e.g. Eco Warrior"}
+            />
+          </label>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+            <button className="primary-button" disabled={busy}>
+              {busy ? "Saving…" : "Save Username"}
+            </button>
+            <button type="button" className="secondary-button" onClick={onDismiss} disabled={busy}>
+              Keep Default (@{initialUsername})
+            </button>
+          </div>
+        </form>
+      </div>
+    </Modal>
+  );
 }
 
 function Modal({ children, onClose, labelledBy }: { children: ReactNode; onClose: () => void; labelledBy: string }) {
