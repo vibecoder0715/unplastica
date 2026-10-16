@@ -766,6 +766,159 @@ img { max-width: 100%; }
   .dialog { padding: 22px 18px; }
   .auth-page { width: calc(100% - 24px); padding-top: 18px; }
 }
+/* Settings: Edit Profile & Credentials */
+.settings-action-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.settings-action-button {
+  flex: 1;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--forest);
+  font: 700 calc((13px) * var(--desktop-type-scale, 1))/1 "Outfit", sans-serif;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+.settings-action-button:hover {
+  background: var(--surface-mid);
+  border-color: var(--leaf);
+}
+.settings-edit-card {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface-low);
+  display: grid;
+  gap: 12px;
+}
+.settings-edit-card h4 {
+  margin: 0;
+  color: var(--forest);
+  font: 700 16px "Outfit", sans-serif;
+}
+.settings-edit-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.settings-edit-card form {
+  display: grid;
+  gap: 10px;
+}
+.settings-edit-card label {
+  display: grid;
+  gap: 4px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.settings-edit-card input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+.settings-save-button {
+  min-height: 40px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--leaf-bright);
+  color: #092100;
+  font: 700 13px "Outfit", sans-serif;
+  cursor: pointer;
+}
+.field-hint {
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-transform: none;
+  font-weight: 400;
+  margin-top: 2px;
+}
+.oauth-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(66, 133, 244, 0.1);
+  border: 1px solid rgba(66, 133, 244, 0.25);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a73e8;
+  margin-top: 8px;
+}
+:root[data-theme="dark"] .oauth-status-badge {
+  background: rgba(66, 133, 244, 0.2);
+  color: #8ab4f8;
+}
+.auth-oauth-guidance {
+  background: rgba(66, 133, 244, 0.08);
+  border: 1px solid rgba(66, 133, 244, 0.25);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.auth-oauth-guidance p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* AI Detection pill in Camera Modal */
+.ai-detection-pill {
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.4;
+}
+.ai-detection-pill.detecting {
+  background: rgba(2, 132, 199, 0.15);
+  color: #0284c7;
+  border: 1px solid rgba(2, 132, 199, 0.3);
+}
+.ai-detection-pill.verified {
+  background: rgba(22, 163, 74, 0.15);
+  color: #16a34a;
+  border: 1px solid rgba(22, 163, 74, 0.3);
+}
+.ai-detection-pill.flagged {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+:root[data-theme="dark"] .ai-detection-pill.verified {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
+}
+:root[data-theme="dark"] .ai-detection-pill.flagged {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }

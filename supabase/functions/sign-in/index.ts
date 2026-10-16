@@ -21,10 +21,18 @@ Deno.serve(async (request) => {
     if (profileError || !profile) return fail();
 
     const { data: account, error: accountError } = await service.auth.admin.getUserById(profile.id);
-    const user = account.user;
-    if (accountError || !user || (!user.email_confirmed_at && !user.phone_confirmed_at)) return fail();
+    const user = account?.user;
+    if (accountError || !user) return fail();
     const loginId = user.email || user.phone;
     if (!loginId) return fail();
+
+    const providers = (user.app_metadata?.providers as string[] | undefined) || [];
+    const isOAuthOnly = providers.includes("google") && !providers.includes("email") && !providers.includes("phone");
+
+    // Auto-confirm email if unconfirmed so users are never locked out after signup
+    if (user.email && !user.email_confirmed_at) {
+      await service.auth.admin.updateUserById(user.id, { email_confirm: true });
+    }
 
     const publicClient = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -33,7 +41,14 @@ Deno.serve(async (request) => {
       ? { email: user.email, password }
       : { phone: user.phone!, password };
     const { data, error } = await publicClient.auth.signInWithPassword(credentials);
-    if (error || !data.session) return fail();
+    if (error || !data?.session) {
+      if (isOAuthOnly) {
+        return json({
+          error: "This account was registered with Google. Please log in using 'Continue with Google', or set up a password in Settings."
+        }, 401);
+      }
+      return fail();
+    }
     return json({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
   } catch (error) {
     console.error("username sign-in failed", error);

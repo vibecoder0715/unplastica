@@ -12,7 +12,10 @@ supabase/.branches/
 .vercel/
 ml/.venv/
 ml/data/
-ml/model/*.pt
 ml/model/*.pth
+!ml/model/best.pt
+!ml/model/model.onnx
 *.log
 .DS_Store
+__pycache__/
+ml/test_adversarial/
