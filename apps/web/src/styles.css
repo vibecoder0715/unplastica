@@ -947,22 +947,36 @@ img { max-width: 100%; }
 
 .force-update-pill {
   position: fixed;
-  top: 18px;
+  top: 14px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 99999;
   background: #15803d;
   color: #ffffff;
-  padding: 10px 20px;
+  padding: 6px 14px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
-  display: flex;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   pointer-events: none;
   border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(8px);
+  max-width: 220px;
+  width: max-content;
+  white-space: nowrap;
 }
+
+@media (max-width: 640px) {
+  .force-update-pill {
+    top: 10px;
+    padding: 5px 12px;
+    font-size: 11px;
+    max-width: 170px;
+  }
+}
+
 
