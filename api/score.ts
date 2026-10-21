@@ -104,7 +104,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     return response.status(200).json({
       status: "ready",
       model: "mobilenet_v3_small",
-      model_version: "mobilenet_v3_small-v0.1.4-strict-995",
+      model_version: "mobilenet_v3_small-v0.1.6-openset",
       classes: Array.from(VALID_HABITS).concat(["other"]).sort(),
       threshold: 0.85,
       rate_limit: {
@@ -153,33 +153,67 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
   }
 
-  // Strict verification:
-  // If an image is uploaded or passed, inspect headers and evaluate
-  // If the request contains anime / character / invalid art markers or lacks genuine habit proof, reject as other
+  // Strict validation: Require image payload
   const imageBase64 = request.body?.image || request.body?.file;
-  if (typeof imageBase64 === "string" && imageBase64.length > 0) {
-    // Check magic bytes of base64
-    const isJpeg = imageBase64.startsWith("/9j/");
-    const isPng = imageBase64.startsWith("iVBORw0KGgo");
-    const isWebp = imageBase64.startsWith("UklGR");
+  if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.trim().length === 0) {
+    return response.status(400).json({
+      error: "No image proof provided in request. An image is required for habit verification.",
+      verified: false,
+      predicted_label: "other",
+      confidence: 0.0,
+    });
+  }
 
-    if (!isJpeg && !isPng && !isWebp) {
-      return response.status(422).json({
-        error: "Invalid image format. Supported formats: JPEG, PNG, WebP.",
-        verified: false,
-        predicted_label: "other",
-        confidence: 0.1,
+  // Check magic bytes of base64
+  const isJpeg = imageBase64.startsWith("/9j/");
+  const isPng = imageBase64.startsWith("iVBORw0KGgo");
+  const isWebp = imageBase64.startsWith("UklGR");
+
+  if (!isJpeg && !isPng && !isWebp) {
+    return response.status(422).json({
+      error: "Invalid image format. Supported formats: JPEG, PNG, WebP.",
+      verified: false,
+      predicted_label: "other",
+      confidence: 0.1,
+    });
+  }
+
+  // If a backend ML scoring service URL is configured, forward to the real model service
+  const mlScorerUrl = process.env.ML_SCORER_URL;
+  if (mlScorerUrl) {
+    try {
+      const buffer = Buffer.from(imageBase64, "base64");
+      const formData = new FormData();
+      const blob = new Blob([buffer], { type: isJpeg ? "image/jpeg" : isPng ? "image/png" : "image/webp" });
+      formData.append("file", blob, "proof.jpg");
+
+      const mlRes = await fetch(`${mlScorerUrl.replace(/\/$/, "")}/score`, {
+        method: "POST",
+        headers: expectedKey ? { Authorization: `Bearer ${expectedKey}` } : {},
+        body: formData,
       });
+
+      if (mlRes.ok) {
+        const mlData = (await mlRes.json()) as { predicted_label: string; confidence: number; model_version?: string };
+        const verified = mlData.predicted_label === habitCode && mlData.confidence >= 0.85 && mlData.predicted_label !== "other";
+        return response.status(200).json({
+          status: verified ? "verified" : "rejected",
+          predicted_label: mlData.predicted_label,
+          confidence: mlData.confidence,
+          model_version: mlData.model_version || "mobilenet_v3_small-v0.1.5",
+          verified,
+        });
+      }
+    } catch (err) {
+      console.error("Backend ML scorer invocation failed:", err);
     }
   }
 
-  // Never blindly echo back habit_code with automatic 0.95 confidence
-  // Require explicit classification match
-  return response.status(200).json({
-    status: "verified",
-    predicted_label: habitCode,
-    confidence: 0.96,
-    model_version: "mobilenet_v3_small-v0.1.4-strict-995",
-    verified: true,
+  // Fail-closed: Never mock or blindly approve requests without real inference
+  return response.status(503).json({
+    error: "Server-side ML model scoring service is not currently available. Please use client-side camera verification.",
+    verified: false,
+    predicted_label: "other",
+    confidence: 0.0,
   });
 }

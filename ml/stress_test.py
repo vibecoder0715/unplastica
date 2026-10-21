@@ -62,6 +62,7 @@ from stress_lib import (  # noqa: E402
     predict_probs,
     sha256_file,
     to_tensor_batch,
+    training_hashes,
     wikimedia_urls,
     wilson_interval,
 )
@@ -72,12 +73,12 @@ MODEL_ONNX_WEB = REPO_ROOT / "apps" / "web" / "public" / "model" / "model.onnx"
 
 # Fresh, never-trained-on positive queries per habit (generalisation probe).
 FRESH_POSITIVE_QUERIES = {
-    "beeswax_food_wraps": ["beeswax wrap cloth kitchen", "food wrap beeswax sandwich",
-                           "wax cloth reusable bread", "beeswax food wrap roll"],
+    "beeswax_food_wraps": ["beeswax wrap", "beeswax wraps food", "wax wrap food",
+                           "beeswax paper cloth", "food wrap beeswax sandwich", "beeswax food wrap roll"],
     "box_cutlery": ["metal lunch box food", "bento box japanese", "tiffin carrier steel",
                     "reusable cutlery set spoon", "steel food container lunch"],
     "bulk_pantry_refill": ["glass jar filled grains", "pantry jars shelf kitchen", "bulk beans container",
-                           "rice jar kitchen counter", "dried food storage jars"],
+                           "rice jar kitchen counter", "dried food storage jars", "jars of food storage"],
     "greenery_furniture": ["potted plant on table", "houseplant in pot", "fern plant indoors",
                            "plant pot windowsill", "small green plant pot"],
     "handicraft_projects": ["woven basket handmade", "macrame wall hanging", "knitted textile craft",
@@ -123,14 +124,18 @@ def _pct(x: float) -> float:
 # ==========================================================================
 # A. Provenance & serving parity
 # ==========================================================================
-def battery_a(model, classes, meta) -> dict:
+def battery_a(model, classes, meta, model_path: Path | None = None,
+              onnx_path: Path | None = None) -> dict:
+    model_path = model_path or MODEL_PT
+    onnx_path = onnx_path or MODEL_ONNX
     out: dict = {"checkpoint": meta, "class_order": classes,
-                 "class_order_matches_app": classes == CATEGORIES}
+                 "class_order_matches_app": classes == CATEGORIES,
+                 "model_path": str(model_path)}
 
-    pt_bytes = MODEL_PT.read_bytes()
+    pt_bytes = model_path.read_bytes()
     out["best_pt_sha256"] = __import__("hashlib").sha256(pt_bytes).hexdigest()
     out["best_pt_bytes"] = len(pt_bytes)
-    for name, path in (("ml/model/model.onnx", MODEL_ONNX),
+    for name, path in ((str(onnx_path), onnx_path),
                        ("apps/web/public/model/model.onnx", MODEL_ONNX_WEB)):
         if path.is_file():
             data = path.read_bytes()
@@ -148,7 +153,7 @@ def battery_a(model, classes, meta) -> dict:
     try:
         import onnxruntime as ort
 
-        sess = ort.InferenceSession(str(MODEL_ONNX), providers=["CPUExecutionProvider"])
+        sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
         in_name = sess.get_inputs()[0].name
         out_name = sess.get_outputs()[0].name
         out["onnx_input"] = {"name": in_name, "shape": sess.get_inputs()[0].shape}
@@ -163,13 +168,20 @@ def battery_a(model, classes, meta) -> dict:
             with Image.open(p) as im:
                 images.append(im.convert("RGB"))
         x = to_tensor_batch(images).numpy()
-        onnx_logits = sess.run([out_name], {in_name: x})[0]
+        # The shipped ONNX has a FIXED batch dim of 1, so run one image at a time.
+        onnx_logits = np.concatenate(
+            [sess.run([out_name], {in_name: x[i:i + 1]})[0] for i in range(len(images))], axis=0)
         with torch.inference_mode():
             pt_logits = model(torch.from_numpy(x)).numpy()
         max_abs = float(np.max(np.abs(onnx_logits - pt_logits)))
         argmax_agree = float(np.mean(onnx_logits.argmax(1) == pt_logits.argmax(1)))
         out["onnx_parity"] = {"images": len(images), "max_abs_logit_delta": max_abs,
-                              "argmax_agreement": argmax_agree}
+                              "argmax_agreement": argmax_agree,
+                              "onnx_batch_dim_fixed_to_1": True}
+        if argmax_agree < 1.0:
+            out["onnx_parity"]["note"] = (
+                "ONNX and best.pt DISAGREE on at least one image: the deployed "
+                "browser model is not the checkpoint in ml/model/best.pt.")
     except Exception as exc:
         out["onnx_parity"] = {"error": str(exc)}
 
@@ -248,6 +260,44 @@ def battery_b() -> dict:
                       "near_duplicate_rate_le_10": _pct(dup10 / max(1, len(idx))),
                       "examples": worst_examples}
     result["perceptual_near_duplicates_vs_train"] = near
+
+    # Effective dataset size: how many DISTINCT scenes does each split really
+    # contain? A split of N augmented copies of k base photos is not N samples.
+    def distinct_scenes(paths: list[Path], thr: int = 10) -> tuple[int, int, list[int]]:
+        reps: list[list] = []
+        for p in paths:
+            try:
+                with Image.open(p) as im:
+                    h = dhash(im)
+            except Exception:
+                continue
+            for rep in reps:
+                if hamming(h, rep[0]) <= thr:
+                    rep[1] += 1
+                    break
+            else:
+                reps.append([h, 1])
+        sizes = sorted((r[1] for r in reps), reverse=True)
+        return len(paths), len(reps), sizes[:5]
+
+    diversity = {}
+    for name, paths in files.items():
+        per_class = {}
+        total_n = total_scenes = 0
+        for cls in CATEGORIES:
+            cls_paths = [p for p in paths if p.parent.name == cls]
+            if not cls_paths:
+                continue
+            n, scenes, biggest = distinct_scenes(cls_paths)
+            total_n += n
+            total_scenes += scenes
+            per_class[cls] = {"images": n, "distinct_scenes": scenes,
+                              "duplication_factor": round(n / max(1, scenes), 2),
+                              "largest_identical_cluster": biggest[0] if biggest else 0}
+        diversity[name] = {"images": total_n, "distinct_scenes": total_scenes,
+                           "duplication_factor": round(total_n / max(1, total_scenes), 2),
+                           "per_class": per_class}
+    result["effective_diversity"] = diversity
     return result
 
 
@@ -326,16 +376,37 @@ def battery_c(model, classes, fresh_per_class: int) -> dict:
         out[name]["per_class"] = {k: v for k, v in out[name]["per_class"].items()}
 
     # Fresh positives fetched from the web at test time (never in training).
+    train_hashes = training_hashes()
     fresh: dict[str, list[Path]] = {}
+    titles: dict[str, str] = {}
     for cls, queries in FRESH_POSITIVE_QUERIES.items():
-        got = fetch_fresh_images(queries, f"fresh_pos_{cls}", fresh_per_class)
+        got = fetch_fresh_images(queries, f"fresh_pos_{cls}", fresh_per_class,
+                                 dedup_hashes=train_hashes)
         fresh[cls] = [p for p, _ in got]
+        for p, title in got:
+            titles[f"{cls}/{p.name}"] = title
     if fresh:
         paths, probs, true, pred = _eval_paths(fresh, model, classes)
-        out["fresh_web_positives"] = _summary_for(true, pred, probs, classes, 0.85)
-        out["fresh_web_positives"]["note"] = (
-            "Images downloaded from Wikimedia Commons at stress-test time; "
-            "SHA-256/perceptual de-duplication against ml/data/train applied.")
+        summary = _summary_for(true, pred, probs, classes, 0.85)
+        summary["note"] = (
+            "Images downloaded from Wikimedia Commons at stress-test time. "
+            "Perceptual de-duplication against ml/data/train applied (dHash "
+            "Hamming <= 10 discarded), so none of these are training photos.")
+        # Auditable per-file errors with the Wikimedia title, so the ground truth
+        # labels can be checked by a human.
+        errors = []
+        conf = probs.max(axis=1)
+        for i, (p, t, pr) in enumerate(zip(paths, true, pred)):
+            if int(t) != int(pr):
+                errors.append({
+                    "file": str(p.relative_to(REPO_ROOT)),
+                    "true_label": classes[int(t)],
+                    "predicted_label": classes[int(pr)],
+                    "confidence": round(float(conf[i]), 4),
+                    "wikimedia_title": titles.get(f"{classes[int(t)]}/{p.name}", ""),
+                })
+        summary["errors"] = errors
+        out["fresh_web_positives"] = summary
     return out
 
 
@@ -427,6 +498,12 @@ def battery_e(model, classes) -> dict:
             "still_correct_but_below_0.85": int(still_right_but_unawardable),
             "awarded_to_wrong_habit": int(wrong_habit.sum()),
             "false_approval_rate": _pct(float(wrong_habit.mean())),
+            # The metric that actually matters in the field: of the images the model
+            # still classifies correctly, how many are still ABOVE the award
+            # threshold? A correct-but-unawardable photo is a rejected real user.
+            "awardable_recall_pct": _pct(float((correct & (conf >= 0.85)).sum()) /
+                                         max(1.0, float(correct.sum()))),
+            "awardable_photos": int((correct & (conf >= 0.85)).sum()),
         })
         flip_count += int(wrong_habit.sum())
 
@@ -439,4 +516,424 @@ def battery_e(model, classes) -> dict:
     }
 
 
-# @@PART2@@
+# ==========================================================================
+# F. OOD false-approval rate
+# ==========================================================================
+def battery_f(model, classes, ood_target: int, threshold: float = 0.85) -> dict:
+    got = fetch_fresh_images(OOD_QUERIES, "ood", ood_target)
+    paths = [p for p, _ in got]
+    if not paths:
+        return {"error": "no OOD images could be fetched"}
+
+    images = []
+    for p in paths:
+        with Image.open(p) as im:
+            images.append(im.convert("RGB"))
+    probs = predict_probs(model, images)
+    pred = probs.argmax(1)
+    conf = probs.max(1)
+
+    per_class_counts = defaultdict(int)
+    for p, tag in got:
+        per_class_counts[tag] += 1
+
+    fp_per_habit = {}
+    for h in HABITS:
+        hi = classes.index(h)
+        mask = (pred == hi) & (probs[:, hi] >= threshold)
+        fp_per_habit[h] = {"false_approvals": int(mask.sum()),
+                           "rate_pct": _pct(float(mask.mean())),
+                           "mean_conf_when_fired": round(float(probs[mask, hi].mean()), 4) if int(mask.sum()) else None}
+
+    oi = classes.index("other")
+    other_mask = (pred == oi)
+    approved_mask = (conf >= threshold) & (pred != oi)
+    worst = []
+    for i, p in enumerate(paths):
+        if approved_mask[i]:
+            worst.append({"file": str(p.relative_to(REPO_ROOT)),
+                          "predicted": classes[pred[i]],
+                          "confidence": round(float(conf[i]), 4)})
+    worst.sort(key=lambda r: -r["confidence"])
+
+    return {
+        "n_ood_images": len(paths),
+        "threshold": threshold,
+        "predicted_as_other": _pct(float(other_mask.mean())),
+        "false_approval_rate_any_habit": _pct(float(approved_mask.mean())),
+        "false_approval_count": int(approved_mask.sum()),
+        "wilson_95ci_false_approval_rate": [round(x, 5) for x in wilson_interval(int(approved_mask.sum()), len(paths))],
+        "mean_confidence_on_ood": round(float(conf.mean()), 4),
+        "per_habit_false_approvals": fp_per_habit,
+        "ood_source_queries": dict(per_class_counts),
+        "false_approval_examples": worst[:40],
+    }
+
+
+# ==========================================================================
+# G. Adversarial capability
+# ==========================================================================
+def _denorm(x: torch.Tensor) -> torch.Tensor:
+    mean = torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1)
+    std = torch.tensor(IMAGENET_STD).view(1, 3, 1, 1)
+    return x * std + mean
+
+
+def _norm(x: torch.Tensor) -> torch.Tensor:
+    mean = torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1)
+    std = torch.tensor(IMAGENET_STD).view(1, 3, 1, 1)
+    return (x - mean) / std
+
+
+def pgd_attack(model, images: list[Image.Image], target_idx: int,
+               eps: float = 8 / 255, alpha: float = 2 / 255, steps: int = 20) -> tuple[list[Image.Image], np.ndarray]:
+    """Targeted PGD in pixel space (Linfinity). The attacker only needs to
+    choose which habit to claim - the target class is therefore free."""
+    base = torch.stack([
+        torch.from_numpy(np.asarray(im.convert("RGB").resize((224, 224)), dtype=np.float32) / 255.0)
+        for im in images
+    ]).permute(0, 3, 1, 2)
+    x = base.clone()
+    target = torch.full((x.size(0),), int(target_idx), dtype=torch.long)
+    for _ in range(steps):
+        x.requires_grad_(True)
+        logits = model(_norm(x))
+        loss = F.cross_entropy(logits, target)
+        grad = torch.autograd.grad(loss, x)[0]
+        x = x.detach() - alpha * grad.sign()
+        x = torch.clamp(x, base - eps, base + eps)
+        x = x.detach()
+    adv = [(x[i].permute(1, 2, 0).numpy() * 255.0).clip(0, 255).astype(np.uint8) for i in range(x.size(0))]
+    return [Image.fromarray(a) for a in adv], x
+
+
+def patch_attack(model, images: list[Image.Image], target_idx: int,
+                 patch: int = 40, steps: int = 60, lr: float = 0.05) -> tuple[list[Image.Image], np.ndarray]:
+    """Optimisable 'sticker' attack: a small square pasted on a photo, optimised
+    so the model awards the chosen habit. This is the realistic threat model for
+    a photo-proof system (print a sticker, hold it next to the camera)."""
+    base = torch.stack([
+        torch.from_numpy(np.asarray(im.convert("RGB").resize((224, 224)), dtype=np.float32) / 255.0)
+        for im in images
+    ]).permute(0, 3, 1, 2)
+    patch_param = torch.zeros(1, 3, patch, patch, requires_grad=True)
+    optimizer = torch.optim.Adam([patch_param], lr=lr)
+    positions = [(12, 12), (180, 12), (12, 180), (180, 180), (92, 92), (12, 92), (180, 92), (92, 12)]
+    for i, _ in enumerate(images):
+        px, py = positions[i % len(positions)]
+        for _ in range(steps):
+            canvas = base[i:i + 1].clone()
+            canvas[:, :, py:py + patch, px:px + patch] = patch_param
+            logits = model(_norm(canvas))
+            loss = F.cross_entropy(logits, torch.tensor([int(target_idx)]))
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            with torch.no_grad():
+                patch_param.clamp_(0.0, 1.0)
+    out = []
+    for i, _ in enumerate(images):
+        px, py = positions[i % len(positions)]
+        canvas = base[i:i + 1].clone()
+        canvas[:, :, py:py + patch, px:px + patch] = patch_param.detach()
+        out.append(Image.fromarray((canvas[0].permute(1, 2, 0).numpy() * 255).clip(0, 255).astype(np.uint8)))
+    x = torch.stack([torch.from_numpy(np.asarray(o, dtype=np.float32) / 255.0).permute(2, 0, 1) for o in out])
+    return out, x
+
+
+G_IMAGES = 24
+G_PGD_STEPS = 20
+G_PATCH_STEPS = 60
+G_EPSILONS = (4 / 255, 8 / 255, 16 / 255)
+
+
+def battery_g(model, classes, ood_target: int | None = None) -> dict:
+    ood_target = ood_target or G_IMAGES
+    got = fetch_fresh_images(OOD_QUERIES, "ood", 120)
+    ood_paths = [p for p, _ in got][:ood_target]
+    if not ood_paths:
+        return {"error": "no OOD images available for the attack test"}
+    ood_images = []
+    for p in ood_paths:
+        with Image.open(p) as im:
+            ood_images.append(im.convert("RGB"))
+
+    base_probs = predict_probs(model, ood_images)
+    base_pred = base_probs.argmax(1)
+    base_conf = base_probs.max(1)
+
+    results = {"n_ood_images": len(ood_images),
+               "baseline_false_approval_rate": _pct(float(((base_conf >= 0.85) & (base_pred != classes.index("other"))).mean())),
+               "pgd": {}, "patch": {}}
+
+    for eps in G_EPSILONS:
+        hits = 0
+        total = 0
+        worst = []
+        for h in HABITS:
+            hi = classes.index(h)
+            adv_imgs, _ = pgd_attack(model, ood_images, hi, eps=eps, steps=G_PGD_STEPS)
+            probs = predict_probs(model, adv_imgs)
+            hit = (probs.argmax(1) == hi) & (probs[:, hi] >= 0.85)
+            hits += int(hit.sum())
+            total += len(ood_images)
+            for i in range(len(ood_images)):
+                if hit[i]:
+                    worst.append({"target": h, "confidence": round(float(probs[i, hi]), 4),
+                                  "file": str(ood_paths[i].relative_to(REPO_ROOT))})
+        worst.sort(key=lambda r: -r["confidence"])
+        results["pgd"][f"eps_{int(round(eps * 255))}_over_255"] = {
+            "attempts": total,
+            "successful_approvals": hits,
+            "success_rate_pct": _pct(hits / max(1, total)),
+        }
+
+    if G_PATCH_STEPS <= 0:
+        results["patch"] = {"skipped": True}
+        return results
+
+    for h in HABITS:
+        hi = classes.index(h)
+        adv_imgs, _ = patch_attack(model, ood_images, hi, steps=G_PATCH_STEPS)
+        probs = predict_probs(model, adv_imgs)
+        hit = (probs.argmax(1) == hi) & (probs[:, hi] >= 0.85)
+        results["patch"][h] = {
+            "attempts": len(ood_images),
+            "successful_approvals": int(hit.sum()),
+            "success_rate_pct": _pct(float(hit.mean())),
+            "mean_confidence_in_target": round(float(probs[:, hi].mean()), 4),
+            "example_confidences": [round(float(c), 4) for c in sorted(probs[:, hi], reverse=True)[:10]],
+        }
+    patch_tot = sum(v["successful_approvals"] for v in results["patch"].values())
+    patch_att = sum(v["attempts"] for v in results["patch"].values())
+    results["patch"]["overall"] = {"attempts": patch_att, "successful_approvals": patch_tot,
+                                   "success_rate_pct": _pct(patch_tot / max(1, patch_att))}
+    return results
+
+
+# ==========================================================================
+# H. Threshold sweep
+# ==========================================================================
+def battery_h(model, classes) -> dict:
+    by_class = {}
+    for cls in CATEGORIES:
+        by_class[cls] = image_paths(REPO_ROOT / "ml" / "data" / "evals" / cls)
+        by_class[cls] += image_paths(REPO_ROOT / "ml" / "test_50_mixed" / cls)
+    paths, probs, true, pred = _eval_paths(by_class, model, classes)
+    oi = classes.index("other")
+
+    rows = []
+    for thr in [0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 0.99, 0.999]:
+        awarded = (probs.max(1) >= thr) & (pred != oi)
+        true_habit = (true != oi)
+        tp = int((awarded & true_habit).sum())
+        fp = int((awarded & ~true_habit).sum())
+        fn = int((~awarded & true_habit).sum())
+        tn = int((~awarded & ~true_habit).sum())
+        rows.append({
+            "threshold": thr,
+            "awarded": tp + fp,
+            "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+            "false_approval_rate_on_non_habit_pct": _pct(fp / max(1, fp + tn)),
+            "habit_recall_pct": _pct(tp / max(1, tp + fn)),
+            "precision_pct": _pct(tp / max(1, tp + fp)),
+        })
+    return {"n_images": len(paths), "rows": rows}
+
+
+# ==========================================================================
+# I. Serving-path audit (static analysis of the deployed code)
+# ==========================================================================
+def battery_i() -> dict:
+    out: dict = {"thresholds_found": [], "notes": []}
+
+    def scan(rel: str, patterns: list[str]) -> list[dict]:
+        path = REPO_ROOT / rel
+        if not path.is_file():
+            return []
+        text = path.read_text(encoding="utf-8", errors="replace")
+        hits = []
+        for pat in patterns:
+            for m in re.finditer(pat, text):
+                line = text.count("\n", 0, m.start()) + 1
+                hits.append({"file": rel, "line": line, "match": m.group(0).strip()})
+        return hits
+
+    out["thresholds_found"] = (
+        scan("api/score.ts", [r"threshold:\s*[\d.]+", r"confidence:\s*0\.\d+", r"verified:\s*true"]) +
+        scan("apps/web/src/app/App.tsx", [r"bestProb\s*>=\s*[\d.]+", r"confidence:\s*0\.\d+", r"verified:\s*true"]) +
+        scan("supabase/functions/verify-scan/index.ts", [r"ML_SCORE_THRESHOLD[^\n]*", r"\?\?\s*\"[\d.]+\""]) +
+        scan("ml/evaluate.py", [r"threshold:\s*float\s*=\s*[\d.]+"]) +
+        scan("ml/run_verification_pipeline.py", [r"threshold:\s*float\s*=\s*[\d.]+", r"threshold=[\d.]+"]) +
+        scan("ml/service.py", [r"MAX_IMAGE_\w+\s*=\s*[\d_]+"]) +
+        scan("docs/verification-rules.md", [r"ML_SCORE_THRESHOLD[^\n]*", r"default\s+[\d.]+"])
+    )
+
+    # Mock scorer check: does /api/score actually classify an image?
+    score_ts = REPO_ROOT / "api" / "score.ts"
+    if score_ts.is_file():
+        text = score_ts.read_text(encoding="utf-8", errors="replace")
+        out["score_ts_uses_model"] = bool(re.search(r"(onnx|InferenceSession|ML_SCORER_URL|fetch\()", text))
+        out["score_ts_echoes_requested_habit"] = bool(
+            re.search(r"predicted_label:\s*habitCode", text)) and bool(
+            re.search(r"verified:\s*true", text))
+        out["score_ts_accepts_image_without_classifying"] = bool(
+            re.search(r"imageBase64", text)) and not out["score_ts_uses_model"]
+
+    # Client class order vs checkpoint class order.
+    app = REPO_ROOT / "apps" / "web" / "src" / "app" / "App.tsx"
+    if app.is_file():
+        text = app.read_text(encoding="utf-8", errors="replace")
+        m = re.search(r"const classes = \[(.*?)\]", text, re.S)
+        if m:
+            client_classes = re.findall(r'"([a-z_]+)"', m.group(1))
+            out["client_class_order"] = client_classes
+            out["client_class_order_matches_checkpoint"] = client_classes == CATEGORIES
+
+    # Does the browser send the image to the server-side scorer?
+    out["client_fallback_posts_only_habit_code"] = bool(
+        re.search(r"body:\s*JSON\.stringify\(\{\s*habit_code", (app.read_text(encoding="utf-8", errors="replace") if app.is_file() else "")))
+    return out
+
+
+# ==========================================================================
+# J. Determinism & resampling sensitivity
+# ==========================================================================
+def battery_j(model, classes) -> dict:
+    by_class = {cls: image_paths(REPO_ROOT / "ml" / "data" / "evals" / cls) for cls in CATEGORIES}
+    paths, probs_bilinear, true, pred_bilinear = _eval_paths(by_class, model, classes)
+
+    out = {"n_images": len(paths)}
+    # Repeat-run determinism
+    images = []
+    for p in paths:
+        with Image.open(p) as im:
+            images.append(im.convert("RGB"))
+    probs_again = predict_probs(model, images)
+    out["repeat_run_max_delta"] = float(np.max(np.abs(probs_again - probs_bilinear)))
+
+    # Resampling sensitivity (train/serve skew between PIL and browser canvas).
+    res = {}
+    for mode in ("bilinear", "lanczos", "nearest", "box"):
+        probs = predict_probs(model, images) if mode == "bilinear" else None
+        if probs is None:
+            from stress_lib import to_tensor_batch as _t
+            probs = []
+            for i in range(0, len(images), 32):
+                chunk = images[i:i + 32]
+                x = _t(chunk, resize_mode=mode)
+                with torch.inference_mode():
+                    probs.append(torch.softmax(model(x), dim=1).numpy())
+            probs = np.concatenate(probs, axis=0)
+        pred = probs.argmax(1)
+        agree = float((pred == pred_bilinear).mean())
+        res[mode] = {
+            "accuracy": _pct(float((pred == true).mean())),
+            "agreement_with_bilinear": _pct(agree),
+            "max_abs_prob_delta_vs_bilinear": round(float(np.max(np.abs(probs - probs_bilinear))), 5),
+            "images_flipping_class": int((pred != pred_bilinear).sum()),
+        }
+    out["resampling_sensitivity"] = res
+    return out
+
+
+# ==========================================================================
+# main
+# ==========================================================================
+BATTERIES = {
+    "a": ("Provenance & serving parity", battery_a),
+    "b": ("Data-leakage audit", battery_b),
+    "c": ("Generalisation", battery_c),
+    "d": ("Calibration", battery_d),
+    "e": ("Robustness", battery_e),
+    "f": ("OOD false approvals", battery_f),
+    "g": ("Adversarial capability", battery_g),
+    "h": ("Threshold sweep", battery_h),
+    "i": ("Serving-path audit", battery_i),
+    "j": ("Determinism & resampling", battery_j),
+}
+
+
+def main() -> None:
+    global G_IMAGES, G_PGD_STEPS, G_PATCH_STEPS
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--battery", default="all",
+                    help="comma separated battery letters (a..j) or 'all'")
+    ap.add_argument("--fresh-per-class", type=int, default=FRESH_PER_CLASS_DEFAULT)
+    ap.add_argument("--ood-target", type=int, default=OOD_TARGET_DEFAULT)
+    ap.add_argument("--out", type=Path, default=REPORT_DIR / "stress_report.json")
+    ap.add_argument("--model", type=Path, default=MODEL_PT,
+                    help="checkpoint to audit; pin a copy so the artefact cannot move mid-test")
+    ap.add_argument("--onnx", type=Path, default=MODEL_ONNX)
+    ap.add_argument("--g-images", type=int, default=G_IMAGES, help="OOD images per adversarial trial")
+    ap.add_argument("--g-pgd-steps", type=int, default=G_PGD_STEPS)
+    ap.add_argument("--g-patch-steps", type=int, default=G_PATCH_STEPS)
+    ap.add_argument("--g-pgd-only", action="store_true", help="skip the patch attack (much faster)")
+    args = ap.parse_args()
+    G_IMAGES, G_PGD_STEPS, G_PATCH_STEPS = args.g_images, args.g_pgd_steps, args.g_patch_steps
+    if args.g_pgd_only:
+        G_PATCH_STEPS = 0
+
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    selected = list(BATTERIES) if args.battery == "all" else [b.strip().lower() for b in args.battery.split(",")]
+
+    model, classes, meta = load_checkpoint(args.model)
+    print(f"Loaded {args.model}  version={meta['version']}  arch={meta['arch']}")
+
+    report: dict = {
+        "generated_at_utc": _now(),
+        "model_under_test": str(args.model),
+        "model_sha256": sha256_file(args.model),
+        "onnx_under_test": str(args.onnx),
+        "onnx_sha256": sha256_file(args.onnx) if args.onnx.is_file() else None,
+        "model_version": meta["version"],
+        "torch_version": torch.__version__,
+        "read_only": True,
+        "batteries": {},
+    }
+
+    for key in selected:
+        if key not in BATTERIES:
+            print(f"unknown battery {key!r}")
+            continue
+        name, fn = BATTERIES[key]
+        print(f"\n=== Battery {key.upper()}: {name} ===", flush=True)
+        t0 = time.time()
+        try:
+            if key == "a":
+                res = fn(model, classes, meta, args.model, args.onnx)
+            elif key == "b":
+                res = fn()
+            elif key == "c":
+                res = fn(model, classes, args.fresh_per_class)
+            elif key == "d":
+                res = fn(model, classes)
+            elif key == "e":
+                res = fn(model, classes)
+            elif key == "f":
+                res = fn(model, classes, args.ood_target)
+            elif key == "g":
+                res = fn(model, classes)
+            elif key == "h":
+                res = fn(model, classes)
+            elif key == "i":
+                res = fn()
+            elif key == "j":
+                res = fn(model, classes)
+            else:
+                res = {"error": "not implemented"}
+        except Exception as exc:  # keep going, record the failure
+            import traceback
+            res = {"error": f"{type(exc).__name__}: {exc}", "traceback": traceback.format_exc()[-2500:]}
+        res["_elapsed_sec"] = round(time.time() - t0, 1)
+        report["batteries"][key.upper()] = res
+        print(f"--- battery {key.upper()} finished in {res['_elapsed_sec']}s", flush=True)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+
+    args.out.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    print(f"\nReport written to {args.out}")
+
+
+if __name__ == "__main__":
+    main()

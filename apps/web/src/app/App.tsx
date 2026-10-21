@@ -1599,17 +1599,25 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
         }
         let bestIdx = 0;
         let bestProb = 0;
+        let secondBestProb = 0;
         for (let i = 0; i < output.length; i++) {
           const p = exps[i] / sumExp;
-          if (p > bestProb) { bestProb = p; bestIdx = i; }
+          if (p > bestProb) {
+            secondBestProb = bestProb;
+            bestProb = p;
+            bestIdx = i;
+          } else if (p > secondBestProb) {
+            secondBestProb = p;
+          }
         }
 
+        const margin = bestProb - secondBestProb;
         const classes = [
           "beeswax_food_wraps", "box_cutlery", "bulk_pantry_refill", "greenery_furniture",
           "handicraft_projects", "other", "recycle_bags", "self_bottle_refill"
         ];
         const detectedLabel = classes[bestIdx] || "other";
-        const verified = detectedLabel === targetHabit && bestProb >= 0.85 && detectedLabel !== "other";
+        const verified = detectedLabel === targetHabit && bestProb >= 0.85 && margin >= 0.20 && detectedLabel !== "other";
 
         return {
           label: detectedLabel,
@@ -1625,28 +1633,10 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
     console.warn("Client model detection:", err);
   }
 
-  // Fallback to /api/score
-  try {
-    const res = await fetch("/api/score", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ habit_code: targetHabit }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const verified = Boolean(data.verified);
-      return {
-        label: data.predicted_label || targetHabit,
-        confidence: data.confidence || 0.85,
-        verified,
-        message: verified ? "Verified" : "Failed: Non-habit/ disposable object detected.",
-      };
-    }
-  } catch {}
-
+  // Fail-closed: Never approve when detection fails
   return {
     label: "other",
-    confidence: 0.1,
+    confidence: 0,
     verified: false,
     message: "Failed: Non-habit/ disposable object detected.",
   };

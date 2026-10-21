@@ -23,22 +23,56 @@ if not API_KEY:
 if not MODEL_PATH.is_file():
     raise RuntimeError(f"Model file not found: {MODEL_PATH}")
 
+DEFAULT_CLASSES: list[str] = [
+    "beeswax_food_wraps",
+    "box_cutlery",
+    "bulk_pantry_refill",
+    "greenery_furniture",
+    "handicraft_projects",
+    "other",
+    "recycle_bags",
+    "self_bottle_refill",
+]
+
 checkpoint = torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
-classes: list[str] = checkpoint["classes"]
-model_version: str = checkpoint.get("version", "unversioned")
-arch: str = checkpoint.get("arch", "mobilenet_v3_small")
+if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+    classes: list[str] = checkpoint.get("classes", DEFAULT_CLASSES)
+    model_version: str = checkpoint.get("version", "mobilenet_v3_small-v0.1.5")
+    arch: str = checkpoint.get("arch", "mobilenet_v3_small")
+    state_dict = checkpoint["state_dict"]
+elif isinstance(checkpoint, dict):
+    classes = checkpoint.get("classes", DEFAULT_CLASSES) if "classes" in checkpoint else DEFAULT_CLASSES
+    model_version = checkpoint.get("version", "mobilenet_v3_small-v0.1.5") if "version" in checkpoint else "mobilenet_v3_small-v0.1.5"
+    arch = checkpoint.get("arch", "mobilenet_v3_small") if "arch" in checkpoint else "mobilenet_v3_small"
+    state_dict = {k: v for k, v in checkpoint.items() if isinstance(v, torch.Tensor)}
+else:
+    raise RuntimeError(f"Unexpected checkpoint format in {MODEL_PATH}")
+
+has_dropout_seq = any(k.startswith("classifier.3.1.") for k in state_dict.keys())
 
 if arch == "mobilenet_v3_large":
     model = mobilenet_v3_large(weights=None)
-    model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, len(classes))
+    if has_dropout_seq:
+        model.classifier[3] = torch.nn.Sequential(
+            torch.nn.Dropout(p=0.2),
+            torch.nn.Linear(model.classifier[3].in_features, len(classes)),
+        )
+    else:
+        model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, len(classes))
 elif arch == "efficientnet_b0":
     model = efficientnet_b0(weights=None)
     model.classifier[1] = torch.nn.Linear(model.classifier[1].in_features, len(classes))
 else:
     model = mobilenet_v3_small(weights=None)
-    model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, len(classes))
+    if has_dropout_seq:
+        model.classifier[3] = torch.nn.Sequential(
+            torch.nn.Dropout(p=0.2),
+            torch.nn.Linear(model.classifier[3].in_features, len(classes)),
+        )
+    else:
+        model.classifier[3] = torch.nn.Linear(model.classifier[3].in_features, len(classes))
 
-model.load_state_dict(checkpoint["state_dict"])
+model.load_state_dict(state_dict)
 model.to(DEVICE).eval()
 
 preprocess = transforms.Compose([
