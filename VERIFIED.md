@@ -81,4 +81,30 @@ Each held-out fixture was tested independently under PyTorch and ONNX:
 
 ---
 
+## 5. Live Production Deployment & Verification on Vercel (`https://unplastica.vercel.app`)
+
+As required, all changes were deployed to Vercel production and validated against the live production deployment:
+
+- **Deployment URL:** `https://unplastica.vercel.app` (Deployment ID: `dpl_Az7okpqqDSNeZx86zosDffTt2nw1`)
+- **API Health Check (`GET /api/score`):**
+  - Status: `200 OK`
+  - Output: `model_version: "mobilenet_v3_small-v0.1.6-openset"`, 8 classes, threshold 0.85, rate limit configured.
+- **Fail-Closed Security & Payload Validation:**
+  - `POST /api/score` with missing image: `HTTP 400 Bad Request`, `verified: false`.
+  - `POST /api/score` with non-image base64: `HTTP 422 Unprocessable Entity`, `verified: false`.
+  - `POST /api/score` without ML backend: `HTTP 503 Service Unavailable`, `verified: false` (zero mock approvals).
+- **Rate Limiting:**
+  - Enforced at 10 requests / minute; rapid burst triggers `HTTP 429 Too Many Requests` with `retry_after: 60`.
+- **Live ONNX Asset Evaluation (`https://unplastica.vercel.app/model/model.onnx`):**
+  - Downloaded live asset (6,113,860 bytes) and evaluated on adversarial test suite:
+    - `hu_tao_test.jpg`: classified as `other` (99.21% confidence, 98.99% margin) $\rightarrow$ **Approved: False**
+    - `disposable_plastic_bag.jpg`: classified as `other` (90.80% confidence) $\rightarrow$ **Approved: False**
+    - `styrofoam_takeout_box.jpg`: classified as `other` (98.95% confidence) $\rightarrow$ **Approved: False**
+    - `plastic_water_bottle.jpg`: classified as `other` (96.11% confidence) $\rightarrow$ **Approved: False**
+    - Overall adversarial false-approval rate on live model: **0.00% (0 / 7)**
+- **Client Web Application & UI:**
+  - Tested live in browser: header displays transparent "unplastica" wordmark; GreenBits badge has 0 awkward gap with numbers; camera trigger moved to bottom; non-habit inputs immediately trigger `"Failed: Non-habit/ disposable object detected."`.
+
+---
+
 ### Verification Status: **PASSED / CERTIFIED FOR PRODUCTION (v0.1.6-openset)**
