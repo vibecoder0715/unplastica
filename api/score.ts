@@ -13,6 +13,7 @@ type VercelResponse = {
 };
 
 declare const process: { env: Record<string, string | undefined> };
+declare const Buffer: any;
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 10; // 10 requests per minute
@@ -200,7 +201,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           status: verified ? "verified" : "rejected",
           predicted_label: mlData.predicted_label,
           confidence: mlData.confidence,
-          model_version: mlData.model_version || "mobilenet_v3_small-v0.1.5",
+          model_version: mlData.model_version || "mobilenet_v3_small-v0.1.6-openset",
           verified,
         });
       }
