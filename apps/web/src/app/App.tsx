@@ -1071,7 +1071,7 @@ function SettingsPage(props: {
         }}
       >
         <Icon name="arrow" size={14} />
-        <span>v0.1.2 • Force Refresh & Clear Cache</span>
+        <span>v0.1.3 • Force Refresh & Clear Cache</span>
       </button>
     </div>
     <button className="logout-button" onClick={props.guest ? props.onAuth : props.onSignOut}><Icon name={props.guest ? "mail" : "logout"} />{props.guest ? t("settings.login") : t("settings.logout")}</button>

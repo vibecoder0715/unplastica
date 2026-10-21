@@ -3,9 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 const rawUrl = (import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL) as string | undefined;
 const rawKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) as string | undefined;
 
+// Clean strings by removing any BOM, non-ASCII or invisible control characters
+const cleanEnv = (val?: string) => (val ? val.replace(/[^\x20-\x7E]/g, "").trim() : "");
+
 // Fallback to project defaults and auto-correct known typo (60psXnNd -> 6OpsXnNd)
-export const supabaseUrl = rawUrl || "https://jkdepxzpqbridnkcnvyj.supabase.co";
-export const supabaseAnonKey = (rawKey ? rawKey.replace("_60psXnNd", "_6OpsXnNd") : "") || "sb_publishable_qAHZXnF218HyVetooOjKFA_6OpsXnNd";
+export const supabaseUrl = cleanEnv(rawUrl) || "https://jkdepxzpqbridnkcnvyj.supabase.co";
+export const supabaseAnonKey =
+  cleanEnv(rawKey).replace("_60psXnNd", "_6OpsXnNd") || "sb_publishable_qAHZXnF218HyVetooOjKFA_6OpsXnNd";
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
