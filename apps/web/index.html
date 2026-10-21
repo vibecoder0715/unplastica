@@ -3,9 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#fafaed" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafaed" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1410" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Unplastica" />
     <meta name="description" content="Reduce single-use plastic in Malaysia with Unplastica. Build reusable habits, earn Greenbits, and support cleaner communities from Kuala Lumpur and Selangor to Penang and Johor." />
     <meta name="keywords" content="reduce plastic Malaysia, avoid single-use plastic Malaysia, plastic reduction Kuala Lumpur, plastic-free habits Selangor, reusable habits Petaling Jaya, zero waste Penang, plastic pollution Johor, APU sustainability" />
@@ -13,7 +14,7 @@
     <meta property="og:site_name" content="Unplastica" />
     <meta property="og:title" content="Unplastica — Play to reduce plastic" />
     <meta property="og:description" content="Build reusable habits, avoid single-use plastic, and help make Malaysian campuses cleaner." />
-    <meta property="og:image" content="/assets/brand/unplastica-light.png" />
+    <meta property="og:image" content="/assets/brand/brand-wordmark-light.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Unplastica — Play to reduce plastic" />
     <meta name="twitter:description" content="Small plastic-free habits. A cleaner Malaysia, one choice at a time." />
@@ -22,9 +23,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>Unplastica — Play to reduce plastic in Malaysia</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        background-color: var(--surface, #fafaed);
+      }
+      :root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"] {
+        background-color: #0c1410 !important;
+        color-scheme: dark;
+      }
+      :root[data-theme="light"], html[data-theme="light"], body[data-theme="light"] {
+        background-color: #fafaed !important;
+        color-scheme: light;
+      }
+      .pwa-launch-splash {
+        min-height: 100dvh;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        width: 100%;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      .pwa-launch-wordmark {
+        width: 220px;
+        height: auto;
+        max-width: 75vw;
+        object-fit: contain;
+        background: transparent;
+        display: block;
+      }
+      .pwa-wordmark-light { display: block; }
+      .pwa-wordmark-dark { display: none; }
+      :root[data-theme="dark"] .pwa-wordmark-light { display: none !important; }
+      :root[data-theme="dark"] .pwa-wordmark-dark { display: block !important; }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) .pwa-wordmark-light { display: none !important; }
+        :root:not([data-theme="light"]) .pwa-wordmark-dark { display: block !important; }
+      }
+    </style>
     <script>
       (function() {
-        var APP_VER = "0.1.3";
+        var APP_VER = "0.1.4";
         try {
           var stored = localStorage.getItem("unplastica_app_version");
           if (stored !== APP_VER) {
@@ -40,12 +84,20 @@
               }
             }
           }
+          var storedTheme = localStorage.getItem("theme");
+          var isDark = storedTheme === "dark" || (!storedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
         } catch (_) {}
       })();
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="pwa-launch-splash">
+        <img class="pwa-launch-wordmark pwa-wordmark-light" src="/assets/brand/brand-wordmark-light.png" alt="unplastica" />
+        <img class="pwa-launch-wordmark pwa-wordmark-dark" src="/assets/brand/brand-wordmark-dark.png" alt="unplastica" />
+      </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>

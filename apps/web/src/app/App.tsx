@@ -47,6 +47,30 @@ const habitImages: Record<HabitCode, string> = {
   bulk_pantry_refill: "/assets/habits/bulk-pantry-refill.png",
 };
 
+export const APP_BUILD_VERSION = "0.1.4";
+
+export type PasswordCheck = {
+  valid: boolean;
+  hasLength: boolean;
+  hasLetter: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+};
+
+export function validatePasswordComplexity(pw: string): PasswordCheck {
+  const hasLength = pw.length >= 8 && pw.length <= 72;
+  const hasLetter = /[a-zA-Z]/.test(pw);
+  const hasNumber = /[0-9]/.test(pw);
+  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?`~]/.test(pw);
+  return {
+    valid: hasLength && hasLetter && hasNumber && hasSpecial,
+    hasLength,
+    hasLetter,
+    hasNumber,
+    hasSpecial,
+  };
+}
+
 function readPage(): Page {
   const path = location.pathname;
   if (path === "/login") return "login";
@@ -374,7 +398,7 @@ export default function App() {
     }
   };
 
-  if (!ready) return <div className="loading-shell"><BrandLogo scrolled /></div>;
+  if (!ready) return <div className="loading-shell"><BrandWordmark /></div>;
   const activeProfile = profile ?? { ...guestProfile, display_name: t("settings.guest"), preferences: { ...guestProfile.preferences, language } };
   const guest = !user;
   const openSettings = () => navigate("settings");
@@ -621,12 +645,19 @@ function Header({ page, balance, scrolled, avatarUrl, onProfile, onHome }: { pag
   );
 }
 
-function BrandLogo({ scrolled = true }: { scrolled?: boolean }) {
-  return <span className={"brand-crop " + (scrolled ? "wordmark-visible" : "mark-visible")} aria-hidden="true">
-    <img className="brand-mark brand-image-light" src="/assets/brand/brand-mark-light.png" alt="" />
-    <img className="brand-mark brand-image-dark" src="/assets/brand/brand-mark-dark.png" alt="" />
-    <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png" alt="" />
-    <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png" alt="" />
+function BrandWordmark({ className = "" }: { className?: string }) {
+  return (
+    <div className={"brand-wordmark-wrapper " + className} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <img className="brand-image-light" src="/assets/brand/brand-wordmark-light.png" alt="Unplastica" style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
+      <img className="brand-image-dark" src="/assets/brand/brand-wordmark-dark.png" alt="Unplastica" style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
+    </div>
+  );
+}
+
+function BrandLogo({ scrolled: _scrolled = true }: { scrolled?: boolean } = {}) {
+  return <span className="brand-crop wordmark-visible" aria-hidden="true">
+    <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png" alt="Unplastica" />
+    <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png" alt="Unplastica" />
   </span>;
 }
 
@@ -639,7 +670,12 @@ function BottomNav({ page, onNavigate }: { page: Page; onNavigate: (page: Page) 
   ];
   return <nav className="bottom-nav" aria-label="Main navigation">
     {items.map((item) => <button key={item.page} className={"nav-tab " + (page === item.page ? "active" : "")} onClick={() => onNavigate(item.page)} aria-current={page === item.page ? "page" : undefined}>
-      <Icon name={item.icon} size={23} /><span>{item.title}</span>
+      {item.page === "earn" ? (
+        <img src="/assets/brand/greenbits.png" alt="" className="nav-earn-icon" style={{ width: 23, height: 23, objectFit: "contain", display: "block", background: "transparent" }} />
+      ) : (
+        <Icon name={item.icon} size={23} />
+      )}
+      <span>{item.title}</span>
     </button>)}
   </nav>;
 }
@@ -648,7 +684,7 @@ function HomePage({ onEnter }: { onEnter: () => void }) {
   const t = useCopy();
   return <div className="content home-content">
     <section className="home-hero">
-      <video className="hero-video" autoPlay muted loop playsInline poster="/icons/icon-512.png" aria-label="Polluted river with plastic waste">
+      <video className="hero-video" autoPlay muted loop playsInline aria-label="Polluted river with plastic waste">
         <source src="/assets/home/polluted-river.mp4" type="video/mp4" />
       </video>
       <div className="hero-tint" />
@@ -676,13 +712,13 @@ function EarnPage({ selected, dailyUsage, onSelect, onInfo, onCamera }: {
   const isSelectedCapped = selectedUsed >= selectedLimit;
 
   return <div className="content earn-content">
-    <section className="earn-heading"><h1><span>{t("earn.titleStart")}</span><img src="/assets/brand/greenbits.png" alt="Greenbits" /><span>{t("earn.titleEnd")}</span></h1><p>{t("earn.subtitle")}</p></section>
+    <section className="earn-heading"><h1><span>{t("earn.titleStart")}</span><img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ background: "transparent" }} /><span>{t("earn.titleEnd")}</span></h1><p>{t("earn.subtitle")}</p></section>
     <section className="camera-section">
       <div className="section-heading"><h2>{t("earn.checker")}</h2><span className="status-chip"><i />{isSelectedCapped ? "Daily limit reached" : t("common.ready")}</span></div>
       <button className={"camera-frame " + (isSelectedCapped ? "is-capped" : "")} onClick={onCamera}>
         <i className="frame-corner corner-top-left" /><i className="frame-corner corner-top-right" />
         <i className="frame-corner corner-bottom-left" /><i className="frame-corner corner-bottom-right" />
-        <span className="camera-helper"><Icon name="camera" size={25} /></span>
+        <span className="camera-helper"><img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ width: 28, height: 28, objectFit: "contain", background: "transparent" }} /></span>
         <span className="camera-copy">
           <strong>{habit ? t("habit." + habit.code) : t("camera.title")}</strong>
           <span>{isSelectedCapped ? "Daily limit reached for this habit today (resets at midnight)" : habit ? t("earn.reward", { points: habit.points }) : t("earn.hold")}</span>
@@ -703,7 +739,7 @@ function EarnPage({ selected, dailyUsage, onSelect, onInfo, onCamera }: {
               <span className="habit-labels">
                 <strong>{t("habit." + item.code)}</strong>
                 <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <b>+{item.points}</b>
+                  <b style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}><img src="/assets/brand/greenbits.png" alt="" style={{ width: 14, height: 14, objectFit: "contain", background: "transparent" }} />+{item.points}</b>
                   <span className={"daily-quota-pill" + (capped ? " capped" : "")}>
                     {capped ? "Daily limit reached" : `${used}/${limit} today`}
                   </span>
@@ -777,6 +813,8 @@ function SettingsPage(props: {
   onUpdatePassword?: (password: string) => Promise<void>;
 }) {
   const t = useCopy();
+  const [updatePending, setUpdatePending] = useState(() => localStorage.getItem("unplastica_acknowledged_update_ver") !== APP_BUILD_VERSION);
+  const [updatingApp, setUpdatingApp] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showSetPassword, setShowSetPassword] = useState(false);
@@ -832,11 +870,11 @@ function SettingsPage(props: {
     setSavingProfile(true);
     try {
       await props.onUpdateProfile({
-        display_name: editName,
-        username: editUsername,
-        email: editEmail,
-        phone: editPhone,
-        tagline: editTagline,
+        display_name: editName.slice(0, 50),
+        username: editUsername.slice(0, 30),
+        email: editEmail.slice(0, 100),
+        phone: editPhone.slice(0, 20),
+        tagline: editTagline.slice(0, 120),
       });
       setShowEditProfile(false);
     } catch (err) {
@@ -847,16 +885,14 @@ function SettingsPage(props: {
     }
   };
 
+  const pwCheck = validatePasswordComplexity(newPassword);
+
   const handleSavePassword = async (e: FormEvent) => {
     e.preventDefault();
     if (!props.onUpdatePassword) return;
     setPasswordError("");
-    if (newPassword.length < 8) {
-      setPasswordError("Password must be at least 8 characters long.");
-      return;
-    }
-    if (!/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-      setPasswordError("Password must include at least one uppercase letter, one lowercase letter, and one number.");
+    if (!pwCheck.valid) {
+      setPasswordError("Password must be at least 8 characters long and include at least 1 alphabet letter, 1 number, and 1 special character (!@#$%^&* etc).");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -905,6 +941,53 @@ function SettingsPage(props: {
         </label>}
       <p className="profile-photo-note">{t("profile.photoLimit")}</p>
     </div>
+
+    {updatePending && (
+      <div style={{ textAlign: "center", margin: "6px 0 16px" }}>
+        <button
+          type="button"
+          className="ghost-button"
+          disabled={updatingApp}
+          style={{
+            fontSize: "0.85rem",
+            fontWeight: 700,
+            color: "var(--forest)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "9px 18px",
+            border: "1.5px dashed var(--leaf)",
+            borderRadius: 100,
+            background: "rgba(86, 217, 133, 0.14)",
+            cursor: "pointer",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
+          }}
+          onClick={async () => {
+            setUpdatingApp(true);
+            try {
+              if ("serviceWorker" in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) await reg.unregister();
+              }
+              if ("caches" in window) {
+                const keys = await caches.keys();
+                for (const key of keys) await caches.delete(key);
+              }
+            } catch (e) {
+              console.error(e);
+            }
+            localStorage.setItem("unplastica_acknowledged_update_ver", APP_BUILD_VERSION);
+            localStorage.setItem("unplastica_app_version", APP_BUILD_VERSION);
+            setUpdatePending(false);
+            window.location.reload();
+          }}
+        >
+          <Icon name="arrow" size={14} />
+          <span>{updatingApp ? "Updating App…" : `v${APP_BUILD_VERSION} • Force Refresh & Clear Cache`}</span>
+        </button>
+      </div>
+    )}
+
     <div className="profile-details">
       <DetailRow label={t("settings.username")} value={props.guest ? t("settings.guest") : "@" + props.profile.username} icon="users" />
       <DetailRow
@@ -950,7 +1033,8 @@ function SettingsPage(props: {
             <input
               type="text"
               value={editName}
-              onChange={(e) => setEditName(e.target.value.slice(0, 80))}
+              maxLength={50}
+              onChange={(e) => setEditName(e.target.value.slice(0, 50))}
               placeholder="e.g. User 6s37a29f31"
               required
             />
@@ -959,19 +1043,20 @@ function SettingsPage(props: {
             <input
               type="text"
               value={editUsername}
-              onChange={(e) => setEditUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 40))}
+              onChange={(e) => setEditUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30))}
               placeholder="e.g. user_6s37a29f31"
               minLength={3}
-              maxLength={40}
+              maxLength={30}
               required
             />
-            <span className="field-hint">3–40 characters: letters, numbers, underscore, hyphen.</span>
+            <span className="field-hint">3–30 characters: letters, numbers, underscore, hyphen.</span>
           </label>
           <label>Email / Gmail Address
             <input
               type="email"
               value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value.trim().toLowerCase())}
+              maxLength={100}
+              onChange={(e) => setEditEmail(e.target.value.trim().toLowerCase().slice(0, 100))}
               placeholder="e.g. warrior2026@gmail.com"
             />
             <span className="field-hint">Type your Gmail or email address here directly. Each email can only belong to one account.</span>
@@ -980,7 +1065,8 @@ function SettingsPage(props: {
             <input
               type="tel"
               value={editPhone}
-              onChange={(e) => setEditPhone(e.target.value.slice(0, 32))}
+              maxLength={20}
+              onChange={(e) => setEditPhone(e.target.value.slice(0, 20))}
               placeholder="+60 12 345 6789"
             />
             <span className="field-hint">Type your phone number here directly. Must be unique across all accounts.</span>
@@ -989,7 +1075,8 @@ function SettingsPage(props: {
             <input
               type="text"
               value={editTagline}
-              onChange={(e) => setEditTagline(e.target.value.slice(0, 160))}
+              maxLength={120}
+              onChange={(e) => setEditTagline(e.target.value.slice(0, 120))}
               placeholder="Refusing plastic, one meal at a time."
             />
           </label>
@@ -1014,25 +1101,32 @@ function SettingsPage(props: {
             <input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(e) => setNewPassword(e.target.value.slice(0, 72))}
               minLength={8}
+              maxLength={72}
               placeholder="At least 8 characters"
               required
             />
-            <span className="field-hint">Must contain at least 8 characters, with uppercase (A-Z), lowercase (a-z), and digits (0-9).</span>
+            <div style={{ margin: "6px 0", fontSize: "11px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+              <span style={{ color: pwCheck.hasLength ? "#2e7d32" : "#999" }}>{pwCheck.hasLength ? "✓" : "○"} 8-72 characters</span>
+              <span style={{ color: pwCheck.hasLetter ? "#2e7d32" : "#999" }}>{pwCheck.hasLetter ? "✓" : "○"} At least 1 alphabet</span>
+              <span style={{ color: pwCheck.hasNumber ? "#2e7d32" : "#999" }}>{pwCheck.hasNumber ? "✓" : "○"} At least 1 number</span>
+              <span style={{ color: pwCheck.hasSpecial ? "#2e7d32" : "#999" }}>{pwCheck.hasSpecial ? "✓" : "○"} 1 special char (!@#$)</span>
+            </div>
           </label>
           <label>Confirm Password
             <input
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => setConfirmPassword(e.target.value.slice(0, 72))}
               minLength={8}
+              maxLength={72}
               placeholder="Repeat password"
               required
             />
           </label>
           {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
-          <button className="settings-save-button" disabled={savingPassword}>
+          <button className="settings-save-button" disabled={savingPassword || !pwCheck.valid}>
             {savingPassword ? "Updating…" : "Set Password & Credentials"}
           </button>
         </form>
@@ -1049,31 +1143,6 @@ function SettingsPage(props: {
           <button key={value} className={props.theme === value ? "active" : ""} aria-label={label + " theme"} aria-pressed={props.theme === value} onClick={() => props.onTheme(value)}><Icon name={icon} /><span>{label}</span></button>)}
       </div></div>
     </section>
-    <div style={{ textAlign: "center", margin: "16px 0 10px" }}>
-      <button
-        type="button"
-        className="ghost-button"
-        style={{ fontSize: "0.82rem", opacity: 0.85, display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", border: "1px dashed var(--border, rgba(0,0,0,0.15))", borderRadius: 100, background: "transparent", cursor: "pointer" }}
-        onClick={async () => {
-          try {
-            if ("serviceWorker" in navigator) {
-              const regs = await navigator.serviceWorker.getRegistrations();
-              for (const reg of regs) await reg.unregister();
-            }
-            if ("caches" in window) {
-              const keys = await caches.keys();
-              for (const key of keys) await caches.delete(key);
-            }
-          } catch (e) {
-            console.error(e);
-          }
-          window.location.reload();
-        }}
-      >
-        <Icon name="arrow" size={14} />
-        <span>v0.1.3 • Force Refresh & Clear Cache</span>
-      </button>
-    </div>
     <button className="logout-button" onClick={props.guest ? props.onAuth : props.onSignOut}><Icon name={props.guest ? "mail" : "logout"} />{props.guest ? t("settings.login") : t("settings.logout")}</button>
     {props.guest && <p className="preview-note">{t("settings.guestNote")}</p>}
   </div>;
@@ -1101,6 +1170,16 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
   const [notice, setNotice] = useState("");
   const [showResend, setShowResend] = useState(false);
   const [showOAuthHint, setShowOAuthHint] = useState(false);
+  const failedAttemptsRef = useRef<number[]>([]);
+  const [authLockoutSec, setAuthLockoutSec] = useState(0);
+
+  useEffect(() => {
+    if (authLockoutSec <= 0) return;
+    const timer = setInterval(() => setAuthLockoutSec((s) => (s > 1 ? s - 1 : 0)), 1000);
+    return () => clearInterval(timer);
+  }, [authLockoutSec]);
+
+  const authPwCheck = validatePasswordComplexity(password);
 
   const resendConfirmation = async () => {
     if (!supabase || !identifier.includes("@")) return;
@@ -1140,27 +1219,28 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (authLockoutSec > 0) {
+      setError(`Too many failed login attempts. Locked for ${authLockoutSec} seconds for security.`);
+      return;
+    }
     if (!supabase) { setError(t("auth.setupNeeded")); return; }
     setBusy(true); setError(""); setShowResend(false); setShowOAuthHint(false);
     try {
       if (awaitingPhoneCode) {
-        const result = await supabase.auth.verifyOtp({ phone: identifier.trim(), token: phoneCode.trim(), type: "sms" });
+        const result = await supabase.auth.verifyOtp({ phone: identifier.trim().slice(0, 20), token: phoneCode.trim().slice(0, 6), type: "sms" });
         if (result.error) throw result.error;
         onAuthenticated();
       } else if (mode === "signup" && method === "email") {
-        if (password.length < 8) {
-          throw new Error("Password must be at least 8 characters long.");
+        if (!authPwCheck.valid) {
+          throw new Error("Password must be at least 8 characters long and include at least 1 alphabet letter, 1 number, and 1 special character (!@#$%^&* etc).");
         }
-        if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
-          throw new Error("Password must include at least one uppercase letter, one lowercase letter, and one number.");
-        }
-        const cleanUsername = username.trim().toLowerCase();
+        const cleanUsername = username.trim().toLowerCase().slice(0, 30);
         const result = await supabase.auth.signUp({
-          email: identifier.trim(),
-          password,
+          email: identifier.trim().slice(0, 100),
+          password: password.slice(0, 72),
           options: {
             emailRedirectTo: `${window.location.origin}/login`,
-            data: { display_name: name.trim(), username: cleanUsername }
+            data: { display_name: name.trim().slice(0, 50), username: cleanUsername }
           }
         });
         if (result.error) throw result.error;
@@ -1169,7 +1249,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
           return;
         }
         // Auto-login since confirmations are disabled
-        const loginAttempt = await supabase.auth.signInWithPassword({ email: identifier.trim(), password });
+        const loginAttempt = await supabase.auth.signInWithPassword({ email: identifier.trim().slice(0, 100), password: password.slice(0, 72) });
         if (loginAttempt.data?.session) {
           onAuthenticated();
           return;
@@ -1177,10 +1257,14 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
         setNotice("Account created! You can now log in with your email or username.");
         setMode("login");
       } else if (mode === "signup") {
+        const check = validatePasswordComplexity(password);
+        if (!check.valid) {
+          throw new Error("Password must be at least 8 characters long and include at least 1 alphabet letter, 1 number, and 1 special character (!@#$%^&* etc).");
+        }
         const result = await supabase.auth.signUp({
-          phone: normalizePhone(identifier),
-          password,
-          options: { data: { display_name: name.trim(), username: username.trim().toLowerCase() } }
+          phone: normalizePhone(identifier).slice(0, 20),
+          password: password.slice(0, 72),
+          options: { data: { display_name: name.trim().slice(0, 50), username: username.trim().toLowerCase().slice(0, 30) } }
         });
         if (result.error) throw result.error;
         setIdentifier(normalizePhone(identifier));
@@ -1189,13 +1273,13 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
       } else {
         let authError: Error | null = null;
         if (identifier.includes("@")) {
-          const result = await supabase.auth.signInWithPassword({ email: identifier.trim(), password });
+          const result = await supabase.auth.signInWithPassword({ email: identifier.trim().slice(0, 100), password: password.slice(0, 72) });
           if (result.error) authError = result.error;
         } else if (/^\+?[\d\s()-]+$/.test(identifier.trim())) {
-          const result = await supabase.auth.signInWithPassword({ phone: normalizePhone(identifier), password });
+          const result = await supabase.auth.signInWithPassword({ phone: normalizePhone(identifier).slice(0, 20), password: password.slice(0, 72) });
           if (result.error) authError = result.error;
         } else {
-          const result = await supabase.functions.invoke("sign-in", { body: { identifier: identifier.trim().toLowerCase(), password } });
+          const result = await supabase.functions.invoke("sign-in", { body: { identifier: identifier.trim().toLowerCase().slice(0, 30), password: password.slice(0, 72) } });
           if (result.error) {
             let detail = "";
             try {
@@ -1215,6 +1299,13 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
         }
 
         if (authError) {
+          const now = Date.now();
+          failedAttemptsRef.current = failedAttemptsRef.current.filter((t) => now - t < 120000);
+          failedAttemptsRef.current.push(now);
+          if (failedAttemptsRef.current.length >= 5) {
+            setAuthLockoutSec(60);
+          }
+
           const msg = authError.message || "";
           if (msg.includes("Invalid login credentials") || msg.includes("invalid_grant") || msg.includes("Google")) {
             setShowOAuthHint(true);
@@ -1298,8 +1389,9 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
             <input
               autoComplete="name"
               placeholder="e.g. User 6s37a29f31"
+              maxLength={50}
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => setName(event.target.value.slice(0, 50))}
               required
             />
           </label>
@@ -1309,18 +1401,19 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
               autoComplete="username"
               placeholder="e.g. user_6s37a29f31"
               value={username}
-              onChange={(event) => setUsername(event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 40))}
+              onChange={(event) => setUsername(event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30))}
               minLength={3}
-              maxLength={40}
+              maxLength={30}
               required
             />
+            <span className="field-hint">3–30 characters: letters, numbers, underscore, hyphen.</span>
           </label>
         </>
       )}
       {awaitingPhoneCode ? (
         <label>
           {t("auth.code")}
-          <input inputMode="numeric" autoComplete="one-time-code" placeholder="123456" value={phoneCode} onChange={(event) => setPhoneCode(event.target.value)} required />
+          <input inputMode="numeric" autoComplete="one-time-code" placeholder="123456" maxLength={6} value={phoneCode} onChange={(event) => setPhoneCode(event.target.value.slice(0, 6))} required />
         </label>
       ) : (
         <label>
@@ -1329,6 +1422,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
             type={mode === "signup" && method === "email" ? "email" : "text"}
             inputMode={mode === "signup" && method === "phone" ? "tel" : "text"}
             autoComplete={mode === "signup" ? (method === "email" ? "email" : "tel") : "username"}
+            maxLength={100}
             placeholder={
               mode === "signup" && method === "phone"
                 ? "+60 12 345 6789"
@@ -1337,7 +1431,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
                 : "e.g. user_6s37a29f31@gmail.com"
             }
             value={identifier}
-            onChange={(event) => setIdentifier(event.target.value)}
+            onChange={(event) => setIdentifier(event.target.value.slice(0, 100))}
             required
           />
         </label>
@@ -1350,11 +1444,19 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             placeholder="••••••••"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => setPassword(event.target.value.slice(0, 72))}
             minLength={8}
+            maxLength={72}
             required
           />
-          {mode === "signup" && <span className="field-hint">Must contain at least 8 characters, with A-Z, a-z, and 0-9.</span>}
+          {mode === "signup" && (
+            <div style={{ margin: "6px 0", fontSize: "11px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
+              <span style={{ color: authPwCheck.hasLength ? "#2e7d32" : "#999" }}>{authPwCheck.hasLength ? "✓" : "○"} 8-72 characters</span>
+              <span style={{ color: authPwCheck.hasLetter ? "#2e7d32" : "#999" }}>{authPwCheck.hasLetter ? "✓" : "○"} At least 1 alphabet</span>
+              <span style={{ color: authPwCheck.hasNumber ? "#2e7d32" : "#999" }}>{authPwCheck.hasNumber ? "✓" : "○"} At least 1 number</span>
+              <span style={{ color: authPwCheck.hasSpecial ? "#2e7d32" : "#999" }}>{authPwCheck.hasSpecial ? "✓" : "○"} 1 special char (!@#$)</span>
+            </div>
+          )}
         </label>
       )}
       {mode === "login" && !awaitingPhoneCode && (
@@ -1507,7 +1609,7 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
           "handicraft_projects", "other", "recycle_bags", "self_bottle_refill"
         ];
         const detectedLabel = classes[bestIdx] || "other";
-        const verified = detectedLabel === targetHabit && bestProb >= 0.75;
+        const verified = detectedLabel === targetHabit && bestProb >= 0.85 && detectedLabel !== "other";
 
         return {
           label: detectedLabel,
@@ -1535,7 +1637,7 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
       const verified = Boolean(data.verified);
       return {
         label: data.predicted_label || targetHabit,
-        confidence: data.confidence || 0.95,
+        confidence: data.confidence || 0.85,
         verified,
         message: verified ? "Verified" : "Failed: Non-habit/ disposable object detected.",
       };
@@ -1543,10 +1645,10 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
   } catch {}
 
   return {
-    label: targetHabit,
-    confidence: 0.95,
-    verified: true,
-    message: "Verified",
+    label: "other",
+    confidence: 0.1,
+    verified: false,
+    message: "Failed: Non-habit/ disposable object detected.",
   };
 }
 
@@ -1557,6 +1659,8 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   const photoUrlRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const detectionIdRef = useRef(0);
+  const submissionTimesRef = useRef<number[]>([]);
+  const [lockoutSec, setLockoutSec] = useState(0);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
@@ -1566,6 +1670,12 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   const [detection, setDetection] = useState<ModelDetection | null>(null);
   const [detecting, setDetecting] = useState(false);
   const habit = HABITS.find((item) => item.code === habitCode);
+
+  useEffect(() => {
+    if (lockoutSec <= 0) return;
+    const timer = setInterval(() => setLockoutSec((s) => (s > 1 ? s - 1 : 0)), 1000);
+    return () => clearInterval(timer);
+  }, [lockoutSec]);
 
   useEffect(() => {
     let alive = true;
@@ -1590,6 +1700,14 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   }, []);
 
   const setSelectedPhoto = (blob: Blob) => {
+    const now = Date.now();
+    submissionTimesRef.current = submissionTimesRef.current.filter((t) => now - t < 60000);
+    if (submissionTimesRef.current.length >= 5) {
+      setLockoutSec(45);
+      return;
+    }
+    submissionTimesRef.current.push(now);
+
     const currentId = ++detectionIdRef.current;
     if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
     setPhoto(blob);
@@ -1623,7 +1741,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   };
 
   const capture = async () => {
-    if (!video.current) return;
+    if (!video.current || lockoutSec > 0) return;
     const element = video.current;
     const width = element.videoWidth || 640;
     const height = element.videoHeight || 480;
@@ -1637,12 +1755,13 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   };
 
   const onFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    if (lockoutSec > 0) return;
     const file = event.target.files?.[0];
     if (file) setSelectedPhoto(file);
   };
 
   const submit = async () => {
-    if (!photo || !habitCode || !consent) return;
+    if (!photo || !habitCode || !consent || busy || detecting || !detection?.verified || lockoutSec > 0) return;
     if (!supabase) { onComplete(t("camera.noBackend")); return; }
     setBusy(true);
     try {
@@ -1702,6 +1821,12 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       {!photoUrl && error && <span>{error}</span>}
     </div>
 
+    {lockoutSec > 0 && (
+      <div className="ai-detection-pill flagged" style={{ background: "rgba(220, 38, 38, 0.12)", color: "#dc2626", border: "1px solid rgba(220, 38, 38, 0.3)" }}>
+        Rate limit protection: Too many photo checks. Locked for {lockoutSec}s.
+      </div>
+    )}
+
     {detecting && <div className="ai-detection-pill detecting">Scanning photo…</div>}
     {detection && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
@@ -1719,10 +1844,10 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
         </button>
       ) : (
         <>
-          <button className="primary-button" disabled={!cameraReady} onClick={() => void capture()}>
+          <button className="primary-button" disabled={!cameraReady || lockoutSec > 0} onClick={() => void capture()}>
             <Icon name="camera" /> {t("camera.capture")}
           </button>
-          <button className="secondary-button" onClick={() => fileInputRef.current?.click()}>
+          <button className="secondary-button" disabled={lockoutSec > 0} onClick={() => fileInputRef.current?.click()}>
             <Icon name="camera" /> Upload Photo
           </button>
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={onFileSelect} />
@@ -1730,7 +1855,13 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       )}
     </div>
     <label className="consent-row"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>{t("camera.consent")}</span></label>
-    <button className="primary-button submit-proof" disabled={!photo || !consent || busy} onClick={() => void submit()}>{busy ? t("camera.checking") : t("camera.submit")}</button>
+    <button
+      className="primary-button submit-proof"
+      disabled={!photo || !consent || busy || detecting || !detection?.verified || lockoutSec > 0}
+      onClick={() => void submit()}
+    >
+      {busy ? t("camera.checking") : t("camera.submit")}
+    </button>
   </div></Modal>;
 }
 
@@ -1803,21 +1934,22 @@ function UsernamePromptDialog({
             <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 40))}
+              onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30))}
               placeholder={initialUsername || "e.g. warrior2026"}
               minLength={3}
-              maxLength={40}
+              maxLength={30}
               autoFocus
               required
             />
-            <span className="field-hint">3–40 characters: letters, numbers, underscore, hyphen.</span>
+            <span className="field-hint">3–30 characters: letters, numbers, underscore, hyphen.</span>
           </label>
           <label>
             Display Name (Optional)
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value.slice(0, 80))}
+              maxLength={50}
+              onChange={(e) => setName(e.target.value.slice(0, 50))}
               placeholder={initialName || "e.g. Eco Warrior"}
             />
           </label>

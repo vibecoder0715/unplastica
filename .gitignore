@@ -22,3 +22,7 @@ ml/test_adversarial/
 
 .vercel
 .env*
+
+.freebuff/
+ml/test_300_suite/
+ml/test_50_mixed/

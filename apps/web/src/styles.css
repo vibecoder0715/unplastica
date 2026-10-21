@@ -65,8 +65,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 img { max-width: 100%; }
 
 .app-shell { min-height: 100vh; min-height: 100dvh; background: var(--canvas); }
-.loading-shell { min-height: 100dvh; display: grid; place-items: center; background: var(--canvas); }
-.loading-shell img { width: 180px; }
+.loading-shell { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: transparent; }
+.brand-wordmark-wrapper { display: flex; align-items: center; justify-content: center; width: min(240px, 75vw); }
 .topbar {
   position: fixed;
   inset: 0 0 auto;
@@ -244,9 +244,9 @@ img { max-width: 100%; }
 .camera-frame {
   position: relative;
   width: 100%;
-  min-height: 280px;
+  min-height: 380px;
   margin-top: 12px;
-  padding: 30px;
+  padding: 36px 24px 115px;
   border: 1.5px solid color-mix(in srgb, var(--leaf) 44%, var(--line));
   border-radius: 18px;
   display: flex;
@@ -267,7 +267,7 @@ img { max-width: 100%; }
 .camera-copy { display: flex; flex-direction: column; gap: 4px; text-align: center; }
 .camera-copy strong { font: 700 calc((16px) * var(--desktop-type-scale, 1))/1.3 "Outfit", sans-serif; text-transform: uppercase; }
 .camera-copy span { color: var(--ink-soft); font-size: calc((15px) * var(--desktop-type-scale, 1)); }
-.camera-action { position: absolute; bottom: 28px; width: 58px; height: 58px; border: 4px solid color-mix(in srgb, var(--surface) 70%, transparent); border-radius: 50%; display: grid; place-items: center; color: #002c17; background: #56d985; }
+.camera-action { position: absolute; bottom: 22px; width: 62px; height: 62px; border: 4px solid color-mix(in srgb, var(--surface) 70%, transparent); border-radius: 50%; display: grid; place-items: center; color: #002c17; background: #56d985; box-shadow: 0 4px 14px rgba(0, 44, 23, 0.2); }
 .camera-action svg { stroke-width: 1.8; }
 .habit-section { padding-bottom: 16px; }
 .count-chip { min-width: 90px; flex-direction: column; gap: 1px; padding: 5px 14px; color: var(--ink-soft); background: var(--surface-mid); }
@@ -641,7 +641,7 @@ img { max-width: 100%; }
   .camera-section { grid-column: 1; margin-bottom: 24px; }
   .habit-section { grid-column: 2; }
   .section-heading h2, .tournament > h2, .criteria > h2 { font-size: 22px; font-weight: 700; }
-  .camera-frame { min-height: 330px; max-height: 390px; margin-top: 14px; border-radius: 20px; gap: 16px; }
+  .camera-frame { min-height: 380px; padding: 36px 24px 115px; margin-top: 14px; border-radius: 20px; gap: 16px; }
   .camera-helper { width: 58px; height: 58px; }
   .camera-copy strong { font-size: 17px; }
   .camera-copy span { font-size: 14px; }
@@ -734,7 +734,7 @@ img { max-width: 100%; }
 @media (min-width: 760px) and (max-width: 1023px) {
   .earn-content { grid-template-columns: minmax(0, 1fr); }
   .earn-heading, .camera-section, .habit-section { grid-column: 1; }
-  .camera-frame { min-height: 320px; }
+  .camera-frame { min-height: 380px; padding: 36px 24px 115px; }
   .events-content { row-gap: 24px; }
   .prizes, .tournament { grid-column: 1 / -1; }
   .campus-feature { padding-inline: 28px; gap: 24px; }
@@ -757,7 +757,7 @@ img { max-width: 100%; }
   .earn-heading h1 { font-size: calc((30px) * var(--desktop-type-scale, 1)); gap: 6px; }
   .earn-heading h1 img { flex-basis: 28px; width: 28px; height: 28px; }
   .earn-heading p { font-size: calc((16px) * var(--desktop-type-scale, 1)); }
-  .camera-frame { min-height: 270px; }
+  .camera-frame { min-height: 380px; padding: 36px 20px 115px; }
   .habit-row { min-height: 88px; padding: 10px; }
   .habit-select img { flex-basis: 58px; width: 58px; height: 58px; }
   .habit-labels strong { font-size: calc((14px) * var(--desktop-type-scale, 1)); }

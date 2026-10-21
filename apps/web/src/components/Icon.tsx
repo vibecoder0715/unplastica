@@ -64,6 +64,27 @@ export function Icon({
   size = 22,
   ...props
 }: SVGProps<SVGSVGElement> & { name: IconName; size?: number }) {
+  if (name === "earn") {
+    return (
+      <img
+        src="/assets/brand/greenbits.png"
+        alt="Greenbits"
+        width={size}
+        height={size}
+        style={{
+          width: size,
+          height: size,
+          objectFit: "contain",
+          display: "inline-block",
+          verticalAlign: "middle",
+          background: "transparent",
+        }}
+        className={props.className}
+        aria-hidden="true"
+      />
+    );
+  }
+
   return (
     <svg
       aria-hidden="true"
