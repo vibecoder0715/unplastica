@@ -198,7 +198,18 @@ export default function App() {
         // 2. Fallback: manual PKCE exchange if session was not automatically established
         if (!session && code) {
           try {
-            const { data, error } = await authClient.auth.exchangeCodeForSession(code);
+            const flowIdParam = searchParams.get("sb_flow_id");
+            let flowId = flowIdParam;
+            if (!flowId) {
+              try {
+                const flowKeys = Object.keys(localStorage).filter((k) => k.includes("-flow-") && k.endsWith("-code-verifier"));
+                if (flowKeys.length > 0) {
+                  const match = flowKeys[flowKeys.length - 1].match(/-flow-([a-f0-9]+)-code-verifier/i);
+                  if (match) flowId = match[1];
+                }
+              } catch (_) {}
+            }
+            const { data, error } = await authClient.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined);
             if (!error && data.session) {
               session = data.session;
             } else if (error) {
@@ -207,6 +218,15 @@ export default function App() {
           } catch (e) {
             console.warn("PKCE manual exchange exception:", e);
           }
+        }
+
+        // Clean up URL parameters after processing callback
+        if (code || searchParams.has("code")) {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete("code");
+          cleanUrl.searchParams.delete("state");
+          cleanUrl.searchParams.delete("sb_flow_id");
+          window.history.replaceState(window.history.state, "", cleanUrl.pathname + cleanUrl.search);
         }
 
         // 3. Fallback: manual hash token parse if needed
@@ -272,7 +292,8 @@ export default function App() {
             void authClient.functions.invoke("welcome-bonus").then(() => loadAccount(next.user));
           }
           const hasReturn = sessionStorage.getItem("unplastica-return-to");
-          if (event === "SIGNED_IN" || location.pathname === "/login" || readPage() === "login" || hasReturn) {
+          const isCallback = window.location.search.includes("code=") || window.location.hash.includes("access_token=");
+          if (event === "SIGNED_IN" || location.pathname === "/login" || readPage() === "login" || hasReturn || isCallback) {
             const target = hasReturn as Page | null;
             sessionStorage.removeItem("unplastica-return-to");
             const destination = target && target !== "login" ? target : "settings";
@@ -1227,7 +1248,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/settings`,
         queryParams: {
           access_type: "offline",
           prompt: "consent",
@@ -1245,7 +1266,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
       provider: "azure",
       options: {
         scopes: "email openid profile",
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/settings`,
         queryParams: {
           prompt: "select_account",
         },
