@@ -286,10 +286,11 @@ img { max-width: 100%; }
 }
 .habit-row.selected { border: 2px solid var(--leaf); background: var(--surface-low); }
 .habit-select { flex: 1; min-width: 0; padding: 0; border: 0; display: flex; align-items: center; gap: 13px; color: inherit; background: transparent; text-align: left; cursor: pointer; }
-.habit-select img { flex: 0 0 62px; width: 62px; height: 62px; border-radius: 10px; object-fit: cover; }
+.habit-select > img { flex: 0 0 62px; width: 62px; height: 62px; border-radius: 10px; object-fit: cover; }
 .habit-labels { display: flex; flex-direction: column; gap: 4px; }
 .habit-labels strong { font: 700 calc((16px) * var(--desktop-type-scale, 1))/1.25 "Outfit", sans-serif; }
-.habit-labels b { color: var(--leaf); font: 700 calc((16px) * var(--desktop-type-scale, 1))/1.2 "Space Grotesk", sans-serif; }
+.habit-labels b { color: var(--leaf); font: 700 calc((16px) * var(--desktop-type-scale, 1))/1.2 "Space Grotesk", sans-serif; display: inline-flex; align-items: center; gap: 2px !important; }
+.habit-points-icon { flex: 0 0 16px !important; width: 16px !important; height: 16px !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; object-fit: contain !important; display: inline-block !important; }
 .daily-quota-pill {
   display: inline-block;
   padding: 2px 8px;

@@ -47,7 +47,7 @@ const habitImages: Record<HabitCode, string> = {
   bulk_pantry_refill: "/assets/habits/bulk-pantry-refill.png",
 };
 
-export const APP_BUILD_VERSION = "0.1.4";
+export const APP_BUILD_VERSION = "0.1.5";
 
 export type PasswordCheck = {
   valid: boolean;
@@ -739,7 +739,7 @@ function EarnPage({ selected, dailyUsage, onSelect, onInfo, onCamera }: {
               <span className="habit-labels">
                 <strong>{t("habit." + item.code)}</strong>
                 <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <b style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}><img src="/assets/brand/greenbits.png" alt="" style={{ width: 14, height: 14, objectFit: "contain", background: "transparent" }} />+{item.points}</b>
+                  <b style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}><img className="habit-points-icon" src="/assets/brand/greenbits.png" alt="" style={{ width: 16, height: 16, objectFit: "contain", background: "transparent" }} />+{item.points}</b>
                   <span className={"daily-quota-pill" + (capped ? " capped" : "")}>
                     {capped ? "Daily limit reached" : `${used}/${limit} today`}
                   </span>
