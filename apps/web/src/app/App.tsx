@@ -146,7 +146,7 @@ export default function App() {
 
     const displayName = row?.display_name && row.display_name !== "Plastic-Free Warrior" && !row.display_name.includes("@")
       ? row.display_name
-      : metadata?.display_name || mockDefaultName;
+      : metadata?.display_name || metadata?.full_name || metadata?.name || mockDefaultName;
 
     const username = row?.username && row.username !== "warrior" && !row.username.includes("@")
       ? row.username
@@ -161,7 +161,7 @@ export default function App() {
       phone: row?.phone || metadata?.phone || activeUser.phone || "",
       tagline: row?.tagline || metadata?.tagline || "Refusing plastic, one meal at a time.",
       avatar_path: avatarPath,
-      avatar_url: signedAvatar?.signedUrl ?? null,
+      avatar_url: signedAvatar?.signedUrl ?? metadata?.avatar_url ?? metadata?.picture ?? null,
       preferences: row?.preferences || {},
     });
     setBalance(Number(balanceResult.data?.balance ?? 0));
@@ -186,76 +186,72 @@ export default function App() {
 
     const initAuth = async () => {
       try {
-        // 1. Check if OAuth returned with ?code= in URL query (PKCE flow)
         const searchParams = new URLSearchParams(window.location.search);
         const code = searchParams.get("code");
-        if (code) {
-          const { data, error } = await authClient.auth.exchangeCodeForSession(code);
-          if (error) {
-            console.warn("PKCE code exchange error:", error.message);
-          } else if (data.session) {
-            setSession(data.session);
-            setUser(data.session.user);
-            await loadAccount(data.session.user);
-            history.replaceState({}, "", window.location.pathname);
-            if (location.pathname === "/login" || readPage() === "login") {
-              const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
-              sessionStorage.removeItem("unplastica-return-to");
-              const destination = target && target !== "login" ? target : "home";
-              history.replaceState({}, "", pagePath(destination));
-              setPage(destination);
-            }
-            setReady(true);
-            return;
-          }
-        }
+        const hasHashToken = window.location.hash.includes("access_token");
+        const isOAuthCallback = Boolean(code || hasHashToken);
 
-        // 2. Check if OAuth returned with hash tokens (#access_token=...)
-        if (window.location.hash.includes("access_token")) {
-          const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
-          if (accessToken && refreshToken) {
-            const { data, error } = await authClient.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
+        // 1. Supabase automatically exchanges PKCE / URL tokens when detectSessionInUrl is true.
+        // getSession() will await client initialization.
+        let { data: { session } } = await authClient.auth.getSession();
+
+        // 2. Fallback: manual PKCE exchange if session was not automatically established
+        if (!session && code) {
+          try {
+            const { data, error } = await authClient.auth.exchangeCodeForSession(code);
             if (!error && data.session) {
-              setSession(data.session);
-              setUser(data.session.user);
-              await loadAccount(data.session.user);
-              history.replaceState({}, "", window.location.pathname);
-              if (location.pathname === "/login" || readPage() === "login") {
-                const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
-                sessionStorage.removeItem("unplastica-return-to");
-                const destination = target && target !== "login" ? target : "home";
-                history.replaceState({}, "", pagePath(destination));
-                setPage(destination);
-              }
-              setReady(true);
-              return;
+              session = data.session;
+            } else if (error) {
+              console.warn("PKCE manual exchange warning:", error.message);
             }
+          } catch (e) {
+            console.warn("PKCE manual exchange exception:", e);
           }
         }
 
-        // 3. Existing session
-        const { data: { session } } = await authClient.auth.getSession();
-        setSession(session);
-        setUser(session?.user ?? null);
-        await loadAccount(session?.user ?? null);
-        if (session?.user) {
-          if (location.pathname === "/login" || readPage() === "login") {
+        // 3. Fallback: manual hash token parse if needed
+        if (!session && hasHashToken) {
+          try {
+            const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+            const accessToken = hashParams.get("access_token");
+            const refreshToken = hashParams.get("refresh_token");
+            if (accessToken && refreshToken) {
+              const { data, error } = await authClient.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+              if (!error && data.session) {
+                session = data.session;
+              }
+            }
+          } catch (e) {
+            console.warn("Hash session manual exception:", e);
+          }
+        }
+
+        if (session) {
+          setSession(session);
+          setUser(session.user);
+          await loadAccount(session.user);
+
+          // If returning from OAuth or currently on login page, navigate to destination (defaulting to settings)
+          if (isOAuthCallback || location.pathname === "/login" || readPage() === "login") {
             const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
             sessionStorage.removeItem("unplastica-return-to");
-            const destination = target && target !== "login" ? target : "home";
+            const destination = target && target !== "login" ? target : "settings";
             history.replaceState({}, "", pagePath(destination));
             setPage(destination);
           }
-        } else if (readPage() === "earn") {
-          history.replaceState({}, "", "/");
-          pendingPage.current = "earn";
-          setPage("home");
-          setShowLoginGate(true);
+        } else {
+          setSession(null);
+          setUser(null);
+          await loadAccount(null);
+          if (readPage() === "earn") {
+            history.replaceState({}, "", "/");
+            pendingPage.current = "earn";
+            setPage("home");
+            setShowLoginGate(true);
+          }
         }
       } catch (err) {
         console.error("Auth init exception:", err);
@@ -275,10 +271,11 @@ export default function App() {
           if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
             void authClient.functions.invoke("welcome-bonus").then(() => loadAccount(next.user));
           }
-          if (location.pathname === "/login" || readPage() === "login") {
-            const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
+          const hasReturn = sessionStorage.getItem("unplastica-return-to");
+          if (event === "SIGNED_IN" || location.pathname === "/login" || readPage() === "login" || hasReturn) {
+            const target = hasReturn as Page | null;
             sessionStorage.removeItem("unplastica-return-to");
-            const destination = target && target !== "login" ? target : "home";
+            const destination = target && target !== "login" ? target : "settings";
             history.replaceState({}, "", pagePath(destination));
             setPage(destination);
           }
@@ -428,13 +425,24 @@ export default function App() {
       }
     }
 
-    const { error: profileErr } = await supabase.from("profiles").update({
+    const payload: Record<string, string> = {
       display_name: updated.display_name.trim(),
       username: cleanUsername,
-      email: cleanEmail || user.email || "",
       phone: cleanPhone,
       tagline: updated.tagline.trim(),
-    }).eq("id", user.id);
+    };
+    if (cleanEmail) {
+      payload.email = cleanEmail;
+    }
+
+    let { error: profileErr } = await supabase.from("profiles").update(payload).eq("id", user.id);
+
+    // If update with email failed due to column permissions, retry without email
+    if (profileErr && (profileErr.message.includes("column email") || profileErr.message.includes("permission denied"))) {
+      delete payload.email;
+      const retry = await supabase.from("profiles").update(payload).eq("id", user.id);
+      profileErr = retry.error;
+    }
 
     if (profileErr) {
       let friendlyMsg = "Failed to update profile: " + profileErr.message;
@@ -448,6 +456,15 @@ export default function App() {
       notify(friendlyMsg);
       throw new Error(friendlyMsg);
     }
+
+    setProfile((current) => current ? {
+      ...current,
+      display_name: updated.display_name.trim(),
+      username: cleanUsername,
+      phone: cleanPhone,
+      tagline: updated.tagline.trim(),
+      email: cleanEmail || current.email,
+    } : current);
 
     const userUpdatePayload: { data: Record<string, string>; email?: string } = {
       data: {
@@ -522,7 +539,7 @@ export default function App() {
           onUpdateProfile={updateProfile}
           onUpdatePassword={updatePassword}
         />}
-        {page === "login" && <AuthPage user={user} onAuthenticated={() => { const target = sessionStorage.getItem("unplastica-return-to") as Page | null; sessionStorage.removeItem("unplastica-return-to"); navigate(target && target !== "login" ? target : "home"); }} />}
+        {page === "login" && <AuthPage user={user} onAuthenticated={() => { const target = sessionStorage.getItem("unplastica-return-to") as Page | null; sessionStorage.removeItem("unplastica-return-to"); navigate(target && target !== "login" ? target : "settings"); }} />}
       </main>
       {page !== "login" && <BottomNav page={page} onNavigate={(target) => target === "earn" ? requestLogin("earn") : navigate(target)} />}
       {page !== "login" && <InstallPrompt prompt={installPrompt} environment={installEnvironment} onInstall={installApp} />}
@@ -1180,7 +1197,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
   const google = async () => {
     if (!supabase) { setError(t("auth.setupNeeded")); return; }
     setBusy(true); setError("");
-    const returnTo = sessionStorage.getItem("unplastica-return-to") || "home";
+    const returnTo = sessionStorage.getItem("unplastica-return-to") || "settings";
     sessionStorage.setItem("unplastica-return-to", returnTo);
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -1197,7 +1214,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
   const microsoft = async () => {
     if (!supabase) { setError(t("auth.setupNeeded")); return; }
     setBusy(true); setError("");
-    const returnTo = sessionStorage.getItem("unplastica-return-to") || "home";
+    const returnTo = sessionStorage.getItem("unplastica-return-to") || "settings";
     sessionStorage.setItem("unplastica-return-to", returnTo);
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "azure",
