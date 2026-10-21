@@ -1028,6 +1028,31 @@ function SettingsPage(props: {
           <button key={value} className={props.theme === value ? "active" : ""} aria-label={label + " theme"} aria-pressed={props.theme === value} onClick={() => props.onTheme(value)}><Icon name={icon} /><span>{label}</span></button>)}
       </div></div>
     </section>
+    <div style={{ textAlign: "center", margin: "16px 0 10px" }}>
+      <button
+        type="button"
+        className="ghost-button"
+        style={{ fontSize: "0.82rem", opacity: 0.85, display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", border: "1px dashed var(--border, rgba(0,0,0,0.15))", borderRadius: 100, background: "transparent", cursor: "pointer" }}
+        onClick={async () => {
+          try {
+            if ("serviceWorker" in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              for (const reg of regs) await reg.unregister();
+            }
+            if ("caches" in window) {
+              const keys = await caches.keys();
+              for (const key of keys) await caches.delete(key);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+          window.location.reload();
+        }}
+      >
+        <Icon name="arrow" size={14} />
+        <span>v0.1.2 • Force Refresh & Clear Cache</span>
+      </button>
+    </div>
     <button className="logout-button" onClick={props.guest ? props.onAuth : props.onSignOut}><Icon name={props.guest ? "mail" : "logout"} />{props.guest ? t("settings.login") : t("settings.logout")}</button>
     {props.guest && <p className="preview-note">{t("settings.guestNote")}</p>}
   </div>;

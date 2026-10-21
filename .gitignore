@@ -19,3 +19,6 @@ ml/model/*.pth
 .DS_Store
 __pycache__/
 ml/test_adversarial/
+
+.vercel
+.env*
