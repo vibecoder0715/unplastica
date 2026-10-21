@@ -1,15 +1,13 @@
-import type { IncomingMessage, ServerResponse } from "http";
-
-type VercelRequest = IncomingMessage & {
+type VercelRequest = {
   method?: string;
   headers: Record<string, string | string[] | undefined>;
   body: any;
   query?: Record<string, string | string[]>;
 };
 
-type VercelResponse = ServerResponse & {
+type VercelResponse = {
   status(code: number): VercelResponse;
-  end(): VercelResponse;
+  end(chunk?: any): VercelResponse;
   json(body: unknown): VercelResponse;
   setHeader(name: string, value: string | number | readonly string[]): VercelResponse;
 };
