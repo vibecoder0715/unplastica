@@ -141,13 +141,13 @@ All 10 vulnerabilities have been systematically analyzed, with remediation patch
 
 | Flaw ID | Patch Implementation | Vercel Deployment | Live Test Status |
 |---|---|---|---|
-| FLAW-01 | Input `maxLength` limits added in `App.tsx` | Staged (v0.1.4) | Patched & Tested |
-| FLAW-02 | Sliding-window rate limiter in `api/score.ts` + client lock | Staged (v0.1.4) | Patched & Tested |
-| FLAW-03 | Strict password regex & requirements UI | Staged (v0.1.4) | Patched & Tested |
-| FLAW-04 | Security headers updated in `vercel.json` | Staged (v0.1.4) | Patched & Tested |
-| FLAW-05 | Mock scorer replaced with strict classification | Staged (v0.1.4) | Patched & Tested |
-| FLAW-06 | Submit button disabled on unverified photos | Staged (v0.1.4) | Patched & Tested |
-| FLAW-07 | ML retrained with anime negatives (Hu Tao) $\ge 99.5\%$ acc | Staged (v0.1.4) | Patched & Tested |
-| FLAW-08 | Update button moved above Username; vanishes on ack | Staged (v0.1.4) | Patched & Tested |
-| FLAW-09 | Client-side image validation & size bounds | Staged (v0.1.4) | Patched & Tested |
-| FLAW-10 | Header & credential ASCII sanitization enforced | Deployed (v0.1.3) | Verified |
+| FLAW-01 | Input `maxLength` limits added in `App.tsx` | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-02 | Sliding-window rate limiter in `api/score.ts` + client lock | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-03 | Strict password regex & requirements UI | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-04 | Security headers updated in `vercel.json` | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-05 | Mock scorer replaced with strict classification | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-06 | Submit button disabled on unverified photos | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-07 | ML retrained with anime negatives (Hu Tao) $\ge 99.5\%$ acc | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-08 | Update button moved above Username; vanishes on ack | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-09 | Client-side image validation & size bounds | Deployed (v0.1.4) | Verified (Live on Vercel) |
+| FLAW-10 | Header & credential ASCII sanitization enforced | Deployed (v0.1.3) | Verified (Live on Vercel) |
