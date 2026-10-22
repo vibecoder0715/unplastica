@@ -12,6 +12,8 @@ type VercelResponse = {
   setHeader(name: string, value: string | number | readonly string[]): VercelResponse;
 };
 
+import crypto from "crypto";
+
 declare const process: { env: Record<string, string | undefined> };
 declare const Buffer: any;
 
@@ -119,12 +121,22 @@ export default async function handler(request: VercelRequest, response: VercelRe
     return response.status(405).json({ error: "Method not allowed." });
   }
 
-  // Authorization check for backend scoring invocations
+  // Authorization check for backend scoring invocations (fail-closed)
   const expectedKey = process.env.ML_SCORER_API_KEY;
+  if (!expectedKey) {
+    return response.status(503).json({ error: "Scoring service API key is not configured." });
+  }
+
   const header = request.headers.authorization;
   const authorization = Array.isArray(header) ? header[0] : header;
+  if (!authorization) {
+    return response.status(401).json({ error: "Unauthorized scoring request." });
+  }
 
-  if (expectedKey && (!authorization || authorization !== `Bearer ${expectedKey}`)) {
+  const expectedAuth = `Bearer ${expectedKey}`;
+  const authBuf = Buffer.from(authorization);
+  const expBuf = Buffer.from(expectedAuth);
+  if (authBuf.length !== expBuf.length || !crypto.timingSafeEqual(authBuf, expBuf)) {
     return response.status(401).json({ error: "Unauthorized scoring request." });
   }
 
@@ -179,43 +191,49 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
   }
 
-  // If a backend ML scoring service URL is configured, forward to the real model service
+  // Forward to ML scoring service (fail-closed: no hardcoded approval fallback)
   const mlScorerUrl = process.env.ML_SCORER_URL;
-  if (mlScorerUrl) {
-    try {
-      const buffer = Buffer.from(imageBase64, "base64");
-      const formData = new FormData();
-      const blob = new Blob([buffer], { type: isJpeg ? "image/jpeg" : isPng ? "image/png" : "image/webp" });
-      formData.append("file", blob, "proof.jpg");
-
-      const mlRes = await fetch(`${mlScorerUrl.replace(/\/$/, "")}/score`, {
-        method: "POST",
-        headers: expectedKey ? { Authorization: `Bearer ${expectedKey}` } : {},
-        body: formData,
-      });
-
-      if (mlRes.ok) {
-        const mlData = (await mlRes.json()) as { predicted_label: string; confidence: number; model_version?: string };
-        const verified = mlData.predicted_label === habitCode && mlData.confidence >= 0.85 && mlData.predicted_label !== "other";
-        return response.status(200).json({
-          status: verified ? "verified" : "rejected",
-          predicted_label: mlData.predicted_label,
-          confidence: mlData.confidence,
-          model_version: mlData.model_version || "mobilenet_v3_small-v0.1.8-clutter-invariant",
-          verified,
-        });
-      }
-    } catch (err) {
-      console.error("Backend ML scorer invocation failed:", err);
-    }
+  if (!mlScorerUrl) {
+    return response.status(503).json({
+      error: "ML scoring service is not configured.",
+      verified: false,
+    });
   }
 
-  // Return verified result for validated habit image proof upload
-  return response.status(200).json({
-    status: "verified",
-    predicted_label: habitCode,
-    confidence: 0.95,
-    model_version: "mobilenet_v3_small-v0.1.8-clutter-invariant",
-    verified: true,
-  });
+  try {
+    const buffer = Buffer.from(imageBase64, "base64");
+    const formData = new FormData();
+    const blob = new Blob([buffer], { type: isJpeg ? "image/jpeg" : isPng ? "image/png" : "image/webp" });
+    formData.append("file", blob, "proof.jpg");
+
+    const mlRes = await fetch(`${mlScorerUrl.replace(/\/$/, "")}/score`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${expectedKey}` },
+      body: formData,
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!mlRes.ok) {
+      return response.status(503).json({
+        error: "Backend ML scorer is unavailable or returned error.",
+        verified: false,
+      });
+    }
+
+    const mlData = (await mlRes.json()) as { predicted_label: string; confidence: number; model_version?: string };
+    const verified = mlData.predicted_label === habitCode && mlData.confidence >= 0.85 && mlData.predicted_label !== "other";
+    return response.status(200).json({
+      status: verified ? "verified" : "rejected",
+      predicted_label: mlData.predicted_label,
+      confidence: mlData.confidence,
+      model_version: mlData.model_version || "mobilenet_v3_small-v0.1.8-clutter-invariant",
+      verified,
+    });
+  } catch (err) {
+    console.error("Backend ML scorer invocation failed:", err);
+    return response.status(503).json({
+      error: "Backend ML scorer is unreachable or timed out.",
+      verified: false,
+    });
+  }
 }

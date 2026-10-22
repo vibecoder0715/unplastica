@@ -61,9 +61,10 @@ Deno.serve(async (request: Request) => {
     form.set("file", new Blob([bytes], { type: submission.content_type }), "proof-image");
     form.set("habit_code", submission.habit_code);
 
-    let confidence = 0.95;
-    let label = submission.habit_code;
-    let modelVersion = "mobilenet_v3_small-v0.1.7-multistyle";
+    let confidence = 0.0;
+    let label = "";
+    let modelVersion = "mobilenet_v3_small-v0.1.8-clutter-invariant";
+    let scorerSucceeded = false;
 
     const scorerUrl = Deno.env.get("ML_SCORER_URL") || "https://unplastica.vercel.app/api";
     const scorerKey = Deno.env.get("ML_SCORER_API_KEY") || "";
@@ -73,20 +74,30 @@ Deno.serve(async (request: Request) => {
         method: "POST", headers: scorerKey ? { Authorization: `Bearer ${scorerKey}` } : {}, body: form,
         signal: AbortSignal.timeout(10000),
       });
-      if (modelResponse.ok) {
-        const output = await modelResponse.json().catch(() => null) as {
-          predicted_label?: unknown; confidence?: unknown; model_version?: unknown;
-        } | null;
-        if (typeof output?.confidence === "number" && typeof output?.predicted_label === "string") {
-          confidence = output.confidence;
-          label = output.predicted_label;
-          if (typeof output?.model_version === "string") modelVersion = output.model_version.slice(0, 80);
-        }
+      if (!modelResponse.ok) {
+        return json({ error: "ML scoring service unavailable or returned error." }, 503);
+      }
+      const output = await modelResponse.json().catch(() => null) as {
+        predicted_label?: unknown; confidence?: unknown; model_version?: unknown;
+      } | null;
+      if (typeof output?.confidence === "number" && typeof output?.predicted_label === "string") {
+        confidence = output.confidence;
+        label = output.predicted_label;
+        if (typeof output?.model_version === "string") modelVersion = output.model_version.slice(0, 80);
+        scorerSucceeded = true;
+      } else {
+        return json({ error: "Invalid response from scoring service." }, 503);
       }
     } catch (error) {
-      console.warn("ML scorer fetch skipped or failed:", error);
+      console.warn("ML scorer fetch failed:", error);
+      return json({ error: "ML scoring service unreachable or timed out." }, 503);
     }
-    const threshold = Number(Deno.env.get("ML_SCORE_THRESHOLD") ?? "0.75");
+
+    if (!scorerSucceeded) {
+      return json({ error: "ML scoring service evaluation failed." }, 503);
+    }
+
+    const threshold = Number(Deno.env.get("ML_SCORE_THRESHOLD") ?? "0.85");
     if (!Number.isFinite(threshold) || threshold < 0.5 || threshold > 1) throw new Error("ML_SCORE_THRESHOLD must be between 0.50 and 1.00");
     if (confidence < threshold || label !== submission.habit_code) {
       const { error } = await db.from("habit_submissions").update({

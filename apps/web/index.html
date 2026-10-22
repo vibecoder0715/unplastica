@@ -18,6 +18,9 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Unplastica — Play to reduce plastic" />
     <meta name="twitter:description" content="Small plastic-free habits. A cleaner Malaysia, one choice at a time." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self';" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=0.1.8" />
     <link rel="icon" type="image/png" href="/icons/icon-512.png?v=0.1.8" />
     <link rel="manifest" href="/manifest.webmanifest?v=0.1.8" />
@@ -100,7 +103,7 @@
         <img class="pwa-launch-wordmark pwa-wordmark-dark" src="/assets/brand/brand-wordmark-dark.png" alt="unplastica" />
       </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js" integrity="sha384-ptI8iyyOcINc8kC8ZGnLexw29V7PfIaX46b1GMjaX2QKGvUPH8Jrp5U81Mh4TDp4" crossorigin="anonymous"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -9,6 +9,11 @@
     "preview": "pnpm --filter @unplastica/web preview",
     "typecheck": "pnpm --filter @unplastica/web typecheck",
     "test": "pnpm --filter @unplastica/web test"
+  },
+  "overrides": {
+    "tinypool": ">=2.1.2",
+    "@vitest/mocker": ">=4.1.12",
+    "vitest": ">=4.1.12"
   }
 }
 
