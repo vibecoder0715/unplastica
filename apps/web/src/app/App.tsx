@@ -1601,7 +1601,7 @@ async function inferHabit(
 ): Promise<ModelDetection> {
   const ort = (window as unknown as { ort?: any }).ort;
   if (!ort) {
-    return { label: "other", confidence: 0, verified: false, message: "AI engine initializing…" };
+    return { label: "other", confidence: 0, verified: false, message: "Preparing camera…" };
   }
 
   const canvas = getSharedCanvas();
@@ -1675,7 +1675,7 @@ async function inferHabit(
     verified,
     message: verified
       ? "Verified"
-      : "Failed: Non-habit/ disposable object detected.",
+      : "Photo not recognized. Please align your item and retake.",
   };
 }
 
@@ -1692,7 +1692,7 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
       label: "other",
       confidence: 0,
       verified: false,
-      message: "Failed: Non-habit/ disposable object detected.",
+      message: "Photo not recognized. Please align your item and retake.",
     };
   }
 }
@@ -1714,12 +1714,6 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   const [error, setError] = useState("");
   const [detection, setDetection] = useState<ModelDetection | null>(null);
   const [detecting, setDetecting] = useState(false);
-  const [liveDetection, setLiveDetection] = useState<{
-    status: "scanning" | "detected" | "searching";
-    label: string;
-    confidence: number;
-    verified: boolean;
-  }>({ status: "scanning", label: "", confidence: 0, verified: false });
 
   const habit = HABITS.find((item) => item.code === habitCode);
 
@@ -1754,35 +1748,6 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
     };
   }, []);
-
-  // Real-time live AI scanner loop analyzing video stream continuously
-  useEffect(() => {
-    if (!cameraReady || photoUrl) return;
-    let cancelled = false;
-
-    const scanFrame = async () => {
-      if (cancelled || !video.current || !habitCode || !cameraReady) return;
-      if (video.current.readyState >= 2 && video.current.videoWidth > 0) {
-        try {
-          const res = await inferHabit(video.current, habitCode);
-          if (!cancelled) {
-            setLiveDetection({
-              status: res.verified ? "detected" : "searching",
-              label: res.label,
-              confidence: res.confidence,
-              verified: res.verified,
-            });
-          }
-        } catch {}
-      }
-    };
-
-    const interval = setInterval(scanFrame, 400);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [cameraReady, photoUrl, habitCode]);
 
   const setSelectedPhoto = (blob: Blob) => {
     const now = Date.now();
@@ -1877,11 +1842,11 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
         throw result.error;
       }
       if (result.data?.status === "rejected") {
-        onComplete(result.data?.error || "Failed: Non-habit/ disposable object detected.");
+        onComplete(result.data?.error || t("camera.failed"));
         return;
       }
-      onComplete(result.data?.status === "approved" ? t("camera.success", { points: habit?.points ?? result.data.points }) : "Failed: Non-habit/ disposable object detected.");
-    } catch { onComplete("Failed: Non-habit/ disposable object detected."); }
+      onComplete(result.data?.status === "approved" ? t("camera.success", { points: habit?.points ?? result.data.points }) : t("camera.failed"));
+    } catch { onComplete(t("camera.failed")); }
     finally { setBusy(false); }
   };
 
@@ -1905,21 +1870,13 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       )}
       {!photoUrl && error && <span>{error}</span>}
 
-      {/* Real-time active AI scanner viewfinder overlay */}
       {!photoUrl && cameraReady && (
         <div className="scanner-hud">
-          <div className="scanner-laser" />
-          <div className={"scanner-reticle " + (liveDetection.verified ? "active" : "")}>
+          <div className="scanner-reticle">
             <div className="scanner-bracket tl" />
             <div className="scanner-bracket tr" />
             <div className="scanner-bracket bl" />
             <div className="scanner-bracket br" />
-          </div>
-          <div className={"scanner-badge " + (liveDetection.verified ? "detected" : "searching")}>
-            <span className="scanner-dot" />
-            {liveDetection.verified
-              ? `✓ ${habit ? t("habit." + habit.code) : habitCode} Detected (${Math.round(liveDetection.confidence * 100)}%)`
-              : `AI Engine Active · Scan ${habit ? t("habit." + habit.code) : habitCode}`}
           </div>
         </div>
       )}
@@ -1931,7 +1888,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       </div>
     )}
 
-    {detecting && <div className="ai-detection-pill detecting">Scanning photo with clutter-filtering AI…</div>}
+    {detecting && <div className="ai-detection-pill detecting">Checking photo…</div>}
     {detection && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
         {detection.message}
