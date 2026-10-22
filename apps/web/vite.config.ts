@@ -6,6 +6,24 @@ export default defineConfig({
   envDir: "../../",
   envPrefix: ["VITE_", "NEXT_PUBLIC_"],
   plugins: [
+    {
+      name: "block-sensitive-files",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const rawUrl = (req as { url?: string }).url || "";
+          const url = rawUrl.split("?")[0];
+          if (/^\/(\.env.*|\.git.*|config\.json.*|\.aws.*)/i.test(url)) {
+            res.statusCode = 404;
+            res.setHeader("Content-Type", "text/plain");
+            res.setHeader("X-Content-Type-Options", "nosniff");
+            res.setHeader("X-Frame-Options", "DENY");
+            res.setHeader("Content-Security-Policy", "default-src 'none'");
+            return res.end("Not Found");
+          }
+          next();
+        });
+      },
+    },
     react(),
     VitePWA({
       registerType: "autoUpdate",
@@ -56,6 +74,13 @@ export default defineConfig({
       devOptions: { enabled: false },
     }),
   ],
+  server: {
+    headers: {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self';",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+    },
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,
