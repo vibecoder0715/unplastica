@@ -1,0 +1,42 @@
+{
+  "total": 338,
+  "correct": 270,
+  "tp": 233,
+  "tn": 37,
+  "fp": 10,
+  "fn": 8,
+  "per_class": {
+    "beeswax_food_wraps": {
+      "total": 39,
+      "correct": 37
+    },
+    "box_cutlery": {
+      "total": 38,
+      "correct": 28
+    },
+    "bulk_pantry_refill": {
+      "total": 39,
+      "correct": 24
+    },
+    "greenery_furniture": {
+      "total": 47,
+      "correct": 39
+    },
+    "handicraft_projects": {
+      "total": 52,
+      "correct": 43
+    },
+    "other": {
+      "total": 47,
+      "correct": 37
+    },
+    "recycle_bags": {
+      "total": 38,
+      "correct": 27
+    },
+    "self_bottle_refill": {
+      "total": 38,
+      "correct": 35
+    }
+  }
+}

@@ -1,8 +1,10 @@
 # Vercel Ignore file
 .git
 .agents
-ml/data
-ml/test_300_suite
+ml/data*
+ml/test_*
 ml/stress_report
+ml/.venv
 node_modules
 .vercel
+

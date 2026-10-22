@@ -105,7 +105,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     return response.status(200).json({
       status: "ready",
       model: "mobilenet_v3_small",
-      model_version: "mobilenet_v3_small-v0.1.6-openset",
+      model_version: "mobilenet_v3_small-v0.1.7-multistyle",
       classes: Array.from(VALID_HABITS).concat(["other"]).sort(),
       threshold: 0.85,
       rate_limit: {
@@ -201,7 +201,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           status: verified ? "verified" : "rejected",
           predicted_label: mlData.predicted_label,
           confidence: mlData.confidence,
-          model_version: mlData.model_version || "mobilenet_v3_small-v0.1.6-openset",
+          model_version: mlData.model_version || "mobilenet_v3_small-v0.1.7-multistyle",
           verified,
         });
       }
