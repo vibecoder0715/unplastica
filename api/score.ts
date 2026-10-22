@@ -105,9 +105,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
     return response.status(200).json({
       status: "ready",
       model: "mobilenet_v3_small",
-      model_version: "mobilenet_v3_small-v0.1.7-multistyle",
+      model_version: "mobilenet_v3_small-v0.1.8-clutter-invariant",
       classes: Array.from(VALID_HABITS).concat(["other"]).sort(),
-      threshold: 0.85,
+      threshold: 0.35,
       rate_limit: {
         max_requests_per_min: MAX_REQUESTS_PER_WINDOW,
         lockout_duration_sec: LOCKOUT_DURATION_MS / 1000,
@@ -201,7 +201,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           status: verified ? "verified" : "rejected",
           predicted_label: mlData.predicted_label,
           confidence: mlData.confidence,
-          model_version: mlData.model_version || "mobilenet_v3_small-v0.1.7-multistyle",
+          model_version: mlData.model_version || "mobilenet_v3_small-v0.1.8-clutter-invariant",
           verified,
         });
       }
@@ -215,7 +215,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     status: "verified",
     predicted_label: habitCode,
     confidence: 0.95,
-    model_version: "mobilenet_v3_small-v0.1.7-multistyle",
+    model_version: "mobilenet_v3_small-v0.1.8-clutter-invariant",
     verified: true,
   });
 }

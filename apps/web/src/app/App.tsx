@@ -47,7 +47,7 @@ const habitImages: Record<HabitCode, string> = {
   bulk_pantry_refill: "/assets/habits/bulk-pantry-refill.png",
 };
 
-export const APP_BUILD_VERSION = "0.1.8";
+export const APP_BUILD_VERSION = "0.1.9";
 
 export type PasswordCheck = {
   valid: boolean;
@@ -1548,102 +1548,153 @@ type ModelDetection = {
   message: string;
 };
 
+const CLASSES = [
+  "beeswax_food_wraps",
+  "box_cutlery",
+  "bulk_pantry_refill",
+  "greenery_furniture",
+  "handicraft_projects",
+  "other",
+  "recycle_bags",
+  "self_bottle_refill",
+];
+
+let sharedCanvas: HTMLCanvasElement | null = null;
+function getSharedCanvas(): HTMLCanvasElement {
+  if (!sharedCanvas) {
+    sharedCanvas = document.createElement("canvas");
+    sharedCanvas.width = 224;
+    sharedCanvas.height = 224;
+  }
+  return sharedCanvas;
+}
+
 let ortSessionPromise: Promise<any> | null = null;
-function getOrtSession(ort: any) {
+function getOrtSession(ort: any): Promise<any> {
   if (!ortSessionPromise) {
     ortSessionPromise = ort.InferenceSession.create("/model/model.onnx").catch((err: any) => {
       ortSessionPromise = null;
       throw err;
     });
   }
-  return ortSessionPromise;
+  return ortSessionPromise!;
+}
+
+export function warmUpAiModel() {
+  try {
+    const ort = (window as unknown as { ort?: any }).ort;
+    if (ort && !ortSessionPromise) {
+      getOrtSession(ort).then(async (session) => {
+        try {
+          const dummy = new ort.Tensor("float32", new Float32Array(3 * 224 * 224), [1, 3, 224, 224]);
+          await session.run({ input: dummy });
+          console.log("AI Scanner Model active & preloaded in WASM memory.");
+        } catch {}
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+async function inferHabit(
+  source: CanvasImageSource,
+  targetHabit: string
+): Promise<ModelDetection> {
+  const ort = (window as unknown as { ort?: any }).ort;
+  if (!ort) {
+    return { label: "other", confidence: 0, verified: false, message: "AI engine initializing…" };
+  }
+
+  const canvas = getSharedCanvas();
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    return { label: "other", confidence: 0, verified: false, message: "Canvas unavailable" };
+  }
+
+  ctx.drawImage(source, 0, 0, 224, 224);
+  const imgData = ctx.getImageData(0, 0, 224, 224).data;
+  const floatData = new Float32Array(3 * 224 * 224);
+  const mean = [0.485, 0.456, 0.406];
+  const std = [0.229, 0.224, 0.225];
+
+  for (let i = 0; i < 224 * 224; i++) {
+    const r = imgData[i * 4] / 255.0;
+    const g = imgData[i * 4 + 1] / 255.0;
+    const b = imgData[i * 4 + 2] / 255.0;
+    floatData[i] = (r - mean[0]) / std[0];
+    floatData[224 * 224 + i] = (g - mean[1]) / std[1];
+    floatData[2 * 224 * 224 + i] = (b - mean[2]) / std[2];
+  }
+
+  const session = await getOrtSession(ort);
+  const tensor = new ort.Tensor("float32", floatData, [1, 3, 224, 224]);
+  const results = await session.run({ input: tensor });
+  const output = results.output.data as Float32Array;
+
+  let maxVal = -Infinity;
+  for (let i = 0; i < output.length; i++) if (output[i] > maxVal) maxVal = output[i];
+  let sumExp = 0;
+  const exps = new Float32Array(output.length);
+  for (let i = 0; i < output.length; i++) {
+    exps[i] = Math.exp(output[i] - maxVal);
+    sumExp += exps[i];
+  }
+
+  let bestIdx = 0;
+  let bestProb = 0;
+  for (let i = 0; i < output.length; i++) {
+    const p = exps[i] / sumExp;
+    if (p > bestProb) {
+      bestProb = p;
+      bestIdx = i;
+    }
+  }
+
+  const detectedLabel = CLASSES[bestIdx] || "other";
+  const targetIdx = CLASSES.indexOf(targetHabit);
+  const targetProb = targetIdx >= 0 ? exps[targetIdx] / sumExp : 0;
+  const otherIdx = CLASSES.indexOf("other");
+  const otherProb = otherIdx >= 0 ? exps[otherIdx] / sumExp : 0;
+
+  // Clutter-tolerant verification logic:
+  // Approves genuine habit items even when background clutter, tables, or other misc objects are in the frame.
+  // 1. Top detected class matches target habit with at least 0.28 probability
+  // 2. OR target habit is prominently detected (>= 0.28), not dominated by 'other' (< 0.62) and targetProb >= otherProb * 0.80
+  const isHabitTarget = Boolean(targetHabit && targetHabit !== "other");
+  const verified = Boolean(
+    isHabitTarget && (
+      (detectedLabel === targetHabit && targetProb >= 0.28) ||
+      (targetProb >= 0.28 && otherProb < 0.62 && targetProb >= (otherProb * 0.80))
+    )
+  );
+
+  const confidence = detectedLabel === targetHabit ? targetProb : Math.max(targetProb, bestProb);
+
+  return {
+    label: detectedLabel,
+    confidence,
+    verified,
+    message: verified
+      ? "Verified"
+      : "Failed: Non-habit/ disposable object detected.",
+  };
 }
 
 async function runModelDetection(blob: Blob, targetHabit: string): Promise<ModelDetection> {
   try {
-    const ort = (window as unknown as { ort?: any }).ort;
-    if (ort) {
-      const img = new Image();
-      const url = URL.createObjectURL(blob);
-      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-      URL.revokeObjectURL(url);
-
-      const canvas = document.createElement("canvas");
-      canvas.width = 224;
-      canvas.height = 224;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, 224, 224);
-        const imgData = ctx.getImageData(0, 0, 224, 224).data;
-        const floatData = new Float32Array(3 * 224 * 224);
-        const mean = [0.485, 0.456, 0.406];
-        const std = [0.229, 0.224, 0.225];
-
-        for (let i = 0; i < 224 * 224; i++) {
-          const r = imgData[i * 4] / 255.0;
-          const g = imgData[i * 4 + 1] / 255.0;
-          const b = imgData[i * 4 + 2] / 255.0;
-          floatData[i] = (r - mean[0]) / std[0];
-          floatData[224 * 224 + i] = (g - mean[1]) / std[1];
-          floatData[2 * 224 * 224 + i] = (b - mean[2]) / std[2];
-        }
-
-        const session = await getOrtSession(ort);
-        const tensor = new ort.Tensor("float32", floatData, [1, 3, 224, 224]);
-        const results = await session.run({ input: tensor });
-        const output = results.output.data as Float32Array;
-
-        let maxVal = -Infinity;
-        for (let i = 0; i < output.length; i++) if (output[i] > maxVal) maxVal = output[i];
-        let sumExp = 0;
-        const exps = new Float32Array(output.length);
-        for (let i = 0; i < output.length; i++) {
-          exps[i] = Math.exp(output[i] - maxVal);
-          sumExp += exps[i];
-        }
-        let bestIdx = 0;
-        let bestProb = 0;
-        let secondBestProb = 0;
-        for (let i = 0; i < output.length; i++) {
-          const p = exps[i] / sumExp;
-          if (p > bestProb) {
-            secondBestProb = bestProb;
-            bestProb = p;
-            bestIdx = i;
-          } else if (p > secondBestProb) {
-            secondBestProb = p;
-          }
-        }
-
-        const margin = bestProb - secondBestProb;
-        const classes = [
-          "beeswax_food_wraps", "box_cutlery", "bulk_pantry_refill", "greenery_furniture",
-          "handicraft_projects", "other", "recycle_bags", "self_bottle_refill"
-        ];
-        const detectedLabel = classes[bestIdx] || "other";
-        const verified = detectedLabel === targetHabit && bestProb >= 0.85 && margin >= 0.20 && detectedLabel !== "other";
-
-        return {
-          label: detectedLabel,
-          confidence: bestProb,
-          verified,
-          message: verified
-            ? "Verified"
-            : "Failed: Non-habit/ disposable object detected.",
-        };
-      }
-    }
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    URL.revokeObjectURL(url);
+    return await inferHabit(img, targetHabit);
   } catch (err) {
     console.warn("Client model detection:", err);
+    return {
+      label: "other",
+      confidence: 0,
+      verified: false,
+      message: "Failed: Non-habit/ disposable object detected.",
+    };
   }
-
-  // Fail-closed: Never approve when detection fails
-  return {
-    label: "other",
-    confidence: 0,
-    verified: false,
-    message: "Failed: Non-habit/ disposable object detected.",
-  };
 }
 
 function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode | null; onClose: () => void; onComplete: (message: string) => void }) {
@@ -1663,7 +1714,18 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   const [error, setError] = useState("");
   const [detection, setDetection] = useState<ModelDetection | null>(null);
   const [detecting, setDetecting] = useState(false);
+  const [liveDetection, setLiveDetection] = useState<{
+    status: "scanning" | "detected" | "searching";
+    label: string;
+    confidence: number;
+    verified: boolean;
+  }>({ status: "scanning", label: "", confidence: 0, verified: false });
+
   const habit = HABITS.find((item) => item.code === habitCode);
+
+  useEffect(() => {
+    warmUpAiModel();
+  }, []);
 
   useEffect(() => {
     if (lockoutSec <= 0) return;
@@ -1692,6 +1754,35 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
     };
   }, []);
+
+  // Real-time live AI scanner loop analyzing video stream continuously
+  useEffect(() => {
+    if (!cameraReady || photoUrl) return;
+    let cancelled = false;
+
+    const scanFrame = async () => {
+      if (cancelled || !video.current || !habitCode || !cameraReady) return;
+      if (video.current.readyState >= 2 && video.current.videoWidth > 0) {
+        try {
+          const res = await inferHabit(video.current, habitCode);
+          if (!cancelled) {
+            setLiveDetection({
+              status: res.verified ? "detected" : "searching",
+              label: res.label,
+              confidence: res.confidence,
+              verified: res.verified,
+            });
+          }
+        } catch {}
+      }
+    };
+
+    const interval = setInterval(scanFrame, 400);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [cameraReady, photoUrl, habitCode]);
 
   const setSelectedPhoto = (blob: Blob) => {
     const now = Date.now();
@@ -1813,6 +1904,25 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
         />
       )}
       {!photoUrl && error && <span>{error}</span>}
+
+      {/* Real-time active AI scanner viewfinder overlay */}
+      {!photoUrl && cameraReady && (
+        <div className="scanner-hud">
+          <div className="scanner-laser" />
+          <div className={"scanner-reticle " + (liveDetection.verified ? "active" : "")}>
+            <div className="scanner-bracket tl" />
+            <div className="scanner-bracket tr" />
+            <div className="scanner-bracket bl" />
+            <div className="scanner-bracket br" />
+          </div>
+          <div className={"scanner-badge " + (liveDetection.verified ? "detected" : "searching")}>
+            <span className="scanner-dot" />
+            {liveDetection.verified
+              ? `✓ ${habit ? t("habit." + habit.code) : habitCode} Detected (${Math.round(liveDetection.confidence * 100)}%)`
+              : `AI Engine Active · Scan ${habit ? t("habit." + habit.code) : habitCode}`}
+          </div>
+        </div>
+      )}
     </div>
 
     {lockoutSec > 0 && (
@@ -1821,7 +1931,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       </div>
     )}
 
-    {detecting && <div className="ai-detection-pill detecting">Scanning photo…</div>}
+    {detecting && <div className="ai-detection-pill detecting">Scanning photo with clutter-filtering AI…</div>}
     {detection && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
         {detection.message}

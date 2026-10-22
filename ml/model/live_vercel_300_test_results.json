@@ -1,0 +1,46 @@
+{
+  "model_source": "https://unplastica.vercel.app/model/model.onnx",
+  "total_images_tested": 415,
+  "habit_images_tested": 358,
+  "negative_images_tested": 57,
+  "clean_habit_approval_rate": "75.98%",
+  "clutter_habit_approval_rate": "75.14%",
+  "negative_rejection_rate": "75.44%",
+  "per_habit_stats": {
+    "beeswax_food_wraps": {
+      "total": 40,
+      "clean_approved": 38,
+      "clutter_approved": 38
+    },
+    "box_cutlery": {
+      "total": 39,
+      "clean_approved": 27,
+      "clutter_approved": 27
+    },
+    "bulk_pantry_refill": {
+      "total": 39,
+      "clean_approved": 24,
+      "clutter_approved": 24
+    },
+    "greenery_furniture": {
+      "total": 48,
+      "clean_approved": 36,
+      "clutter_approved": 33
+    },
+    "handicraft_projects": {
+      "total": 70,
+      "clean_approved": 57,
+      "clutter_approved": 59
+    },
+    "recycle_bags": {
+      "total": 71,
+      "clean_approved": 51,
+      "clutter_approved": 51
+    },
+    "self_bottle_refill": {
+      "total": 51,
+      "clean_approved": 39,
+      "clutter_approved": 37
+    }
+  }
+}
