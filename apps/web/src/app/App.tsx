@@ -47,7 +47,7 @@ const habitImages: Record<HabitCode, string> = {
   bulk_pantry_refill: "/assets/habits/bulk-pantry-refill.png",
 };
 
-export const APP_BUILD_VERSION = "0.1.5";
+export const APP_BUILD_VERSION = "0.1.8";
 
 export type PasswordCheck = {
   valid: boolean;
@@ -654,11 +654,15 @@ function BrandWordmark({ className = "" }: { className?: string }) {
   );
 }
 
-function BrandLogo({ scrolled: _scrolled = true }: { scrolled?: boolean } = {}) {
-  return <span className="brand-crop wordmark-visible" aria-hidden="true">
-    <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png" alt="Unplastica" />
-    <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png" alt="Unplastica" />
-  </span>;
+function BrandLogo({ scrolled = false }: { scrolled?: boolean } = {}) {
+  return (
+    <span className={"brand-crop " + (scrolled ? "wordmark-visible" : "mark-visible")} aria-hidden="true">
+      <img className="brand-mark brand-image-light" src="/assets/brand/brand-mark-light.png" alt="Unplastica" />
+      <img className="brand-mark brand-image-dark" src="/assets/brand/brand-mark-dark.png" alt="Unplastica" />
+      <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png" alt="Unplastica" />
+      <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png" alt="Unplastica" />
+    </span>
+  );
 }
 
 function BottomNav({ page, onNavigate }: { page: Page; onNavigate: (page: Page) => void }) {

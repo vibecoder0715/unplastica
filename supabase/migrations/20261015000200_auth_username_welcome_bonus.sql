@@ -50,11 +50,11 @@ begin
   insert into public.greenbit_ledger (
     user_id, entry_type, amount, description, idempotency_key, metadata
   ) values (
-    p_user_id, 'earn', 500, 'Welcome bonus', 'welcome:' || p_user_id::text,
+    p_user_id, 'earn', 250, 'Welcome bonus', 'welcome:' || p_user_id::text,
     jsonb_build_object('grant', 'first_verified_login')
   ) on conflict (idempotency_key) do nothing;
   get diagnostics inserted_count = row_count;
-  return query select inserted_count = 1, case when inserted_count = 1 then 500 else 0 end;
+  return query select inserted_count = 1, case when inserted_count = 1 then 250 else 0 end;
 end;
 $$;
 

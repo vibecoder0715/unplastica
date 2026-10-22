@@ -33,9 +33,9 @@ select is((select count(*)::integer from public.habit_definitions), 7, 'the seve
 
 reset role;
 set local role service_role;
-select is((select points from public.award_welcome_bonus('10000000-0000-4000-8000-000000000001')), 500, 'first verified login receives 500 Greenbits');
+select is((select points from public.award_welcome_bonus('10000000-0000-4000-8000-000000000001')), 250, 'first verified login receives 250 Greenbits');
 select is((select points from public.award_welcome_bonus('10000000-0000-4000-8000-000000000001')), 0, 'welcome bonus is idempotent');
 reset role;
-select is((select balance::integer from public.greenbit_balances where user_id = '10000000-0000-4000-8000-000000000001'), 800, 'welcome award is recorded in the ledger');
+select is((select balance::integer from public.greenbit_balances where user_id = '10000000-0000-4000-8000-000000000001'), 550, 'welcome award is recorded in the ledger');
 select * from finish();
 rollback;

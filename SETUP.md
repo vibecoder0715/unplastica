@@ -41,7 +41,7 @@ The Vite-prefixed values are public browser settings, not secrets. Never put a S
 5. In Supabase → Authentication → URL Configuration, set the Site URL to your Vercel production URL. Add your local URL and exact Preview/Production `/login` callback URLs to the redirect allow-list. Email confirmation should stay enabled. Any email provider is accepted once the address is verified.
 6. For Google login, create a Web OAuth client in Google Cloud. Add the local and Vercel site origins there. Copy the callback URL shown in Supabase → Authentication → Providers → Google into Google's authorized redirect URIs, then enter the Google client ID and secret in Supabase. Keep the Google secret in Supabase only.
 7. For phone accounts, enable the phone provider and connect an SMS provider in Supabase. Test with its sandbox first; SMS providers may charge per message. Configure rate limits and CAPTCHA before inviting a large group.
-8. The first verified sign-in receives 500 Greenbits once. A database function writes it to the ledger; the client cannot set balances or repeat the award.
+8. The first verified sign-in receives 250 Greenbits once. A database function writes it to the ledger; the client cannot set balances or repeat the award.
 
 ## 3. Deploy the Supabase backend
 
@@ -169,7 +169,7 @@ The model service is a prototype. Keep user proof photos private and delete them
 
 ## 6. Final checks before inviting students
 
-- Test verified email, phone (if enabled), Google login, and the one-time 500 Greenbits award.
+- Test verified email, phone (if enabled), Google login, and the one-time 250 Greenbits award.
 - Upload a small JPEG and PNG avatar, then try an oversized file and a renamed non-image file; only a valid sanitized image should be saved.
 - Submit each habit type, an `other` photo, a blurry photo, and a photo over the 85% threshold. Confirm points are decided by the server.
 - Confirm the proof bucket is private and the daily cleanup is working before collecting proof images.
