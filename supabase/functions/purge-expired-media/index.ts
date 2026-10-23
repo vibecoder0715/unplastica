@@ -2,8 +2,10 @@ import { admin } from "../_shared/clients.ts";
 import { env, json, options } from "../_shared/http.ts";
 
 function authorized(request: Request): boolean {
+  const secret = env("CRON_SECRET") || env("RETENTION_CRON_SECRET") || "";
+  if (!secret) return false;
   const received = new TextEncoder().encode(request.headers.get("x-retention-secret") ?? "");
-  const expected = new TextEncoder().encode(env("RETENTION_CRON_SECRET"));
+  const expected = new TextEncoder().encode(secret);
   if (received.length !== expected.length) return false;
   let mismatch = 0;
   for (let i = 0; i < received.length; i++) mismatch |= received[i] ^ expected[i];

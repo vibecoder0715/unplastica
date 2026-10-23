@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { validatePasswordComplexity, APP_BUILD_VERSION } from "../app/App";
 
 describe("Security Hardening & Password Policy", () => {
-  it("enforces version 0.1.9", () => {
-    expect(APP_BUILD_VERSION).toBe("0.1.9");
+  it("enforces version 0.2.1", () => {
+    expect(APP_BUILD_VERSION).toBe("0.2.1");
   });
 
   it("rejects passwords shorter than 8 characters", () => {
@@ -30,19 +30,21 @@ describe("Security Hardening & Password Policy", () => {
     expect(result.valid).toBe(false);
   });
 
-  it("accepts strong passwords meeting all 4 criteria", () => {
+  it("accepts strong passwords meeting both criteria (8-36 chars, 1 number, letter, special char)", () => {
     const result = validatePasswordComplexity("Warrior2026@APU!");
     expect(result.hasLength).toBe(true);
     expect(result.hasLetter).toBe(true);
     expect(result.hasNumber).toBe(true);
     expect(result.hasSpecial).toBe(true);
+    expect(result.hasLetterAndNumberAndSpecial).toBe(true);
     expect(result.valid).toBe(true);
   });
 
-  it("rejects excessively long passwords (>72 characters to avoid bcrypt CPU DoS)", () => {
-    const hugePw = "A1!" + "a".repeat(100);
+  it("rejects excessively long passwords (>36 characters)", () => {
+    const hugePw = "A1!" + "a".repeat(40);
     const result = validatePasswordComplexity(hugePw);
     expect(result.hasLength).toBe(false);
     expect(result.valid).toBe(false);
   });
 });
+

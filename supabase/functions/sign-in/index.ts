@@ -32,14 +32,6 @@ Deno.serve(async (request: Request) => {
     const loginId = user.email || user.phone;
     if (!loginId) return fail();
 
-    const providers = (user.app_metadata?.providers as string[] | undefined) || [];
-    const isOAuthOnly = (providers.includes("google") || providers.includes("azure")) && !providers.includes("email") && !providers.includes("phone");
-
-    // Auto-confirm email if unconfirmed so users are never locked out after signup
-    if (user.email && !user.email_confirmed_at) {
-      await service.auth.admin.updateUserById(user.id, { email_confirm: true });
-    }
-
     const publicClient = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
@@ -48,11 +40,6 @@ Deno.serve(async (request: Request) => {
       : { phone: user.phone!, password };
     const { data, error } = await publicClient.auth.signInWithPassword(credentials);
     if (error || !data?.session) {
-      if (isOAuthOnly) {
-        return json({
-          error: "This account was registered with Google / Microsoft OAuth. Please log in using the OAuth button, or set up a password in Settings."
-        }, 401);
-      }
       return fail();
     }
     return json({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });

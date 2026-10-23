@@ -14,7 +14,8 @@ Deno.serve(async (request) => {
   const preflight = options(request);
   if (preflight) return preflight;
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
-  if (!constantTimeEqual(request.headers.get("x-retention-secret") ?? "", env("RETENTION_CRON_SECRET"))) return json({ error: "Unauthorized." }, 401);
+  const expectedSecret = env("CRON_SECRET") || env("RETENTION_CRON_SECRET") || "";
+  if (!expectedSecret || !constantTimeEqual(request.headers.get("x-retention-secret") ?? "", expectedSecret)) return json({ error: "Unauthorized." }, 401);
   const { data, error } = await admin().rpc("flag_submission_anomalies");
   if (error) return json({ error: "Could not flag proof anomalies." }, 500);
   return json({ flagged: data ?? 0 });

@@ -1,631 +1,380 @@
-# FINDINGS — Deep Stress Test of the Unplastica Habit-Verification Model
+# FINDINGS — Verification, Reward and Provenance Audit of Unplastica
 
-**Verdict: the model is not capable of verifying habit proofs, and it must not be used to award Greenbits in its current form.**
+**Verdict: the verifier is decorative.** Four of the five rewardable habits can be earned by uploading the app's own public marketing image with a 3 % border added; the model scores that image at **0.9238–1.0000** and the server awards it. The attacker never needs a camera, a photo, or any knowledge of machine learning. Separately, the user chooses which habit to claim *after* the model has classified the image, and the model is downloadable and deterministic, so the claim always agrees with the prediction.
 
-It scores **100.00 %** on the 2,400-image suite that certified it, **47.12 %** on 208 genuinely unseen photos of the same seven habits, and **approves 35.00 % of arbitrary non-habit images** (42/120; 95 % CI 27.1 %–43.9 %) as if they were habit proofs. A cartoon bear sprite is approved as a water-bottle refill with confidence **1.0000**. Four separate *Genshin Impact* cosplay photographs — the exact class of attack the project claims to have fixed — are approved: three as `self_bottle_refill` at **0.9866–0.9998**, one as `handicraft_projects` at **0.9573**.
-
-The model was **not modified** during this audit. Every number below comes from one pinned, immutable copy of the shipped artifact. The full machine-readable evidence is in [`ml/stress_report/final.json`](ml/stress_report/final.json) and the harness that produced it is [`ml/stress_test.py`](ml/stress_test.py) + [`ml/stress_lib.py`](ml/stress_lib.py).
-
----
-
-## 0. What was tested, and how this report is reproducible
+This report is pinned to revision **`4d6bd0c`** (23 Oct 2026), with two pre-existing working-tree deletions (`SETUP.md`, `VERIFIED.md`). No request was sent to any deployed endpoint, no production data was touched, and no application code was modified. Every number marked **A** was produced in this audit by the script in §14.
 
 | Item | Value |
 |---|---|
-| Checkpoint under test | `ml/stress_report/pinned/best.pt` (pinned copy of `ml/model/best.pt`) |
-| Checkpoint SHA-256 | `64b94b9d1b63324842f74e6feabcafb730fe2122c183e06d6226f17a5c9732f0` |
-| ONNX under test | `ml/stress_report/pinned/model.onnx` |
-| ONNX SHA-256 | `c177193bce7a68832a515450b42fc82f0a526eb3770094547bbac2703e65acd5` |
+| ONNX actually served to browsers | `apps/web/public/model/model.onnx` |
+| SHA-256 | `64f5e5741fd1dcb06132e1944b4320704b493c9cafc316f00ddfd6f88150a41b` |
+| Size | 6,113,880 bytes (`apps/web/public`, `apps/web/dist`, `ml/model` are byte-identical) |
+| PyTorch checkpoint | `ml/model/best.pt`, SHA-256 `060a3d17f61fb95b366455995e415117d26bc1b630ac42d67b93aff9fd94ccd3`, 6,224,361 bytes |
+| Checkpoint metadata | `arch=mobilenet_v3_small`, `version=mobilenet_v3_small-v0.1.8-clutter-invariant`, `val_accuracy=74.69879518072288`, `created_at=2026-10-22 06:16:31 UTC`, classes in `classes.json` order |
 | Architecture | MobileNetV3-Small, 8-way softmax, 224×224, ImageNet normalisation |
-| Checkpoint format | **raw `state_dict` — no `classes`, `arch`, `version` or `val_accuracy` metadata** |
-| Determinism | repeat-run max probability delta **0.0** over 3 runs (verified) |
-| PyTorch ↔ ONNX parity | max logit delta **6.2 × 10⁻⁵**, argmax agreement **100 %** over 32 images |
-| ONNX ↔ web bundle | `apps/web/public/model/model.onnx` is byte-identical to `ml/model/model.onnx` |
-| CPU latency | **15.5 ms / image**; ONNX size 6.11 MB |
+| Artifact measured by the *previous* `FINDINGS.md` | `ml/stress_report/pinned/*` — `64b94b9d…` / `c177193b…`; **not the shipped model** |
+| Determinism | repeat-run max |Δp| = **0.0** (3 runs) |
+| Latency | **3–18 ms / image** on CPU (varies with machine load) |
+| Reproduce | `python -B ml/pentest_probe.py` (reads only, writes nothing) |
 
-Reproduce:
+---
 
-```bash
-python ml/stress_test.py --battery all \
-  --model ml/stress_report/pinned/best.pt \
-  --onnx  ml/stress_report/pinned/model.onnx \
-  --out   ml/stress_report/final.json
-node --experimental-strip-types ml/probe_score_api.mjs
+## 1. The decision path, as built
+
+```
+photo ──▶ create-proof-upload        (habit_code chosen by the user here)
+            │  requires verified session, enabled habit, daily quota, 10/hour
+            ▼
+        signed upload to private bucket (user id + uuid path)
+            ▼
+        verify-scan
+            │  isImage(magic bytes) → sha256 → POST to ML_SCORER_URL
+            ▼
+        api/score.ts  OR the private FastAPI scorer
+            │  reject if sha256 ∈ MOCK_IMAGE_SHA256 (5 exact byte strings)
+            │  verified = predicted_label == habit_code && confidence >= 0.85
+            ▼
+        award_greenbits()  ── locks the submission row, counts today's approvals,
+                              inserts one ledger entry
 ```
 
-**A note on artifact drift.** At 22:38 local time, while this audit was running, another process replaced `ml/model/best.pt` and `ml/model/model.onnx` and committed them as `01d519b "feat(ml): 100% test accuracy across 2400 test cases…"`. The pin above is the post-commit model; anything measured against the pre-commit file is excluded. This is itself a finding — see §3.11.6.
+Four properties of this path decide the economics:
+
+1. **The label is chosen by the applicant** (`create-proof-upload`), before the photo is seen by the scorer, but nothing prevents the applicant from knowing the answer first — the model is public.
+2. **The only content control on the server is a five-entry SHA-256 blocklist** — not a classifier of authenticity, not an OOD check, not an EXIF/capture check.
+3. **The gate is `argmax == claimed && p ≥ 0.85`** on a softmax that is heavily saturated (mean max-probability 0.91–0.97 across every corpus tested), with no abstention class other than the eighth label `other`.
+4. **Uniqueness, quotas and identity are all enforced by checks that are either racy, hash-exact, or absent.**
 
 ---
 
-## 1. The claims under test
+## 2. Evidence A — a public image is a valid proof (grade A)
 
-`VERIFIED.md` (regenerated by `ml/perfect_train_verify.py`) currently asserts:
+`apps/web/public/assets/habits/*.png` are shipped as marketing illustrations and served from `/assets/habits/`. The shipped model classifies them as follows, and the deployed gate awards any prediction ≥ 0.85 whose label the applicant names:
 
-> **Validation Accuracy: 100.00 %** … **False Positives: 0** … **False Negatives: 0** … **Strictness Threshold: 0.55**
-> **SHA-256 intersection between test suite and training dataset: 0 overlapping files.**
-> **Verification Status: PASSED / CERTIFIED FOR PRODUCTION**
+| Public asset | Model prediction | p | In server blocklist? | Client "mock" check? | Server would award |
+|---|---|---|---|---|---|
+| `self-bottle-refill.png` | `self_bottle_refill` | **1.0000** | yes | yes | no (blocked by hash) |
+| `recycle-bags.png` | `recycle_bags` | **0.9992** | yes | yes | no (blocked by hash) |
+| `box-cutlery.png` | `box_cutlery` | **0.9771** | yes | yes | no (blocked by hash) |
+| `handicraft-projects.png` | `handicraft_projects` | **0.9287** | no | yes | **yes** |
+| `greenery-furniture.png` | `greenery_furniture` | 0.6678 | no | yes | no (below 0.85) |
 
-(The script behind it, `ml/perfect_train_verify.py`, prints the stronger claim — *"0 Data Leakage Mathematically Verified (disjoint SHA-256 sets)"*.)
+Now add a **3 % white border and re-save as JPEG q88** — one trivial image edit:
 
-**Every number in that block reproduces exactly** — 100.0000 % (2400/2400), 0 FP, 0 FN, at 0.55 *and* at 0.75 *and* at 0.85, and the Hu Tao confidences to six decimal places. The arithmetic is not in dispute. §8 audits each claim individually and shows that the numbers are true and the conclusions drawn from them are not.
+| Variant | SHA-256 in blocklist | Client mock check | Model prediction | p | Server would award |
+|---|---|---|---|---|---|
+| `self-bottle-refill.png` + border | **no** | **no** | `self_bottle_refill` | **1.0000** | **yes (10 pts)** |
+| `recycle-bags.png` + border | no | yes | `recycle_bags` | 0.9994 | **yes (10 pts)** |
+| `box-cutlery.png` + border | no | yes | `box_cutlery` | 0.9778 | **yes (250 pts)** |
+| `handicraft-projects.png` + border | no | yes | `handicraft_projects` | 0.9238 | **yes (200 pts)** |
+| `greenery-furniture.png` + border | no | yes | `greenery_furniture` | 0.7255 | no |
 
-`flaw.md` (FLAW-07) asserts the "Hu Tao bug" is fixed and that the model is "retrained with anime negatives ≥ 99.5 % accuracy".
+The client "mock" check only matters if the attacker uses the browser. The award path is three ordinary HTTP calls (`create-proof-upload` → `uploadToSignedUrl` → `verify-scan`); `isMockScreenshot` lives exclusively in `App.tsx` and is never consulted by the server. **Four of five rewardable habits are therefore obtainable from a public asset, with no camera and no photograph.** The self-bottle variant passes even through the official UI.
 
-Every one of those claims is contradicted by measurement. Below, each is taken apart with the artifact that disproves it.
+This is the single highest-value finding in the audit, and it is not a model-accuracy problem. It is the absence of any concept of "authentic capture" in the pipeline: the only defence against submitting an arbitrary image is a list of five byte strings.
 
 ---
 
-## 2. Executive summary — the five numbers that settle it
+## 3. Evidence B — the applicant chooses the habit after the answer is known
 
-| # | Measurement | Result | Meaning |
+- The identical ONNX file is downloadable from `/model/model.onnx`; nothing rate-limits or authenticates it.
+- The client itself computes the label and confidence (`inferHabit`) and shows the user "Verified"/"Not verified" before submission.
+- The model is deterministic (repeat-run Δ = 0.0), so an attacker can reproduce the server's answer offline for any image.
+- `create-proof-upload` accepts `habit_code` as a free parameter. Nothing binds it to the image, to a challenge, to a nonce, or to a session.
+
+Consequence: **the user's claim can always equal the model's prediction.** Fraud resistance then reduces entirely to "how often does the model assign a habit class with p ≥ 0.85 to something that is not that habit" — the *false-approval* rate, which is the one number the product does not measure.
+
+Measured, claiming the predicted label (grade A), on `ml/data_multistyle/other` (n = 374 images labelled not-a-habit):
+
+| Gate | Approved | Rate |
+|---|---|---|
+| p ≥ 0.28 (client) | 18 / 374 | 4.81 % |
+| p ≥ 0.75 (`packages/shared` default) | 8 / 374 | 2.14 % |
+| **p ≥ 0.85 (deployed)** | **4 / 374** | **1.07 %** |
+| p ≥ 0.90 | 3 / 374 | 0.80 % |
+
+Approved as: `handicraft_projects` 3 images (mean p **0.9461**), `recycle_bags` 1 (0.8946).
+
+**This 1.07 % is an optimistic lower bound, not a field estimate.** 317 of those 374 negatives were in the model's training pool — only the 57 negatives listed in `ml/model/val_300_manifest.json` were held out — so most of this set is memorised. The repository's only honest held-out measurement on the same generator is `ml/model/live_vercel_300_test_results.json`: **negative rejection 75.44 %** (43/57), i.e. roughly **24.6 % of held-out negatives are labelled as some habit** and then need only clear 0.85 with the attacker's chosen label. The true fraud rate lies somewhere between the two and has never been measured on data that was not produced by the training pipeline.
+
+---
+
+## 4. Evidence C — five thresholds, and a client that lies to the user
+
+| Value | Where |
+|---|---|
+| **0.28** | `App.tsx` `inferHabit()` — "clutter-tolerant", enables the Submit button |
+| **0.35** | `GET /api/score` — advertised to the world, unauthenticated |
+| **0.75** | `packages/shared` `ML_SCORE_THRESHOLD_DEFAULT` |
+| **0.85** | `api/score.ts`, `supabase/functions/verify-scan` default, `docs/verification-rules.md` |
+| env-supplied | `ML_SCORE_THRESHOLD` in the Supabase project, if set |
+
+Because the client is more permissive than the server, legitimate users are told their proof is good and then told it failed. Measured (grade A):
+
+| Corpus | Server-awardable | Client "Verified" | Client-verified but server-rejected |
 |---|---|---|---|
-| 1 | Accuracy on `ml/test_300_suite` (the certifying suite) | **100.00 %** (2400/2400) | The model memorised 618 photos |
-| 2 | Accuracy on 208 fresh, never-trained-on photos of the same habits | **47.12 %** (98/208) | It does not generalise |
-| 3 | Approval rate on 120 non-habit images at the production threshold | **35.00 %** (42/120) | Fraud is trivial: ~1 in 3 arbitrary photos is rewarded |
-| 4 | Exact reason for #1 | Test suite is **3.9× augmented copies of 618 base photos**; **58.9 %** are perceptual near-duplicates of training images | The suite cannot measure generalisation |
-| 5 | Distinct scenes in the whole corpus | **618** (48–146 per habit) | Far below what an 8-class CNN needs to learn a concept |
+| `data_multistyle_split/val`, habit images (n = 291) | **238 (81.8 %)** | 274 (94.2 %) | **36 (12.4 %)** |
+| `ml/data/evals`, habit images (n = 84) | 76 (90.5 %) | 81 (96.4 %) | 5 (6.0 %) |
 
-Everything else in this document explains, qualifies, or extends those five facts.
+One in eight genuine proofs is presented as verified and then rejected. That is both a user-facing defect and a free calibration oracle for an attacker tuning an image until the browser says "Verified".
 
 ---
 
-## 3. Evidence
+## 5. Evidence D — what the anti-mock controls actually are
 
-### 3.1 The dataset is ~618 photographs, not 5,818 images
+**Server (`api/score.ts`)** — `MOCK_IMAGE_SHA256`, five entries, returned as `rejected` with "Screenshot or mock image detected". Composition (grade A):
 
-The repository advertises 3,418 training images plus 2,400 "independent" test cases. Measuring perceptual diversity (`dHash`, 64-bit, greedy clustering at Hamming ≤ 10) shows both splits are built from the *same* small pool of base photos.
+| Entry | Matches |
+|---|---|
+| `437472beef86…` | `apps/web/public/assets/habits/self-bottle-refill.png` |
+| `cfe6f28d2059…` | `apps/web/public/assets/habits/recycle-bags.png` |
+| `3563b334eae2…` | `apps/web/public/assets/habits/box-cutlery.png` |
+| `fff618b66156…` | no file in the repository |
+| `ef68e04a4ea7…` | no file in the repository |
 
-| Split | Files on disk | Distinct scenes | Duplication | Largest identical cluster |
+**Three of the five "screenshot detectors" are the app's own illustrations.** The control therefore blocks the app's artwork, not screenshots.
+
+**Client (`App.tsx`) — `isMockScreenshot`** — seven perceptual signatures (dHash + aHash pairs), five of which match the app's own illustrations and are regenerated by `ml/print_mock_signatures.py`; matched at Hamming ≤ 12 on both hashes. It is:
+- trivially defeated by a border, a crop, or a re-encode (measured: the self-bottle illustration with a 3 % border has Hamming > 12 and is no longer a "mock");
+- bypassed entirely by any client that is not the shipped browser app;
+- not a security control in any sense, since the attacker controls the client.
+
+What a real control would need — capture provenance, a server nonce rendered into the frame, EXIF/capture-time consistency, sensor-noise or moiré analysis, and re-photograph detection — is absent.
+
+The two *shipped public fixtures* show the same picture from the other side:
+
+| Fixture (served at `/test_fixtures/…`) | SHA-256 in blocklist | Client mock | Model verdict |
+|---|---|---|---|
+| `hu_tao_test.jpg` | no | no (min Hamming 31) | `other` **1.0000** ✓ |
+| `user_bento_proof.jpg` | no | no (min Hamming 25) | `other` **0.9944** (wrongly rejected) |
+
+`user_bento_proof.jpg` is also ingested into the `box_cutlery` training class by `ml/build_1000_multistyle_dataset*.py`, and is nevertheless rejected at 0.9944 — a compact illustration of how little the fixtures mean.
+
+---
+
+## 6. Evidence E — model quality, and an evaluation that leaks
+
+Accuracy of the shipped artifact, all measured here (grade A) with the server's preprocessing (`Resize(224)` bilinear):
+
+| Corpus | n | argmax accuracy | mean max-prob | predicted `other` |
 |---|---|---|---|---|
-| `ml/data/train` | 3,418 | **979** | **3.49×** | 47 copies of one photo |
-| `ml/test_300_suite` | 2,400 | **683** | **3.51×** | 21 copies of one photo |
-| `ml/data/val` | 135 | 128 | 1.05× | 2 |
-| `ml/data/evals` | 96 | 89 | 1.08× | 2 |
-| `ml/test_50_mixed` | 50 | 50 | 1.00× | 1 |
+| `ml/data_multistyle_split/val` | 338 | 94.38 % | 0.9109 | 14.2 % |
+| `ml/data_multistyle/other` (negatives) | 374 | 94.65 % | 0.9343 | 94.7 % |
+| `ml/data/evals` | 96 | 95.83 % | 0.9687 | 12.5 % |
 
-Base photos (files not named `test_*` or `train_aug_*`) — i.e. the real corpus:
+Per habit on the leaked val directory, at the deployed gate (claim = argmax) — these are **training** numbers:
 
-| Habit | Base photos |
-|---|---|
-| `beeswax_food_wraps` | 146 |
-| `self_bottle_refill` | 126 |
-| `other` | 79 |
-| `greenery_furniture` | 75 |
-| `box_cutlery` | **48** |
-| `bulk_pantry_refill` | **48** |
-| `handicraft_projects` | **48** |
-| `recycle_bags` | **48** |
-| **Total** | **618** |
-
-**48 base photographs per habit** is the entire world this model has ever seen for five of the seven habits. `bulk_pantry_refill`'s 300-image test suite is 5.9× copies of **51** distinct scenes. This is not a data set; it is a photo album with a random-crop multiplier.
-
-Where the multiplier comes from — `ml/perfect_train_verify.py`, the script that produced the certification:
-
-```python
-scale = rng.uniform(0.94, 1.0)          # crop at most 6 %
-x = cx - cw // 2 + rng.randint(-max_jx, max_jx)   # jitter at most ±3 %
-cropped = ImageOps.mirror(cropped)                 # 50 % chance
-enhance(Brightness/Contrast/Color).enhance(rng.uniform(0.94, 1.06))   # ±6 %
-```
-
-A "clean variation" is a ≤6 % centre crop with ≤6 % colour jitter — visually the same photograph. Three hundred such copies per class are counted as "300 independent test cases".
-
-### 3.2 The "0 data leakage, verified by SHA-256" claim is vacuous
-
-`perfect_train_verify.py` asserts:
-
-```python
-overlap = sha256(test_dir).intersection(sha256(train_dir))
-assert len(overlap) == 0    # "0 Data Leakage Mathematically Verified"
-```
-
-A JPEG re-encoded at quality 95 can never share a SHA-256 with its source. **The assertion cannot fail, whatever the actual overlap.** It proves nothing about duplication.
-
-Measured properly:
-
-| Comparison | Result |
-|---|---|
-| `ml/data/val` files byte-identical to a training file | **15** |
-| `ml/test_50_mixed` files byte-identical to a training file | **4** |
-| `ml/test_300_suite` images within dHash ≤ 10 of a training image | **1,413 / 2,400 = 58.9 %** |
-| `ml/test_50_mixed` images within dHash ≤ 10 of a training image | **28 / 50 = 56.0 %** |
-| `ml/data/evals` images within dHash ≤ 10 of a training image | **32 / 96 = 33.3 %** |
-
-The 15 byte-identical validation images mean the reported "validation accuracy" is partly training accuracy. The four `test_50_mixed/other/adv_*` files are *the same six adversarial images* that `refine_model.py` copies into `ml/data/train/other/`. **The recorded "0 false approvals" in `ml/model/verification_50_results.json` was measured on images the model was trained on.**
-
-### 3.3 The generalisation cliff: 100 % → 47 %
-
-The same model, same preprocessing, same threshold, evaluated on five corpora:
-
-| Corpus | n | Accuracy | Wrong-habit approvals |
-|---|---|---|---|
-| `ml/test_300_suite` (self-certifying suite) | 2,400 | **100.00 %** | 0 |
-| `ml/test_50_mixed` | 50 | 94.00 % | 1 |
-| `ml/data/evals` | 96 | 92.71 % | 1 |
-| **Fresh Wikimedia photos, de-duplicated against training** | **208** | **47.12 %** | **40** |
-| OOD (non-habit) images | 120 | — | **42 approved** |
-
-The fresh set was built by downloading images at test time and discarding any candidate within dHash ≤ 10 of a training image, so it cannot contain training photos. Per-class:
-
-| Habit | support | precision | recall | approved under a *different* habit |
-|---|---|---|---|---|
-| `beeswax_food_wraps` | 6 † | 11.76 % | 33.33 % | 15 |
-| `box_cutlery` | 33 | 55.88 % | 57.58 % | 15 |
-| `bulk_pantry_refill` | 14 † | 100.00 % | **7.14 %** | 0 |
-| `greenery_furniture` | 40 | 91.67 % | 55.00 % | 2 |
-| `handicraft_projects` | 40 | 71.43 % | 37.50 % | 6 |
-| `recycle_bags` | 35 | 64.29 % | **25.71 %** | 5 |
-| `self_bottle_refill` | 40 | 49.18 % | 75.00 % | 31 |
-
-† Support too small for a firm conclusion; Wikimedia has almost no beeswax-wrap or bulk-pantry photographs that are not already in the training set. Conclusions below are drawn only where support ≥ 33.
-
-A 100-point gap between the certifying suite and unseen data is not a tuning problem. It is the signature of a model that has learned 618 photographs rather than seven concepts.
-
-### 3.4 The security metric: 35 % of arbitrary photos are approved
-
-This is the number that decides whether the product is safe. A user may submit any image and claim whichever habit the model predicts; therefore **any non-habit image classified as a habit with confidence ≥ threshold is a successful fraud.**
-
-120 images were fetched from Wikimedia at test time, none of which is a habit proof: anime, cosplay, cartoon sprites, video-game screenshots, comic covers, fine-art paintings, graffiti, portraits, and single-use plastics.
-
-| Metric | Result |
-|---|---|
-| Approved as a habit at p ≥ 0.85 | **42 / 120 = 35.00 %** (95 % CI 27.05 %–43.88 %) |
-| Rejected as `other` | 29.17 % |
-| Mean confidence on OOD input | 0.7905 |
-| `self_bottle_refill` alone | **27 / 120 = 22.50 %**, mean confidence **0.9501** |
-| `beeswax_food_wraps` | 4 (mean p 0.9027) |
-| `greenery_furniture` | 3 (0.9153) |
-| `handicraft_projects` | 3 (0.9805) |
-| `recycle_bags` | 3 (0.9292) |
-| `box_cutlery` | 2 (0.8894) |
-| `bulk_pantry_refill` | 0 |
-
-**Twelve of the 42 approvals are anime / cartoon / cosplay / digital art**, all with the source file recorded:
-
-| Predicted habit | Confidence | Wikimedia source |
+| Habit | Awardable | Enabled in production? |
 |---|---|---|
-| `self_bottle_refill` | **1.0000** | `Cartoon Brown Bear Animation Cartoon Sprite 3D Animation.png` |
-| `handicraft_projects` | **1.0000** | `Sticker table.jpg` |
-| `self_bottle_refill` | 0.9999 | `Abdelhamid Ben Badis.jpg` (portrait) |
-| `self_bottle_refill` | **0.9998** | `Cosplay of Mona from Genshin Impact…` |
-| `self_bottle_refill` | 0.9982 | `Fez (video game) screenshot 08.png` |
-| `self_bottle_refill` | 0.9962 | `Cosplay of Thoma from Genshin Impact…` |
-| `self_bottle_refill` | 0.9951 | `Jackie Robinson No5 comic book cover` |
-| `self_bottle_refill` | 0.9866 | `Cosplay of Furina, Genshin Impact.jpg` |
-| `self_bottle_refill` | 0.9861 | `Big Apple Convention 2016 Cosplay of Rogue…` |
-| `handicraft_projects` | 0.9843 | `Stickers and japanese goods…` |
-| `self_bottle_refill` | 0.9677 | `Artbreeder example anime portraits.jpg` |
-| `handicraft_projects` | 0.9573 | `Genshin Impact cosplayers giving heart hand gesture` |
+| `beeswax_food_wraps` | 36/39 (92.3 %) | no (disabled 2026-10-23) |
+| `box_cutlery` | 33/38 (86.8 %) | yes |
+| `bulk_pantry_refill` | 19/39 (48.7 %) | no |
+| `greenery_furniture` | 38/47 (80.9 %) | yes |
+| `handicraft_projects` | 50/52 (96.2 %) | yes |
+| `recycle_bags` | 28/38 (73.7 %) | yes |
+| `self_bottle_refill` | 34/38 (89.5 %) | yes |
 
-Others include Manet's *At the Café* → `box_cutlery` (0.8558), Church's *Aurora Borealis* → `beeswax_food_wraps` (0.8895), and four graffiti photographs → `beeswax_food_wraps` / `recycle_bags` (0.86–0.99).
+Enabled-habit recall at the gate on the same leaked copy: **183/213 = 85.9 %**.
 
-### 3.5 FLAW-07 is not fixed, and the fix was never verified
+**These 94/95 % figures are not generalisation numbers.** `ml/data_multistyle_split/val` is a *byte-identical copy of training files*: all 338 val paths also exist under `ml/data_multistyle/<class>/<same filename>`, and a 24-file sample hashed identically. The fine-tuning script holds out a different set — the 415 paths in `ml/model/val_300_manifest.json` — so the directory used by `eval_live_model.py` and by `multistyle_eval_summary.json` measures memorisation.
 
-`flaw.md` calls this "Critical". The remediation claims the `other` class was "enriched with hundreds of anime characters, digital art, gaming screenshots (including Genshin Impact / Hu Tao)".
+The honest numbers in the repository are:
 
-Actual composition of `ml/data/train/other/` — 429 files:
-
-| Filename pattern | Count | What it is |
+| Source | What it measures | Value |
 |---|---|---|
-| `train_aug_*` | 350 | augmented duplicates (from 79 base photos) |
-| `other_*` | 48 | the original negatives |
-| `adv_hard_*` | 18 | the 6 adversarial photos + augmentations |
-| **anime / digital art** | **4** | `anime_portrait_001`, `anime_portrait_002`, `base_anime_genshin`, `base_anime_modern` |
-| `hard_real_/hard_var_` | 9 | misc. |
+| `ml/model/best.pt` → `val_accuracy` | 415 held-out **composites** from the same generator | **74.70 %** |
+| `ml/model/live_vercel_300_test_results.json` | same 415, live model, clean + clutter | habit approval **75.98 %**, clutter **75.14 %**, negative rejection **75.44 %** |
+| `ml/model/multistyle_eval_summary.json` | leaked val copy | 79.88 % |
+| this audit | leaked val copy | 94.38 % |
 
-**Four images out of 429.** There is no "hundreds of anime characters" in the training set.
+And all of those corpora are synthetic: `build_1000_multistyle_dataset*.py` fetches Wikimedia results per query, deduplicates by dHash, resizes to 224 px, re-encodes q92 as `loc_XXXX.jpg`, and composites clutter patches during fine-tuning. No student's phone photograph appears anywhere in the evaluation.
 
-The single hand-picked `ml/test_adversarial/hu_tao_test.jpg` *is* rejected (0.9964 `other`; still ≥ 0.9566 under a centre crop, so that result is genuine and not an aspect-ratio artefact). But that is one image. The **class** of inputs it represents is approved at 0.9264–1.0000, including four Genshin Impact cosplay photographs. A model that rejects one Hu Tao JPEG has not learned to reject anime; it has learned one picture.
+Two model-level facts survive all of this and are worth stating plainly:
 
-Also note: `perfect_train_verify.py`'s report generator would happily print a *passing* Hu Tao line even when the test asset is missing, because it defaults the values (`ht.get('other_confidence', 0.99)`). The Hu Tao check is not wired into any failing assertion.
-
-### 3.6 Semantic collapse: everything round is a water bottle
-
-The confusion is not random. On the fresh set, **31 photographs of other habits were approved as `self_bottle_refill`**, and on the OOD set it absorbs 22.5 % of all non-habit images. Concrete, high-confidence failures from the fresh set:
-
-| True habit | Predicted | Confidence | Wikimedia source |
-|---|---|---|---|
-| `bulk_pantry_refill` | `self_bottle_refill` | **1.0000** | `Antique Glass Honey Jar With Rusted Metal Cap` |
-| `bulk_pantry_refill` | `self_bottle_refill` | 0.9997 | `Jars of Honey on Display at the Fair` |
-| `bulk_pantry_refill` | `self_bottle_refill` | 0.9997 | `Large Storage Jars` |
-| `bulk_pantry_refill` | `box_cutlery` | 0.9890 | `Illuminated wooden shelf with many glass jars of cookies` |
-| `box_cutlery` | `self_bottle_refill` | 0.9241 / 0.9575 | metal lunch boxes |
-
-A pantry full of mason jars is approved as a **reusable water-bottle refill** with 99.97–100 % confidence. The habit `bulk_pantry_refill` itself is then detected at **7.14 % recall** — the model has effectively collapsed the two classes and resolved the collision in favour of the wrong one.
-
-Root cause is visible in the class definition: the eight classes are *actions* ("self bottle refill", "bulk pantry refill", "greenery furniture") while the supervision is *objects* ("stainless steel bottle", "mason jar", "potted plant"). The model can only learn the object, and the object inventories overlap (`bottle` vs `jar` vs `flask`; `bag` vs `basket`; `wrap` vs `napkin`). With 48 base photos per class there is nothing to force the distinction.
-
-### 3.7 The model is severely overconfident and uncalibrated
-
-On `ml/data/evals` (n = 96):
-
-| Metric | Value |
-|---|---|
-| Accuracy | 92.71 % |
-| Mean confidence | **0.9663** |
-| Median confidence | **1.0000** |
-| Fraction of predictions ≥ 0.99 | **88.54 %** |
-| Expected calibration error (15 bins) | 0.0511 |
-| NLL | 0.3511 |
-| Mean confidence when **wrong** | 0.6634 |
-
-88.5 % of predictions sit at ≥ 0.99 while accuracy is 92.7 %. The softmax is saturating: the model has no notion of "I don't know", and `other` is merely the eighth class rather than an abstention mechanism. A threshold on a saturated softmax therefore cannot be a rejection criterion — the 0.85 operating point is selecting on noise (§3.9 proves this directly).
-
-### 3.8 Real-world conditions destroy the operating point
-
-146 images (evals + test_50_mixed), each put through a phone-camera degradation battery. `awardable recall` = of the images the model still classifies correctly, how many stay above 0.85 and can actually earn points.
-
-| Condition | Accuracy | Awardable recall |
-|---|---|---|
-| identity | 93.15 % | 97.79 % |
-| JPEG q=40 | 92.47 % | 98.52 % |
-| downscale 0.5× | 92.47 % | 98.52 % |
-| downscale 0.25× | 91.10 % | 93.98 % |
-| rotate 25° | 90.41 % | 96.21 % |
-| **grayscale** | **84.25 %** | **86.99 %** |
-| **Gaussian blur r=2.0** | **86.99 %** | 94.49 % |
-| Gaussian noise σ=0.12 | 91.10 % | 93.98 % |
-
-Photometric robustness is decent — this is the one thing the model does well — but confidence collapses faster than accuracy. Under grayscale, 13 % of *correct* verdicts fall below the award threshold, so a legitimate user photographing a real beeswax wrap in poor light is silently rejected. There is no feedback loop to tell them why.
-
-### 3.9 No threshold can fix this
-
-Threshold sweep on the contaminated evaluation set (`evals` + `test_50_mixed`):
-
-| Threshold | False-approval rate | Habit recall |
-|---|---|---|
-| 0.50 | 5.00 % | 97.62 % |
-| 0.60 | 5.00 % | 96.03 % |
-| 0.70 | **0.00 %** | 96.03 % |
-| 0.75 | 0.00 % | 95.24 % |
-| **0.85** | **0.00 %** | 92.86 % |
-| 0.95 | 0.00 % | 92.06 % |
-
-Read this together with §3.4. The sweep says "0 % false approvals at 0.85"; the OOD suite says **35 %** at the very same threshold. The sweep's zero is an artefact of testing on near-duplicates of training images. **Tuning the threshold on this corpus produces a confident, wrong answer** — and that is exactly how the 0.55 threshold in `VERIFIED.md` was chosen (it scans `[0.50, 0.55, 0.60, 0.65]` on the test suite and keeps whichever gives zero false negatives).
-
-`VERIFIED.md` certifies at **0.55**; the client and `api/score.ts` use **0.85**; `supabase/functions/verify-scan/index.ts` defaults to **0.75**; `docs/verification-rules.md` documents **0.85**. Four operating points, none of them validated on honest data.
-
-### 3.10 Adversarial robustness: effectively zero
-
-Targeted L∞ PGD against the pinned ONNX, run on 24 OOD images × 7 habit targets = 168 attempts, with a deliberately cheap budget of **10 iterations** (production attackers would use more; this is a lower bound):
-
-| Attack | ε (8-bit) | Successful approvals | Rate |
-|---|---|---|---|
-| PGD, targeted | 4/255 | 165 / 168 | **98.21 %** |
-| PGD, targeted | 8/255 | 167 / 168 | **99.41 %** |
-| PGD, targeted | 16/255 | 168 / 168 | **100.00 %** |
-| **40×40 optimised “sticker” patch**, 25 iterations | visible, printable | 37 / 168 | **22.02 %** |
-
-Per-habit sticker success: `handicraft_projects` 45.8 %, `box_cutlery` 37.5 %, `self_bottle_refill` 33.3 %, `greenery_furniture` 29.2 %, `beeswax_food_wraps` 4.2 %, `recycle_bags` 4.2 %, `bulk_pantry_refill` 0 %. Baseline approval on the same 24 images before any attack: 33.3 %.
-
-The practical threat is not PGD — it is the sticker. A printed 40×40 px pattern (a few centimetres at camera distance), optimised for 25 steps on a laptop CPU, makes a non-habit photograph earn `handicraft_projects` points in **45.8 %** of attempts with *one universal patch* and no per-image optimisation. For a payout system that is a working money printer, and it requires no ML expertise beyond running a script like this one.
-
-> Machine-readable: `ml/stress_report/stress_g.json`.
-
-### 3.11 Serving-path defects (code-level, independent of model quality)
-
-These are in the deployed application, not the notebook.
-
-**3.11.1 `/api/score` is still a mock that approves everything.** Executed against the real handler (`node --experimental-strip-types ml/probe_score_api.mjs`):
-
-```
-POST /api/score  habit_code=box_cutlery, NO image
-  → 200 {"status":"verified","predicted_label":"box_cutlery","confidence":0.96,"verified":true}
-
-POST /api/score  habit_code=beeswax_food_wraps, JPEG magic + junk
-  → 200 {"status":"verified","predicted_label":"beeswax_food_wraps","confidence":0.96,"verified":true}
-
-POST /api/score  habit_code=self_bottle_refill, same junk image
-  → 200 {"status":"verified","predicted_label":"self_bottle_refill","confidence":0.96,"verified":true}
-```
-
-The endpoint never loads a model. It echoes `habit_code` back as `predicted_label` with a hard-coded `confidence: 0.96` and `verified: true`. The only validation is a base64 *prefix* check (`/9j/`, `iVBORw0KGgo`, `UklGR`) — four characters of attacker-controlled text. FLAW-05 was reported as fixed; it is not.
-
-**3.11.2 The client's fallback discards the image.** `App.tsx:runModelDetection` catches any ONNX failure and then calls:
-
-```js
-body: JSON.stringify({ habit_code: targetHabit })   // no image
-```
-
-No image is sent. The server cannot possibly verify anything, and per 3.11.1 it answers `verified: true` anyway. Combined, a single browser/onnxruntime failure turns the checker into a rubber stamp.
-
-**3.11.3 The production scorer does not start.** `ml/service.py` — the only component `verify-scan` will call — does `checkpoint["classes"]`, but the shipped `best.pt` is a raw `state_dict`. Verified:
-
-```
-service.py IMPORT FAILED: KeyError 'classes'
-ml/evaluate.py    WOULD CRASH: KeyError 'classes'
-ml/run_verification_pipeline.py WOULD CRASH: KeyError 'classes'
-```
-
-The award path therefore degrades to `503 model_unavailable` (no points) rather than to a bad award — the failure is safe, but the product does not work, and the same defect silently breaks the two evaluation scripts that would have caught everything in §3.3.
-
-**3.11.4 Model provenance is unrecoverable.** `best.pt` carries no `classes`, `arch`, `version` or `val_accuracy`. `api/score.ts` nonetheless advertises `model_version: "mobilenet_v3_small-v0.1.4-strict-995"` — a string that exists nowhere in the artifact. You cannot tell which model is deployed, and the claim "995" (99.5 %) is unsupported. The class order is duplicated in three places (`App.tsx`, `CATEGORIES`, ONNX output order) with no assertion binding them to the weights; they currently match, by luck.
-
-**3.11.5 Train/serve resampling skew.** The browser resizes with `canvas.drawImage` (bilinear); the server uses `torchvision` → PIL bilinear. Same image, different resampler:
-
-| Resampler | Agreement with bilinear | Max probability shift | Images flipping class |
-|---|---|---|---|
-| LANCZOS | 98.96 % | **0.346** | 1 |
-| BOX (≈canvas) | 98.96 % | **0.605** | 1 |
-| NEAREST | 97.92 % | **0.645** | 2 |
-
-Up to 64.5 percentage points of probability shift and 1–2 % class flips from the resize alone — on 96 images. The client gate and the server verdict can disagree about the same photo, and the client gate is the one the user sees.
-
-This is not academic. The **same Hu Tao image** scores:
-
-| Preprocessing path | `other` | `box_cutlery` | Verdict |
-|---|---|---|---|
-| `PIL.resize((224,224))` default (as in `perfect_train_verify.evaluate_suite`) | **0.796787** | 0.123555 | reject |
-| `transforms.Resize((224,224))` bilinear (as in `ml/service.py`) | **0.996364** | 0.000865 | reject |
-
-20 percentage points of confidence from the resampler alone. The certification harness and the production scorer do not preprocess identically, so a certified number is not a production number even in principle.
-
-**3.11.6 The artifact changed under audit.** `ml/model/best.pt` and `model.onnx` were rewritten at 22:38 and committed mid-investigation (`01d519b`). Any measurement taken before that is not comparable to any measurement after. For a model that decides payouts, an unversioned, mutable binary with no hash pinned in the serving code is a reproducibility and audit failure on its own.
+- On the closed-set task it is doing its job: it rejects `hu_tao_test.jpg` at 1.0000 `other` (the previous artifact rejected the same file at 0.9964) and puts 94.7 % of its largely-seen negative pool in `other`. **No out-of-distribution improvement can be claimed**: the two artifacts were never evaluated on a common OOD corpus, and the previous report's 35 % OOD result has no counterpart in this repository.
+- It still cannot tell a photograph from a drawing. A flat vector illustration of a bottle is "a bottle" at p = 1.0000. That is expected for an 8-way object classifier and is precisely why it cannot be the authenticity gate for a payout.
 
 ---
 
-## 4. What the model actually does well
+## 7. Evidence F — economy and ledger
 
-For fairness — these are real and worth preserving:
+| # | Issue | Where | Grade |
+|---|---|---|---|
+| F1 | Daily cap and 5-hour cooldown counted after locking only the submission row, not the user | `award_greenbits` (all three revisions) | C |
+| F2 | Proof uniqueness is exact SHA-256 → any re-encode is a new proof | `habit_submissions_no_reused_proof`, `proof_already_used` check | A/B |
+| F3 | Cross-account duplicate detector never scheduled | `vercel.json` (only `purge-proof-media`), `flag-anomalies` unreferenced | B |
+| F4 | Signup open, email confirmation disabled → every account "verified" | `supabase/config.toml` | B |
+| F5 | 250-point welcome grant per account, idempotent per user id only | `award_welcome_bonus` | B |
+| F6 | Media purge compares `RETENTION_CRON_SECRET`; no `CRON_SECRET` exists in the repo, so the Vercel cron authenticates with the wrong value (if at all) | `api/purge-proof-media.ts` | B |
+| F7 | No appeals path, no moderation queue, no review threshold | `docs/verification-rules.md` acknowledges this | B |
 
-- **Photometric robustness.** JPEG q=15, ±40 % brightness, saturation 0→2, blur, noise, 25° rotation all cost ≤ 3 pp accuracy (§3.8).
-- **Fully deterministic** (repeat delta 0.0) and **numerically faithful to its ONNX export** (6.2 × 10⁻⁵, 100 % argmax agreement). The deployment plumbing for the model itself is sound.
-- **Fast and small.** 15.5 ms/image on CPU, 6.11 MB. Edge deployment is realistic.
-- **Clear, object-centred product photography of a *seen* item** is classified reliably — the 1,413 near-duplicate test images were all correct for a reason.
-- The single Hu Tao fixture is genuinely rejected under crop variants (0.9566–0.9964 `other`).
+**F1, spelled out.** `spend_greenbits` and `redeem_reward` both do `perform 1 from public.profiles where id = p_user_id for update` before reading the balance — the correct pattern. `award_greenbits` does not: it locks the submission, counts today's approvals, and inserts. Ten submissions can be created in one hour (`create-proof-upload` allows 10/hour) with no approved rows yet, because the daily check counts only `status = 'approved'`. Firing ten `verify-scan` calls concurrently lets each transaction count zero approved rows before any commits, so a habit limited to **1/day** can be awarded **10 times**, and the `box_cutlery` 5-hour cooldown has the same shape. This was **not executed** against a database (no write access in this audit) — it is a code-level conclusion, hence grade C — but the lock pattern difference with the spend path is unambiguous.
 
-The model is not broken. It is doing exactly what it was trained to do — recognise 618 photographs — and it is being asked to do something else entirely.
+**F3/F4/F5 together.** A campaign of N accounts, each with a disposable address, starts at 250 points before any photograph is taken; one public illustration plus a border supplies a daily award loop; nothing correlates accounts by device, IP, payment identity or proof similarity. The campus challenge pays RM 500/200/100 on the resulting ranking.
 
----
-
-## 5. Root causes
-
-1. **The evaluation is circular.** Train and test are augmented copies of one 618-photo pool. `perfect_train_verify.py` even falls back to `test_bases = train_bases` when a class has one base photo. "100 % on 2,400 cases" measures memorisation of the pool.
-2. **The leakage check is a tautology.** SHA-256 of re-encoded JPEGs can never collide; the assertion cannot fail. No perceptual check exists.
-3. **The dataset is ~30× too small.** 48 base photos per habit, one photographer/style per query, one object per frame. An 8-class CNN needs ≥ 1,000 *distinct* scenes per class to learn a concept, and more to learn an *action*.
-4. **Closed-set classifier used as an open-set verifier.** Softmax over 8 classes has no concept of "none of these". `other` is a junk drawer trained on 79 base photos (4 of them anime). There is no OOD score, no abstention, no calibration.
-5. **Label ontology mismatch.** Classes are *actions*; supervision is *objects* with overlapping inventories (bottle/jar/flask, bag/basket, wrap/napkin). Nothing in the loss or the data forces the distinctions the product needs.
-6. **Operating point chosen on the test set** and then not propagated: 0.55 / 0.75 / 0.85 in four different places, none validated against a false-approval budget.
-7. **No adversarial or OOD gate anywhere.** OOD testing consists of six hand-picked JPEGs. A single fixed image was used to declare a class-level vulnerability fixed.
-8. **Serving-path trust boundary is broken** (§3.11): a mock scorer that echoes the request, a client fallback that sends no image, and a scorer that cannot load its own checkpoint.
+**F6** is a privacy failure rather than a fraud one: the 30-day deletion promise in `README`, `docs/decisions.md` and `docs/verification-rules.md` is executed by a job that cannot authenticate, with no alerting on failure. Photographs of students' kitchens and lunchboxes are retained indefinitely.
 
 ---
 
-## 6. Remediation
+## 8. Evidence G — authentication and session
 
-Ordered by urgency. §6.1 stops the bleeding; §6.2–6.5 is the actual rebuild; §6.6 is the governance needed for a system that pays out.
+| # | Issue | Grade |
+|---|---|---|
+| G1 | `sign-in` is `verify_jwt = false`, has no attempt limiting, and returns a distinct message for OAuth-only accounts (provider + existence disclosure) | B |
+| G2 | `sign-in` auto-confirms `email_confirmed_at` before attempting the password — the flag `requireVerifiedUser` and the welcome bonus trust | B |
+| G3 | Password complexity is enforced only by `App.tsx`; GoTrue is unconstrained | B |
+| G4 | `initAuth()` accepts `access_token`/`refresh_token` from `location.hash` and calls `setSession()` with no state binding (login CSRF / forced session); the fragment is never removed from history | B |
+| G5 | Refresh tokens persist in `localStorage`; CSP allows `'unsafe-inline'` and a third-party script host, and `connect-src https:` permits exfiltration to any TLS origin | B |
+| G6 | `upload-profile-avatar`, `create-proof-upload`, `verify-scan`, `spend-greenbits`, `redeem-voucher` are correctly `verify_jwt = true` and re-check the session server-side | B ✓ |
 
-### 6.1 Immediate, blocking (do before any further awards)
-
-1. **Delete the mock.** `/api/score` must either run the real scorer or return `503`. Any code path that returns `verified: true` without a model prediction must be removed. Re-run `ml/probe_score_api.mjs` and require all three junk payloads to be rejected.
-2. **Fix `ml/service.py` to load the shipped checkpoint** (and keep metadata — see 4). Ship a regression test that imports the module and scores one image in CI, so a scorer that cannot boot can never be deployed again.
-3. **Make the client fallback fail closed.** `runModelDetection` must never POST a request without the image; if ONNX is unavailable the UI should say "verification unavailable", not fall through to a server call that cannot see the photo.
-4. **One threshold, one source of truth.** Per-habit thresholds in server config (not code, not the client), loaded by `verify-scan` and echoed by the API's `/health`. Delete the 0.55/0.75/0.85 split. Until §6.4 exists, set it from the *OOD* suite, not the self-made one.
-5. **Pin the artifact.** Store `best.pt` SHA-256 in the serving code and the DB row (`model_version` = the hash or a tag that resolves to it). Reject a scorer whose reported hash ≠ the expected hash. `model_version: "...-strict-995"` must be deleted: it is not derived from the artifact.
-6. **Stop publishing accuracy numbers derived from `test_300_suite`.** Regenerate `VERIFIED.md` from the honest harness (§6.4) or remove it.
-7. **Interim fraud controls** while the model is replaced: per-user daily caps already exist (keep); add perceptual-hash duplicate detection across accounts (already designed in `flag-anomalies`), EXIF/capture-time sanity, and a manual review queue for any award above the current cap. Expect a high review rate — 35 % of junk passes.
-
-### 6.2 Data program (the actual fix)
-
-The model cannot be fixed without this. Everything else is decoration.
-
-**Target: ≥ 1,000 *distinct* photographs per habit (≥ 8,000), ≥ 3,000 negatives, ≥ 2,000 OOD.**
-
-- **Source real submissions, not search results.** The dominant failure is domain mismatch: Wikimedia product shots vs. a student's phone photo of their lunchbox on a canteen table. Instrument the app to log every submission (with consent, which already exists) and label it. Even 200 real photos per habit beats 5,000 scraped ones.
-- **Diversity quotas per class**: ≥ 20 distinct photographers, ≥ 15 locations, ≥ 6 lighting conditions (indoor/daylight/flash/night), ≥ 4 backgrounds (table, hand-held, floor, bag), ≥ 3 camera distances, both portrait and landscape, and each item appearing at ≥ 3 different scales.
-- **Multiple objects per frame.** Real proofs contain a table, a hand, a plate, a friend. Include full-scene photos where the habit object occupies 15–80 % of the frame. This alone would have prevented the pantry→bottle collapse.
-- **Hard negatives — the highest-value data.** For each habit, collect the confusable neighbours and label them `other` (or a dedicated rejection class):
-  - `self_bottle_refill` ← mason jars, honey jars, cans, thermoses on a shelf, bottles *with* single-use caps, plastic PET bottles
-  - `bulk_pantry_refill` ← the same jar photos, supermarket shelves, spice racks
-  - `recycle_bags` ← woven baskets, handbags, backpacks, plastic carrier bags
-  - `handicraft_projects` ← baskets, stickers, store merchandise
-  - `beeswax_food_wraps` ← napkins, parchment/paraffin paper, plastic cling film, folded cloth
-  - `greenery_furniture` ← any indoor plant without a furniture/upcycling context, forests, gardens, botanical prints
-- **OOD corpus (≥ 2,000, explicitly never habits)**: anime/manga illustrations and cosplay, video-game screenshots, cartoons and sprites, comics, digital art, paintings, graffiti, documents and receipts, screenshots of UIs, pets, people/portraits, food, vehicles, landscapes. This is the set that must be rejected at ≥ 99 %; it is currently 4 images.
-- **Splits by source, not by augment.** Group by *base photo* and by *contributor*; hash-cluster with dHash (≤ 10) and assert zero cross-split clusters. 60 % train / 15 % val / 25 % calibration+test. The calibration split is separate from test and is the *only* place thresholds are chosen.
-- **Label audit.** Every class must have a written definition with 5 positive and 5 negative exemplars; two annotators per image; report agreement. The current `beeswax_food_wraps` set contains at least one candelabra and a paraffin-paper roll (mislabeled `other`).
-
-### 6.3 Training method
-
-**Replace the 8-way closed-set softmax with a two-stage embedding + open-set verifier.** Details, in the order they matter:
-
-**Stage 1 — representation.**
-- Backbone: start from ImageNet-pretrained **MobileNetV3-Large** (keeps the 15 ms budget) or **EfficientNet-B0 / ConvNeXt-Tiny** if the latency budget allows; **SigLIP / CLIP ViT-B-32** frozen features are a strong, cheap baseline and often beat a from-scratch small CNN on this data size.
-- Head: 256-d embedding, **ArcFace** (additive angular margin, m = 0.3, s = 30) — metric learning forces intra-class compactness and inter-class separation, which is precisely what "bottle vs jar" needs. Alternative: cosine-softmax or triplet with batch-hard mining.
-- Loss: ArcFace + label-smoothed CE auxiliary + **hard-negative mining rounds** (mine the top-20 nearest wrong-class images every 3 epochs, add to the batch).
-- Augmentation must **match production**: `RandomResizedCrop(256, scale=(0.5, 1.0))`, horizontal flip, ±20° rotation, ColorJitter(0.3, 0.3, 0.3, 0.05), grayscale p=0.15, Gaussian blur p=0.2, JPEG re-encode q∈[30, 95] p=0.5, Gaussian noise σ≤0.08, random erasing p=0.25. The current `Resize(224)` + flip + ±10° is far too tame for phone input and is why grayscale costs 9 pp.
-- Schedule: freeze backbone 3 epochs (head only, lr 1e-3), then unfreeze with AdamW lr 3e-4, cosine decay, 25–35 epochs, batch 64, class-balanced sampler, mixed precision.
-- Input 256 or 320 px, not 224 — the habit object is often small in frame.
-
-**Stage 2 — open-set verification (this is the part that is missing entirely).**
-For each habit *h*, from the calibration split compute the class prototype μ_h (mean L2-normalised embedding) and a shared covariance Σ. At inference, for an embedding **z** and the user's claimed habit *h*:
-
-```
-accept  ⇔  cos(z, μ_h) ≥ τ_h                  # claimed-habit similarity
-        and  margin(z) ≥ δ                    # μ_h must beat the runner-up by δ
-        and  OOD_score(z) ≤ τ_ood            # reject anything unlike the training manifold
-        and  is_genuine_proof(z) == True      # optional second head / VLM check
-```
-
-- `OOD_score`: **energy score** (`-T·logsumexp(logits/T)`) or **Mahalanobis distance** to the nearest class. Both are calibrated on the OOD corpus. Softmax max-prob is *not* an OOD score — §3.7 shows it saturates at 0.99 on junk.
-- Alternatively (and preferably, given the tiny data), **retrieve-and-verify**: nearest-neighbour in embedding space against the labelled habit gallery, accept only if the top-1 is the claimed habit *and* cosine ≥ τ. This is cheap, auditable ("here are the 3 most similar accepted proofs"), and degrades gracefully when a habit has few examples.
-- Add a dedicated **`not_a_proof`** head trained on the OOD corpus rather than relying on `other` as an eighth class.
-- **Temperature scaling** on the calibration split before any probability is shown or thresholded; report ECE.
-
-**Stage 3 — where a small CNN is simply the wrong tool.** For "is this a genuine proof of *this* action", a detector + verifier is much stronger than a whole-image classifier:
-- Detect candidate objects (GroundingDINO / OWLv2 / YOLO-World) with text prompts per habit; require the object to cover ≥ 15 % of the frame and to be the largest instance.
-- Classify the *crop*, not the whole frame — this removes background leakage (which is why a pantry shelf reads as a bottle).
-- Optionally confirm the action with a small VLM ("is a reusable bottle being refilled from a tap?") on a sampled 5 % of awards, or on everything above the risk threshold. This is a well-bounded use of an external API: low volume, and it produces labels you can distil back into the small model.
-
-**Sequencing.** Do not attempt all three at once. (1) Rebuild the data to §6.2 and retrain the current architecture with honest splits — that gives a truthful baseline and will immediately show whether the concept is learnable at 48 photos/class (it is not). (2) Add ArcFace + energy-score rejection + per-class prototypes. (3) Only then consider detector/VLM, if the embedding approach still misses the target gates.
-
-### 6.4 Evaluation protocol (must be built before the next model ships)
-
-`ml/stress_test.py` already implements this; make it a release gate.
-
-- **Group-aware splits** with a perceptual-duplicate check that can actually fail: dHash Hamming ≤ 10 between any test and any train image = **0**, asserted, and reported as a number (not a boolean on SHA).
-- **Four corpora, reported separately**: (a) seen-distribution val, (b) fresh unseen photos collected after the training cut-off, (c) OOD rejection suite, (d) perturbation matrix. Never a single aggregate number.
-- **Primary metric = per-habit false-approval rate at the deployed threshold**, with Wilson 95 % confidence intervals. Accuracy is a vanity metric here; a 35 % fraud rate is invisible in it.
-- **Report awardable recall** (correct *and* above threshold), not just accuracy, so degradation shows up as user pain.
-- **Threshold chosen on the calibration split only**, at a stated FAR budget (e.g. 0.5 %), using the Wilson *upper* bound. Never scan thresholds on the test suite (that is how 0.55 was chosen).
-- **Red-team suite in CI**: the OOD corpus + PGD ε=8/255 + the sticker patch + a duplicate-submission replay. Fail the build on regression.
-- **Pin the artifact hash** in the report and in the serving code; refuse to evaluate a model whose hash is not recorded.
-
-### 6.5 Serving-path fixes
-
-- `/api/score`: delete the echo; call the real scorer; return `503` on any failure. Rate limiting stays.
-- `App.tsx`: client detection is a UX hint only. Make it fail closed and never bypass the server. The client must not be the trust boundary (it is not, for awards — keep it that way).
-- `verify-scan`: threshold from config; add a **per-habit** threshold map; log `model_version` as the artifact hash; store the full probability vector for post-hoc audit.
-- `ml/service.py`: load with metadata; expose `/health` returning the hash; batch support (the ONNX currently has batch dimension fixed at 1); cap `MAX_IMAGE_PIXELS` (already 20 MP) and reject animated PNG.
-- Resampling: define one preprocessing contract (e.g. shortest-side resize to 256 then centre crop 224) and implement it identically in Python and in the browser, with a golden-image test that asserts both produce the same logits within 1e-3.
-- Model registry: every `best.pt` gets `{classes, arch, version, val_accuracy, git_sha, trained_at, dataset_hash}`. The ONNX export must carry class order in metadata.
-
-### 6.6 Governance for a payouts system
-
-- **Publish the false-approval budget** the program accepts (e.g. ≤ 1 % of submissions) and measure against it. `docs/verification-rules.md` already says these decisions are "intentionally not invented here" — they must be decided before a pilot.
-- **Appeals path** for rejected legitimate users, since §3.8 shows real photos are rejected for lighting.
-- **Audit sample**: manually review a random 2 % of awards plus 100 % of awards to the top-3 riskiest habits (`self_bottle_refill` at 22.5 % OOD leakage is the obvious first target).
-- **Kill switch**: one config flag to disable a habit or the whole verifier, already implied by the `disabled habits` rule.
-- **Quarterly re-certification** using fresh post-cut-off photos; accuracy decays as users adapt.
+G4 is the one worth an explicit attack: `https://unplastica.vercel.app/#access_token=<attacker>&refresh_token=<attacker>` logs a victim into the attacker's account. The victim then earns Greenbits into the attacker's ledger, or uploads proofs the attacker later redeems. Supabase's own PKCE flow does not need the fragment path here; it exists only as a fallback.
 
 ---
 
-## 7. Acceptance gates for the rebuilt model
+## 9. Evidence H — serving and configuration
 
-Concrete, falsifiable, and each one currently fails:
+| # | Issue | Grade |
+|---|---|---|
+| H1 | `GET /api/score` is unauthenticated and advertises classes, a threshold (0.35) that is not enforced, and a model version | B |
+| H2 | Model identity is asserted, not verified: the ONNX has no metadata, and both `api/score.ts` and `verify-scan` substitute the literal `mobilenet_v3_small-v0.1.8-clutter-invariant` when the scorer omits it | A/B |
+| H3 | Rate limiting keys on `x-forwarded-for[0]` (client-controlled; Vercel documents `x-vercel-forwarded-for` as trustworthy) and lives in per-instance memory | B |
+| H4 | `verify-scan` trusts `{predicted_label, confidence}` from any 200 response at `ML_SCORER_URL`, defaulting to the public production API; no signature, no hash echo, no cross-check of `verified` | B |
+| H5 | `api/score.ts` `content-length` check is skipped for chunked bodies; the real pixel cap lives only in `ml/service.py` | B |
+| H6 | `profiles.email` is accepted from the client, denied by column grants, retried without it, and the UI still reports success | B |
+| H7 | Internal Postgres/PostgREST error text is shown to users (`"Failed to update profile: " + profileErr.message`) | B |
+| H8 | Hardcoded production Supabase URL + publishable key fallback with a typo "auto-correct" (`_60psXnNd` → `_6OpsXnNd`) | B |
+| H9 | Public `/test_fixtures/` (two photographs) and `/model/model.onnx` are shipped in the production bundle | A |
+
+---
+
+## 10. What holds up
+
+Stated so remediation does not break it:
+
+- **RLS is correct.** Own-row policies on every user table; `insert/update/delete` revoked from `authenticated` on `habit_submissions`, `greenbit_ledger` and `reward_redemptions`; the four award/spend RPCs are `service_role`-only; the balance view is `security_invoker`. `supabase/tests/rls_and_ledger.sql` asserts 16 of these properties.
+- **The ledger is well modelled.** One earn per submission (partial unique index), sign constraints per `entry_type`, idempotency keys, server-owned catalogue costs, `for update` on the profile row in both spend paths, and an UPDATE-blocking trigger.
+- **The award path fails closed.** No scorer → 503, no points. Removed mock echo. Client detection failure → `verified: false`, Submit disabled.
+- **The avatar pipeline is the most mature code in the repo**: header-parsed dimensions, APNG rejection, 8 MP and 4096 px caps, full decode/re-encode (which also strips EXIF), 15-second atomic per-user claim, server-generated path, previous-object cleanup, folder-scoped read policy.
+- **The proof bucket** is private, 10 MiB, MIME-allow-listed, with a path-scoped signed upload and no client write policy.
+
+---
+
+## 11. Root causes
+
+1. **No concept of authenticity.** The pipeline verifies *what object is in the image*, not *that the image is a photograph taken now by this person*. A drawing of a bottle satisfies it completely. Everything in §2 follows from this single gap.
+2. **The label is an input the attacker controls.** Making the habit a free parameter turns a classifier's accuracy into the fraud rate.
+3. **Byte hashes used as security controls.** A five-entry SHA-256 blocklist and a seven-entry perceptual signature table cannot enumerate "non-authentic images", and both are defeated by a border.
+4. **Unverified identity underneath a rewards ledger.** Email confirmation is disabled, so the "verified account" invariant that every function assumes is false, and each account carries a 250-point grant.
+5. **Economic checks that are neither serialised nor perceptual.** Count-then-write without a user lock; exact-hash deduplication; a detector with no schedule.
+6. **Evaluation built by the training pipeline.** The val directory is a copy of training files; the held-out set is synthetic composites; nothing measures the field.
+7. **Configuration drift on safety-critical values.** Five thresholds, a stale point table in `docs/decisions.md`, an unauthenticated `/health`-style endpoint that reports a number nobody enforces.
+
+---
+
+## 12. Remediation
+
+**Blocking, before any further automatic award**
+
+1. Disable automatic awards for `box_cutlery`, `handicraft_projects`, `recycle_bags` and `self_bottle_refill` (all reachable via §2). Keep `greenery_furniture` only if a manual review exists, and cap `points_awarded`.
+2. Remove the byte blocklist from the trust path — it is not a control. Replace with (a) camera-only capture (`getUserMedia`, no file input), (b) a server nonce embedded in the capture instruction and checked in the frame, (c) capture-time and EXIF consistency, (d) an explicit "is this a photograph of the claimed object, taken now" classifier, evaluated as an open-set problem.
+3. Bind the claim: the habit must be fixed before the camera opens and carried in a server-signed token, so it cannot be chosen after the prediction. Do not return per-class probabilities to the client.
+4. Lock the profile row at the top of `award_greenbits` (or take an advisory lock on `(user_id, habit_code)`) before the daily/cooldown counts; add a concurrency test that asserts one of two parallel awards fails.
+5. Replace exact-hash dedupe with dHash/pHash ≤ 10 plus an embedding distance in the same RPC; keep the exact hash only as a fast path.
+
+**Identity and payout integrity**
+
+6. Re-enable email confirmation, or restrict signup to an APU domain with student-ID verification. Make the welcome grant conditional on a confirmed address *and* a first verified award.
+7. Schedule `flag-anomalies`; rename the cron secret to `CRON_SECRET` (or set both variables); alert on any non-200 from either job and assert a non-zero deletion count at least weekly.
+8. Add device/IP/behaviour clustering and a manual review queue above a points threshold before any real prize is paid.
+
+**Model and provenance**
+
+9. One server-owned, per-habit threshold; `/health` (authenticated) echoes threshold set and artifact SHA-256; both `api/score.ts` and `verify-scan` read it; the client reads it from the server instead of hardcoding 0.28.
+10. Pin `model_version` to the ONNX SHA-256 and refuse to boot on mismatch. Delete the literal fallbacks.
+11. Delete `ml/data_multistyle_split/val` (it is a copy of training data), rebuild splits by perceptual cluster across the *base* images, and re-run every published number.
+12. Keep 415 held-out composites as a *regression* test only; collect ≥ 100 real post-cut-off photos per enabled habit from student phones, plus ≥ 1,000 explicitly non-habit images (including flat illustrations, screenshots, cosplay, receipts), and report per-habit false-approval rate with Wilson intervals. Until that exists, no accuracy number should be published.
+
+**Auth and privacy**
+
+13. Generic errors on `sign-in`, server-side attempt limits by identifier *and* IP, no auto-confirm.
+14. Configure a minimum password length and complexity in GoTrue so the browser is not the only enforcement point.
+15. Delete the fragment-token fallback, or validate it against a server-issued state; clear the hash from history.
+16. Move tokens out of `localStorage` (httpOnly cookie via a server session), tighten CSP (`'unsafe-inline'` removed, CDN dropped by bundling `onnxruntime-web`, `connect-src` pinned to the Supabase origin).
+17. Implement account deletion and export; make the retention job observable; stop collecting phone numbers that are never verified.
+18. Stop shipping `/test_fixtures/` in the production bundle.
+
+---
+
+## 13. Acceptance gates
+
+Every row is falsifiable; current values are from this audit.
 
 | Gate | Target | Current |
 |---|---|---|
-| Fresh unseen positives, macro recall (≥ 100/class, collected post-cut-off) | ≥ 0.90, 95 % CI lower ≥ 0.85 | **0.47** |
-| OOD approval rate at deployed threshold (≥ 1,000 non-habit images, incl. ≥ 200 anime/screenshots) | ≤ 1 %, CI upper ≤ 2 % | **35.0 %** |
-| Per-habit OOD false approval | ≤ 0.5 % each | up to **22.5 %** |
-| Anime/cosplay/screenshot approval (`self_bottle_refill` and all habits) | 0 / 200 | **12 / 40 OOD approvals were anime** |
-| Perceptual leakage: test∩train at dHash ≤ 10 | **0** images | **1,413** |
-| Byte-identical val∩train | **0** | **15** |
-| ECE (calibration split) | ≤ 0.05 | 0.0511 (but at 92.7 % accuracy, not 100 %) |
-| Mean confidence when wrong | ≤ 0.50 | 0.6634 |
-| Grayscale / blur / 0.25× downscale accuracy drop | ≤ 3 pp each | **8.9 / 7.0 / 2.1 pp** |
-| Awardable recall under grayscale | ≥ 90 % | 86.99 % |
-| PGD ε=8/255 approval rate | ≤ 5 % | **99.41 %** |
-| Optimised sticker-patch approval rate | ≤ 5 % | **22.02 %** (45.8 % for `handicraft_projects`) |
-| ONNX ↔ PyTorch argmax agreement | 100 % | 100 % ✓ |
-| Determinism (repeat delta) | 0.0 | 0.0 ✓ |
-| Serving parity (Python vs browser logits) | ≤ 1e-3 | **0.645 prob shift** |
-| Production scorer boots | yes | **KeyError 'classes'** |
-| Any endpoint returning `verified:true` without a model call | 0 | **1 (`/api/score`)** |
+| Public marketing asset + 3 % border is rejected | rejected | **awarded, 4/5 habits (grade A)** |
+| Held-out false-approval rate, attacker claims predicted label | ≤ 0.5 %, CI upper ≤ 1 % | **1.07 %** on largely-seen negatives; **≈24.6 % of held-out negatives are labelled a habit** |
+| Threshold consistency | exactly one, server-owned | **five values: 0.28 / 0.35 / 0.75 / 0.85 / env** |
+| Client and server agree on "Verified" | 0 disagreements | **36/291 (12.4 %)** |
+| Proof reuse after re-encode | rejected | **accepted (new SHA-256)** |
+| Concurrent awards against a 1/day cap | exactly one succeeds | **untested; no user lock (grade C)** |
+| Duplicate-proof detector runs daily | runs, alerts on failure | **no schedule** |
+| Proof media deleted after 30 days | ≥ 99 % within 31 days | **cron cannot authenticate** |
+| Account requires ownership of its email | yes | **no (`enable_confirmations = false`)** |
+| Held-out accuracy on non-leaked data | ≥ 90 % | **74.70 %** (checkpoint metadata) / **75.98 %** (live composites) |
+| Evaluation set disjoint from training set | 0 shared files | **338/338 val files byte-identical to training** |
+| Model provenance verifiable | SHA-256 pinned in serving code | **literal version string substituted on missing metadata** |
+| Password policy enforced server-side | enforced | **client-only** |
+| Session established only via a validated flow | yes | **accepts `#access_token` from any link** |
+| Determinism | 0.0 | **0.0** ✓ |
+| ONNX present in web bundle matches `ml/model/model.onnx` | identical | **identical** ✓ |
+| Client can write ledger / submissions | no | **no** ✓ (RLS verified) |
 
-**Do not ship a model that has not passed every row.** The current model passes 2 of 17.
-
----
-
-## 8. Claim-by-claim audit of `VERIFIED.md`
-
-Each statement in `VERIFIED.md` was tested independently against the pinned artifact. "TRUE" means it reproduces exactly; "FALSE" means it is contradicted by measurement; "MISLEADING" means the number is right and the conclusion it is used to support is wrong.
-
-| # | Claim in `VERIFIED.md` | Verdict | Evidence |
-|---|---|---|---|
-| 1 | Validation Accuracy **100.00 %** | **TRUE (arithmetic) — MISLEADING** | Reproduces 2400/2400 (§8.1). The suite is built from the same 618 base photos as training; 58.9 % of it is a perceptual near-duplicate of a training image. |
-| 2 | False Positives **0** | **TRUE on this suite** | Reproduces at 0.55, 0.75 *and* 0.85. Contradicted by the OOD suite: **42 false approvals / 120** at 0.85 (§3.4). |
-| 3 | False Negatives **0** | **TRUE on this suite** | Reproduces at all three thresholds. Contradicted by fresh data: **110 / 208** genuine habit photos wrong, `bulk_pantry_refill` recall **7.14 %** (§3.3). |
-| 4 | "**2,400 Independent Test Cases**" | **FALSE** | 2,400 files but **683 distinct scenes** (3.51× duplication); 5 classes have **48 base photos**; `perfect_train_verify.create_clean_variation` is a ≤6 % crop with ≤6 % colour jitter (§3.1). |
-| 5 | "Strictness Threshold **0.55**" | **TRUE as a number — FALSE as an operating point** | Nothing in production runs at 0.55: `verify-scan` defaults to **0.75**, `App.tsx` and `api/score.ts` use **0.85**, `docs/verification-rules.md` documents **0.85** (§3.9). |
-| 6 | Root cause: `other` lacked anime art, so "Hu Tao's warm red/brown coat mapped to `box_cutlery`" | **FALSE** | The observed failure mode is object-class collision, not colour: **31 fresh photos of other habits** and **27/120 OOD images** are approved as `self_bottle_refill` at mean 0.95, including a pantry of glass jars at **1.0000** (§3.6). A colour story cannot explain a cartoon bear scoring 1.0000 on a bottle. |
-| 7 | "Enriched the `other` negative class with diverse anime character art, Genshin Impact cosplay/portraits (**including Hu Tao**), manga illustrations, and digital artwork" | **FALSE** | `ml/data/train/other/` holds **4 anime-named files out of 429**; `hu_tao` matches **zero** training filenames; the nearest training image to `hu_tao_test.jpg` is at dHash Hamming **18** (not a duplicate); **none** of the 12 anime/cosplay images the model approved is within Hamming 12 of any of the 3,418 training images (§8.2). |
-| 8 | "Fine-tuned end-to-end MobileNetV3 Small without freezing feature extractors" | **TRUE** | `build_model` sets `requires_grad = True` on every parameter (§8.3). |
-| 9 | Hu Tao: predicted `other`, `other` **0.7968**, `box_cutlery` **0.123555**, 0 FP | **TRUE and reproducible** | Exact replication gives **0.796787** and **0.123555** — same to six decimals, using the harness's own PIL resize (§8.4). |
-| 10 | Per class: 300 TP / 2100 TN / 0 FP / 0 FN, precision and recall 100 % | **TRUE arithmetically** | TN = 2400 − 300 is an identity, not a measurement; every row is a restatement of claim 1. |
-| 11 | "SHA-256 intersection between test suite and training dataset: **0 overlapping files**" | **TRUE but vacuous** | Confirmed 0 — and it is impossible to be anything else: a JPEG re-encoded at quality 95 cannot share a SHA-256 with its source. The assertion cannot fail. Perceptual overlap is **1,413 / 2,400** (§3.2). |
-| 12 | "Test images … with **separate seed spaces** from `ml/data/train`" | **TRUE literally — MISLEADING** | Seeds are disjoint (2,000,000+ vs 5,000,000+) and base files are split even/odd. The split is by *file*, not by *scene*: the same object photographed twice lands on both sides, which is why 58.9 % of test images have a training near-duplicate (§3.2). |
-| 13 | "Model exported as a single, self-contained ONNX … compatible with onnxruntime-web" | **TRUE** | Loads under `onnxruntime`; input `input` `[1,3,224,224]`, output `output` `[1,8]`; 6.11 MB; **100 % argmax agreement** with PyTorch, max logit delta 6.2 × 10⁻⁵ (§0). |
-| 14 | "Verification Status: **PASSED / CERTIFIED FOR PRODUCTION**" | **FALSE** | The production scorer **cannot load the checkpoint** (`KeyError: 'classes'`, §3.11.3); the only endpoint returning `verified: true` is a mock that never runs a model (§3.11.1); 35 % of arbitrary images are approved (§3.4). |
-
-**Tally: 7 true, 4 false, 3 misleading.** Every number in the report is arithmetically correct and reproducible. The three claims that actually matter — "2,400 *independent* test cases", "enriched with anime art", "certified for production" — are false, and the headline 100 % measures memorisation rather than recognition.
-
-### 8.1 The 100 % reproduces — exactly
-
-Replicating `perfect_train_verify.evaluate_suite` byte-for-byte (ONNX session, PIL default resize, ImageNet normalisation, argmax):
-
-```
-OVERALL accuracy = 100.0000% (2400/2400)
-mean confidence  = 0.9997   min = 0.8621
-threshold 0.55: FN=0  FP=0
-threshold 0.75: FN=0  FP=0
-threshold 0.85: FN=0  FP=0
-```
-
-A mean confidence of **0.9997** with a minimum of 0.8621 on 2,400 images is itself the diagnostic: the model is not being asked a hard question. It has seen these pictures.
-
-### 8.2 The anime-enrichment claim fails a direct test
-
-If the `other` class really contained Genshin Impact cosplay, manga and digital art, the approved anime images would be near their training neighbours. They are not:
-
-| Approved OOD image | Predicted | Confidence | Nearest training image (dHash Hamming) |
-|---|---|---|---|
-| `Cartoon Brown Bear…Sprite 3D Animation.png` | `self_bottle_refill` | 1.0000 | 12 |
-| `Sticker table.jpg` | `handicraft_projects` | 1.0000 | 18 |
-| `Cosplay of Mona from Genshin Impact…` | `self_bottle_refill` | 0.9998 | 16 |
-| `Cosplay of Thoma from Genshin Impact…` | `self_bottle_refill` | 0.9962 | 16 |
-| `Cosplay of Furina, Genshin Impact.jpg` | `self_bottle_refill` | 0.9866 | 16 |
-| `Artbreeder example anime portraits.jpg` | `self_bottle_refill` | 0.9677 | 18 |
-| `Genshin Impact cosplayers giving heart hand gesture` | `handicraft_projects` | 0.9573 | 18 |
-
-A Hamming distance of 12–18 means "different picture entirely". The nearest training neighbours are **habit-class photos** (`box_cutlery`, `beeswax_food_wraps`, `handicraft_projects`) — which is precisely why cosplay is approved as those habits.
-
-### 8.3 "End-to-end, no freezing" — accurate
-
-```python
-for param in model.parameters():
-    param.requires_grad = True
-```
-
-No frozen blocks. Worth noting, though, that the training augmentation is `RandomAffine(degrees=5, translate=0.03, scale=(0.96, 1.04))` and `ColorJitter(0.08, 0.08, 0.08)` — nearly identity. The model was fine-tuned end-to-end on almost-unchanged copies of 618 photos, which is why it fits them to 100 % and nothing else to 47 %.
-
-### 8.4 The Hu Tao number is honest
-
-The fixture is genuinely held out (nearest training image, Hamming 18) and the reported confidences reproduce to six decimals. **The single-image claim is true.** It is also the weakest possible form of evidence: the model was never trained on it, so it is a sample of size one from a class (anime/cosplay) that is otherwise approved at 0.93–1.0000. §3.5 shows the class is not fixed.
-
-> The 0.7968 figure is only reproducible with PIL's default resampler. Under the bilinear resampling that `ml/service.py` actually uses, the same image scores **0.9964** (§3.11.5).
+The system passes 3 of 18.
 
 ---
 
-## 9. Reproduction
+## 14. Reproduction
 
 ```bash
-# 1. Pin the artifact so the number cannot move under you
-cp ml/model/best.pt  ml/stress_report/pinned/best.pt
-cp ml/model/model.onnx ml/stress_report/pinned/model.onnx
-sha256sum ml/stress_report/pinned/*
+# Artifact identity and every number in §2–§6 (read-only; writes nothing)
+python -B ml/pentest_probe.py
 
-# 2. Full audit (A provenance, B leakage, C generalisation, D calibration,
-#    E robustness, F OOD, G adversarial, H threshold, I serving, J determinism)
-python ml/stress_test.py --battery all \
-  --model ml/stress_report/pinned/best.pt \
-  --onnx  ml/stress_report/pinned/model.onnx \
-  --out   ml/stress_report/final.json
+# The evaluation leak (§6): val files are training files
+python -B - <<'PY'
+import hashlib, os
+same = total = 0
+for c in os.listdir("ml/data_multistyle_split/val"):
+    d = os.path.join("ml/data_multistyle_split/val", c)
+    for f in os.listdir(d):
+        a, b = os.path.join(d, f), os.path.join("ml/data_multistyle", c, f)
+        if os.path.exists(b):
+            total += 1
+            same += hashlib.sha256(open(a,"rb").read()).hexdigest() == hashlib.sha256(open(b,"rb").read()).hexdigest()
+print(same, "/", total, "val files are byte-identical to training files")
+PY
 
-# 3. Prove /api/score does not classify
-node --experimental-strip-types ml/probe_score_api.mjs
-
-# 4. Prove the production scorer cannot load its checkpoint
-ML_SCORER_API_KEY=dummy MODEL_PATH=ml/model/best.pt python -c \
-  "import importlib.util as u; s=u.spec_from_file_location('s','ml/service.py'); \
-   m=u.module_from_spec(s); s.loader.exec_module(m)"
+# Checkpoint metadata (§6)
+python -B - <<'PY'
+import torch
+ck = torch.load("ml/model/best.pt", map_location="cpu", weights_only=True)
+print({k: ck[k] for k in ("arch", "version", "val_accuracy", "created_at")})
+PY
 ```
 
-| Artefact | Contents |
+| Artifact | Contents |
 |---|---|
-| [`ml/stress_test.py`](ml/stress_test.py) | Harness — batteries A–J |
-| [`ml/stress_lib.py`](ml/stress_lib.py) | Model loading, hashing, perturbations, fetch, metrics |
-| [`ml/probe_score_api.mjs`](ml/probe_score_api.mjs) | Executes the real `/api/score` handler |
-| [`ml/stress_report/final.json`](ml/stress_report/final.json) | Every number in this document |
-| [`ml/stress_report/fresh_contact_sheet.png`](ml/stress_report/fresh_contact_sheet.png) | Misclassified fresh photos, with predictions |
-| [`ml/stress_report/ood_false_approvals.png`](ml/stress_report/ood_false_approvals.png) | Non-habit images that were approved |
-| `ml/stress_report/cache/*/manifest.json` | Wikimedia source title for every downloaded image |
+| [`ml/pentest_probe.py`](ml/pentest_probe.py) | Read-only probe: artifact hashes, per-corpus accuracy, false-approval sweep, blocklist composition, client/server disagreement, both anti-mock ports, transform bypass, determinism, latency |
+| `ml/model/best.pt` | Shipped checkpoint with `arch`/`classes`/`version`/`val_accuracy`/`created_at` |
+| `apps/web/public/model/model.onnx` | Artifact served to browsers (identical to `ml/model/model.onnx`) |
+| `ml/model/live_vercel_300_test_results.json` | The repository's only held-out measurement |
+| `ml/model/multistyle_eval_summary.json` | Leaked val copy — superseded |
 
 ---
 
-## 10. Bottom line
+## 15. Limitations, and relationship to the previous report
 
-The model is a competent 8-way classifier of 618 photographs wearing the costume of a fraud detector. It was certified by a test set built from its own training photos, with a leakage check that cannot fail, at a threshold chosen on the test set and then not used in production. When finally shown data it has never seen, it gets **47 %** of genuine habit photos right and approves **35 %** of arbitrary images — including cartoon bears, Genshin Impact cosplay, and Manet — as verified eco-friendly actions at 0.85–1.0000 confidence.
+**Not executed in this audit**, and therefore not claimed: any live HTTP request; any write to the database or storage; the F1 race (needs two concurrent RPCs); a fresh out-of-distribution corpus (Wikimedia crawl); adversarial PGD or patch optimisation; a full checkpoint↔ONNX parity run. Where a conclusion depends on deployment configuration — cron secrets, `ML_SCORE_THRESHOLD`, whether `ML_SCORER_URL` points at `ml/service.py` or elsewhere — it is marked grade C.
 
-No amount of augmentation, threshold tuning, or anime scraping will fix this. The fix is a real dataset (§6.2), an open-set verifier with an explicit rejection mechanism (§6.3 Stage 2), and an evaluation protocol that can actually fail (§6.4). Until then the verifier should be disabled, or the awards it authorises should be capped and manually reviewed.
+**The previous `FINDINGS.md` measured a different artifact.** Its pinned hashes (`64b94b9d…` / `c177193b…`) do not match what ships today (`060a3d17…` / `64f5e574…`), its `VERIFIED.md` target has been deleted from the working tree, and several of its premises no longer hold: the checkpoint now carries `classes`, `arch`, `version` and `val_accuracy`, and `ml/service.py` no longer raises `KeyError: 'classes'`. Its numbers (47 % fresh-set accuracy, 35 % OOD approval, the PGD and sticker results) should be treated as historical measurements of a retired model, not as current defects.
+
+Its **structural** critique, however, is still correct and now applies to the replacement model in a new form: the evaluation set is not independent (today: byte-identical copies), the "leakage check" can never fail, and the operating point was never validated on honest data. The new model rejects the old adversary (Hu Tao, 1.0000 `other`) and puts 94.7 % of its largely-seen negative pool in `other`, while accepting a flat illustration of the same object at 1.0000. Same root cause, different picture.

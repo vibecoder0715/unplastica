@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { HABITS, type HabitCode } from "@unplastica/shared";
+import { HABITS, ML_SCORE_THRESHOLD_DEFAULT, type HabitCode } from "@unplastica/shared";
 import { Icon, type IconName } from "../components/Icon";
 import { isSupabaseConfigured, supabase, uploadProfileAvatar } from "../lib/supabase";
 import { formatPoints } from "../lib/format";
@@ -45,28 +45,68 @@ const habitImages: Record<HabitCode, string> = {
   handicraft_projects: "/assets/habits/handicraft-projects.png?v=2",
 };
 
-export const APP_BUILD_VERSION = "0.2.0";
+export const APP_BUILD_VERSION = "0.2.1";
 
 export type PasswordCheck = {
   valid: boolean;
   hasLength: boolean;
+  hasLetterAndNumberAndSpecial: boolean;
   hasLetter: boolean;
   hasNumber: boolean;
   hasSpecial: boolean;
 };
 
 export function validatePasswordComplexity(pw: string): PasswordCheck {
-  const hasLength = pw.length >= 8 && pw.length <= 72;
+  const hasLength = pw.length >= 8 && pw.length <= 36;
   const hasLetter = /[a-zA-Z]/.test(pw);
   const hasNumber = /[0-9]/.test(pw);
   const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?`~]/.test(pw);
+  const hasLetterAndNumberAndSpecial = hasLetter && hasNumber && hasSpecial;
   return {
-    valid: hasLength && hasLetter && hasNumber && hasSpecial,
+    valid: hasLength && hasLetterAndNumberAndSpecial,
     hasLength,
+    hasLetterAndNumberAndSpecial,
     hasLetter,
     hasNumber,
     hasSpecial,
   };
+}
+
+export function generateDefaultUsername(userId?: string): string {
+  if (!userId) return "User001";
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  }
+  const num = (hash % 9999) + 1;
+  return `User${String(num).padStart(3, "0")}`;
+}
+
+export function validateCustomUsername(raw: string): { valid: boolean; error?: string } {
+  const trimmed = raw.trim();
+  if (trimmed.length <= 1) {
+    return { valid: false, error: "Username must be more than 1 character." };
+  }
+  if (/[\u200B-\u200D\uFEFF\u0000-\u001F\u007F-\u009F]/.test(raw)) {
+    return { valid: false, error: "Username contains invalid or hidden characters." };
+  }
+  if (!/^[a-zA-Z0-9_.-]+$/.test(trimmed)) {
+    return { valid: false, error: "Username may only contain letters, numbers, underscores, dots, and hyphens." };
+  }
+  if (/^user\d+/i.test(trimmed)) {
+    return { valid: false, error: "Usernames starting with 'User' followed by numbers are reserved for system IDs." };
+  }
+  return { valid: true };
+}
+
+export function validateEmailAddress(raw: string): { valid: boolean; error?: string } {
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return { valid: true };
+  const regex = /^[a-zA-Z0-9_.+-]+@(gmail\.com|outlook\.com|hotmail\.com|live\.com)$/i;
+  if (!regex.test(trimmed)) {
+    return { valid: false, error: "Only Gmail (@gmail.com) and Outlook (@outlook.com) email addresses are supported." };
+  }
+  return { valid: true };
 }
 
 function readPage(): Page {
@@ -175,17 +215,10 @@ export default function App() {
       ? await supabase.storage.from("profile-avatars").createSignedUrl(avatarPath, 3600)
       : { data: null };
 
-    const shortId = activeUser.id.replace(/-/g, "").slice(0, 10);
-    const mockDefaultName = `User ${shortId}`;
-    const mockDefaultUsername = `user_${shortId}`;
-
-    const displayName = row?.display_name && row.display_name !== "Plastic-Free Warrior" && !row.display_name.includes("@")
-      ? row.display_name
-      : metadata?.display_name || metadata?.full_name || metadata?.name || mockDefaultName;
-
-    const username = row?.username && row.username !== "warrior" && !row.username.includes("@")
-      ? row.username
-      : metadata?.username || mockDefaultUsername;
+    const defaultHandle = generateDefaultUsername(activeUser?.id);
+    const isSystemDefault = !row?.username || row.username.startsWith("user_") || row.username.startsWith("User ") || row.username === "warrior" || row.username.includes("@");
+    const username = isSystemDefault ? defaultHandle : row.username;
+    const displayName = username;
 
     const userEmail = (row?.email || metadata?.email || activeUser.email || "").trim();
 
@@ -202,7 +235,7 @@ export default function App() {
     setBalance(Number(balanceResult.data?.balance ?? 0));
 
     if (activeUser) {
-      const isDefault = (username.startsWith("user_") || !row?.display_name || row.display_name.startsWith("User ") || row.display_name === "Plastic-Free Warrior") && !localStorage.getItem("unplastica_username_prompted_" + activeUser.id);
+      const isDefault = (/^user\d+/i.test(username) || isSystemDefault) && !localStorage.getItem("unplastica_username_prompted_" + activeUser.id);
       if (isDefault) {
         setShowUsernamePrompt(true);
       }
@@ -255,33 +288,14 @@ export default function App() {
           }
         }
 
-        // Clean up URL parameters after processing callback
-        if (code || searchParams.has("code")) {
+        // Clean up URL parameters and clear any unvalidated hash tokens from history (prevents login CSRF via hash injection - FLAW-21)
+        if (code || searchParams.has("code") || hasHashToken || window.location.hash) {
           const cleanUrl = new URL(window.location.href);
           cleanUrl.searchParams.delete("code");
           cleanUrl.searchParams.delete("state");
           cleanUrl.searchParams.delete("sb_flow_id");
+          cleanUrl.hash = "";
           window.history.replaceState(window.history.state, "", cleanUrl.pathname + cleanUrl.search);
-        }
-
-        // 3. Fallback: manual hash token parse if needed
-        if (!session && hasHashToken) {
-          try {
-            const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-            const accessToken = hashParams.get("access_token");
-            const refreshToken = hashParams.get("refresh_token");
-            if (accessToken && refreshToken) {
-              const { data, error } = await authClient.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-              if (!error && data.session) {
-                session = data.session;
-              }
-            }
-          } catch (e) {
-            console.warn("Hash session manual exception:", e);
-          }
         }
 
         if (session) {
@@ -447,7 +461,7 @@ export default function App() {
 
   const updateProfile = async (updated: { display_name: string; username: string; email?: string; phone: string; tagline: string }) => {
     if (!supabase || !user) return;
-    const cleanUsername = updated.username.trim().toLowerCase();
+    const cleanUsername = updated.username.trim();
     const cleanEmail = (updated.email ?? "").trim().toLowerCase();
     const cleanPhone = updated.phone.trim();
 
@@ -475,14 +489,14 @@ export default function App() {
         .ilike("email", cleanEmail)
         .maybeSingle();
       if (existingEmail) {
-        const err = new Error("This email / Gmail is already registered to another account. Please use a different email.");
+        const err = new Error("This email is already registered to another account. Please use a different email.");
         notify(err.message);
         throw err;
       }
     }
 
     const payload: Record<string, string> = {
-      display_name: updated.display_name.trim(),
+      display_name: cleanUsername,
       username: cleanUsername,
       phone: cleanPhone,
       tagline: updated.tagline.trim(),
@@ -501,11 +515,11 @@ export default function App() {
     }
 
     if (profileErr) {
-      let friendlyMsg = "Failed to update profile: " + profileErr.message;
+      let friendlyMsg = "Failed to update profile. Please check your details and try again.";
       if (profileErr.message.includes("profiles_phone_unique") || profileErr.message.includes("phone")) {
         friendlyMsg = "This phone number is already registered to another account. Please use a different phone number.";
       } else if (profileErr.message.includes("profiles_email_unique") || profileErr.message.includes("email")) {
-        friendlyMsg = "This email / Gmail is already registered to another account. Please use a different email.";
+        friendlyMsg = "This email is already registered to another account. Please use a different email.";
       } else if (profileErr.message.includes("profiles_username") || profileErr.message.includes("unique")) {
         friendlyMsg = "This username is already taken. Please choose another.";
       }
@@ -515,7 +529,7 @@ export default function App() {
 
     setProfile((current) => current ? {
       ...current,
-      display_name: updated.display_name.trim(),
+      display_name: cleanUsername,
       username: cleanUsername,
       phone: cleanPhone,
       tagline: updated.tagline.trim(),
@@ -524,7 +538,7 @@ export default function App() {
 
     const userUpdatePayload: { data: Record<string, string>; email?: string } = {
       data: {
-        display_name: updated.display_name.trim(),
+        display_name: cleanUsername,
         username: cleanUsername,
         phone: cleanPhone,
       },
@@ -628,11 +642,10 @@ export default function App() {
       {showUsernamePrompt && user && profile && (
         <UsernamePromptDialog
           initialUsername={profile.username}
-          initialName={profile.display_name}
-          onSave={async (newUsername, newName) => {
+          onSave={async (newUsername) => {
             await updateProfile({
               username: newUsername,
-              display_name: newName,
+              display_name: newUsername,
               phone: profile.phone,
               tagline: profile.tagline,
             });
@@ -797,9 +810,19 @@ function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo
   </div>;
 }
 
+function renderHashtags(text: string) {
+  const parts = text.split(/(#unplasticaAPU|#unplastica|@ our official social media|@ media sosial rasmi kami|@ 我们的官方社交账号)/gi);
+  return parts.map((part, idx) => {
+    if (part.startsWith("#") || part.startsWith("@")) {
+      return <strong key={idx}>{part}</strong>;
+    }
+    return part;
+  });
+}
+
 function EventsPage({ onSample }: { onSample: () => void }) {
   const t = useCopy();
-  const [activeTab, setActiveTab] = useState<"challenge" | "done">("challenge");
+  const [activeTab, setActiveTab] = useState<"challenge" | "done" | null>(null);
 
   const milestones = [
     { title: t("events.items"), detail: t("events.itemsDetail"), image: habitImages.box_cutlery },
@@ -809,38 +832,45 @@ function EventsPage({ onSample }: { onSample: () => void }) {
 
   return (
     <div className="content events-content">
-      {/* Two Columns Header (similar style as in earn, low alpha images) */}
-      <section className="events-columns-selector">
-        <button
-          className={"event-column-card " + (activeTab === "challenge" ? "active" : "")}
-          onClick={() => setActiveTab("challenge")}
-        >
-          <div className="event-column-bg" style={{ backgroundImage: "url(/assets/events/noplastic-challenge.png)" }} />
-          <div className="event-column-overlay" />
-          <div className="event-column-content">
-            <span className="event-column-badge"><Icon name="trophy" size={16} /> Challenge</span>
-            <h3>{t("events.columnChallenge")}</h3>
-            <p>RM 1,000 Pool · Win cash rewards</p>
-          </div>
-        </button>
+      {/* Horizontal Rectangle Event Cards Overview: only shown before clicking */}
+      {!activeTab && (
+        <section className="events-columns-selector">
+          <button
+            className="event-column-card"
+            onClick={() => setActiveTab("challenge")}
+          >
+            <div className="event-column-bg" style={{ backgroundImage: "url(/assets/events/noplastic-challenge.png)" }} />
+            <div className="event-column-overlay" />
+            <div className="event-column-content">
+              <h3>{t("events.columnChallenge")}</h3>
+              <p>RM 1,000 Pool · Win cash rewards</p>
+            </div>
+            <span className="event-card-arrow"><Icon name="arrow" size={20} /></span>
+          </button>
 
-        <button
-          className={"event-column-card " + (activeTab === "done" ? "active" : "")}
-          onClick={() => setActiveTab("done")}
-        >
-          <div className="event-column-bg apu-logo-bg" style={{ backgroundImage: "url(/assets/events/apu-mark.png)" }} />
-          <div className="event-column-overlay" />
-          <div className="event-column-content">
-            <span className="event-column-badge"><Icon name="check" size={16} /> Campus Impact</span>
-            <h3>{t("events.columnDone")}</h3>
-            <p>500+ items · Pioneering Green Campus</p>
-          </div>
-        </button>
-      </section>
+          <button
+            className="event-column-card"
+            onClick={() => setActiveTab("done")}
+          >
+            <div className="event-column-bg apu-logo-bg" style={{ backgroundImage: "url(/assets/events/apu-mark.png)" }} />
+            <div className="event-column-overlay" />
+            <div className="event-column-content">
+              <h3>{t("events.columnDone")}</h3>
+              <p>500+ items · Pioneering Green Campus</p>
+            </div>
+            <span className="event-card-arrow"><Icon name="arrow" size={20} /></span>
+          </button>
+        </section>
+      )}
 
       {/* Column 1 Content: No-plastic Challenge */}
       {activeTab === "challenge" && (
         <div className="event-column-view challenge-view">
+          <div className="event-view-header">
+            <button className="event-quit-button" onClick={() => setActiveTab(null)} aria-label="Quit to events">
+              <Icon name="arrow" size={18} />
+            </button>
+          </div>
           <section className="event-intro">
             <h1>{t("events.headline")}</h1>
             <article className="campus-feature">
@@ -849,7 +879,6 @@ function EventsPage({ onSample }: { onSample: () => void }) {
               <p>{t("events.campusFullName")}</p>
             </article>
             <div className="deadline-badge">
-              <Icon name="check" size={16} />
               <strong>{t("events.deadline")}</strong>
             </div>
           </section>
@@ -886,7 +915,9 @@ function EventsPage({ onSample }: { onSample: () => void }) {
                 <strong className="supported-social-media-title">{t("events.socialRule")}</strong>
               </div>
               <img className="social-media-strip" src="/assets/brand/social-media.png" alt="Supported social media" />
-              <p className="hashtag-note">*{t("events.tagRule")}</p>
+              <p className="hashtag-note">
+                {renderHashtags(t("events.tagRule"))}
+              </p>
             </div>
           </section>
 
@@ -911,6 +942,11 @@ function EventsPage({ onSample }: { onSample: () => void }) {
       {/* Column 2 Content: What we had done in APU? */}
       {activeTab === "done" && (
         <div className="event-column-view done-view">
+          <div className="event-view-header">
+            <button className="event-quit-button" onClick={() => setActiveTab(null)} aria-label="Quit to events">
+              <Icon name="arrow" size={18} />
+            </button>
+          </div>
           <section className="milestones">
             <div className="section-heading"><h2>{t("events.done")}</h2><span>{t("events.milestones")}</span></div>
             <div className="milestone-list">
@@ -947,7 +983,6 @@ function SettingsPage(props: {
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showSetPassword, setShowSetPassword] = useState(false);
-  const [editName, setEditName] = useState(props.profile.display_name);
   const [editUsername, setEditUsername] = useState(props.profile.username);
   const [editEmail, setEditEmail] = useState(props.profile.email || props.email || "");
   const [editPhone, setEditPhone] = useState(props.profile.phone);
@@ -979,7 +1014,6 @@ function SettingsPage(props: {
   );
 
   useEffect(() => {
-    setEditName(props.profile.display_name);
     setEditUsername(props.profile.username);
     setEditEmail(props.profile.email || props.email || "");
     setEditPhone(props.profile.phone);
@@ -996,14 +1030,34 @@ function SettingsPage(props: {
     e.preventDefault();
     if (!props.onUpdateProfile) return;
     setProfileError("");
+
+    const userCheck = validateCustomUsername(editUsername);
+    if (!userCheck.valid) {
+      setProfileError(userCheck.error || "Invalid username");
+      return;
+    }
+
+    const cleanUsername = editUsername.trim();
+    const cleanEmail = editEmail.trim().toLowerCase();
+    if (cleanEmail) {
+      const emailCheck = validateEmailAddress(cleanEmail);
+      if (!emailCheck.valid) {
+        setProfileError(emailCheck.error || "Invalid email address");
+        return;
+      }
+    }
+
+    const cleanPhone = editPhone.replace(/[^\d+ ()-]/g, "").slice(0, 20);
+    const cleanTagline = editTagline.replace(/[\u200B-\u200D\uFEFF]/g, "").slice(0, 120);
+
     setSavingProfile(true);
     try {
       await props.onUpdateProfile({
-        display_name: editName.slice(0, 50),
-        username: editUsername.slice(0, 30),
-        email: editEmail.slice(0, 100),
-        phone: editPhone.slice(0, 20),
-        tagline: editTagline.slice(0, 120),
+        display_name: cleanUsername,
+        username: cleanUsername,
+        email: cleanEmail.slice(0, 100),
+        phone: cleanPhone,
+        tagline: cleanTagline,
       });
       setShowEditProfile(false);
     } catch (err) {
@@ -1021,7 +1075,7 @@ function SettingsPage(props: {
     if (!props.onUpdatePassword) return;
     setPasswordError("");
     if (!pwCheck.valid) {
-      setPasswordError("Password must be at least 8 characters long and include at least 1 alphabet letter, 1 number, and 1 special character (!@#$%^&* etc).");
+      setPasswordError("Password must be 8-36 characters long and include 1 number, alphabet and special character (!@#$).");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -1156,51 +1210,35 @@ function SettingsPage(props: {
     {showEditProfile && (
       <section className="settings-edit-card">
         <h4>Edit Profile & Credentials</h4>
-        <p>Set a custom username, display name, email/Gmail, and phone number directly.</p>
         <form onSubmit={(e) => void handleSaveProfile(e)}>
-          <label>Display Name
-            <input
-              type="text"
-              value={editName}
-              maxLength={50}
-              onChange={(e) => setEditName(e.target.value.slice(0, 50))}
-              placeholder="e.g. User 6s37a29f31"
-              required
-            />
-          </label>
-          <label>Username
+          <label>USERNAME
             <input
               type="text"
               value={editUsername}
               onChange={(e) => setEditUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30))}
-              placeholder="e.g. user_6s37a29f31"
-              minLength={3}
-              maxLength={30}
+              placeholder="e.g. warrior"
               required
             />
-            <span className="field-hint">3–30 characters: letters, numbers, underscore, hyphen.</span>
           </label>
-          <label>Email / Gmail Address
+          <label>EMAIL ADDRESS
             <input
               type="email"
               value={editEmail}
               maxLength={100}
               onChange={(e) => setEditEmail(e.target.value.trim().toLowerCase().slice(0, 100))}
-              placeholder="e.g. warrior2026@gmail.com"
+              placeholder="e.g. warrior@gmail.com"
             />
-            <span className="field-hint">Type your Gmail or email address here directly. Each email can only belong to one account.</span>
           </label>
-          <label>Phone Number
+          <label>PHONE NUMBER
             <input
               type="tel"
               value={editPhone}
               maxLength={20}
-              onChange={(e) => setEditPhone(e.target.value.slice(0, 20))}
+              onChange={(e) => setEditPhone(e.target.value.replace(/[^\d+ ()-]/g, "").slice(0, 20))}
               placeholder="+60 12 345 6789"
             />
-            <span className="field-hint">Type your phone number here directly. Must be unique across all accounts.</span>
           </label>
-          <label>Tagline
+          <label>TAGLINE
             <input
               type="text"
               value={editTagline}
@@ -1219,44 +1257,46 @@ function SettingsPage(props: {
 
     {showSetPassword && (
       <section className="settings-edit-card">
-        <h4>Set Account Password & Credentials</h4>
+        <h4>Set Account Password:</h4>
         <p>
           {isGoogleOAuth
             ? "Your account was connected via Google. Setting a password allows you to also log in manually using your username or email on any computer or mobile device!"
-            : "Set or update your account password to ensure secure direct access."}
+            : "Your account was created on this device. Setting a password allows you to log in manually on any computer or mobile device!"}
         </p>
         <form onSubmit={(e) => void handleSavePassword(e)}>
-          <label>New Password
+          <label>NEW PASSWORD
             <input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value.slice(0, 72))}
+              onChange={(e) => setNewPassword(e.target.value.slice(0, 36))}
               minLength={8}
-              maxLength={72}
-              placeholder="At least 8 characters"
+              maxLength={36}
+              placeholder="8-36 characters"
               required
             />
-            <div style={{ margin: "6px 0", fontSize: "11px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-              <span style={{ color: pwCheck.hasLength ? "#2e7d32" : "#999" }}>{pwCheck.hasLength ? "✓" : "○"} 8-72 characters</span>
-              <span style={{ color: pwCheck.hasLetter ? "#2e7d32" : "#999" }}>{pwCheck.hasLetter ? "✓" : "○"} At least 1 alphabet</span>
-              <span style={{ color: pwCheck.hasNumber ? "#2e7d32" : "#999" }}>{pwCheck.hasNumber ? "✓" : "○"} At least 1 number</span>
-              <span style={{ color: pwCheck.hasSpecial ? "#2e7d32" : "#999" }}>{pwCheck.hasSpecial ? "✓" : "○"} 1 special char (!@#$)</span>
+            <div className="password-criteria-list">
+              <span className={"password-criterion " + (pwCheck.hasLength ? "met" : "")}>
+                <span className="criterion-bullet">●</span> 8-36 Characters
+              </span>
+              <span className={"password-criterion " + (pwCheck.hasLetterAndNumberAndSpecial ? "met" : "")}>
+                <span className="criterion-bullet">●</span> 1 number, alphabet and special character (!@#$)
+              </span>
             </div>
           </label>
-          <label>Confirm Password
+          <label>CONFIRM PASSWORD
             <input
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value.slice(0, 72))}
+              onChange={(e) => setConfirmPassword(e.target.value.slice(0, 36))}
               minLength={8}
-              maxLength={72}
+              maxLength={36}
               placeholder="Repeat password"
               required
             />
           </label>
           {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
           <button className="settings-save-button" disabled={savingPassword || !pwCheck.valid}>
-            {savingPassword ? "Updating…" : "Set Password & Credentials"}
+            {savingPassword ? "Updating…" : "Set Password"}
           </button>
         </form>
       </section>
@@ -1720,86 +1760,10 @@ export function warmUpAiModel() {
   } catch {}
 }
 
-const MOCK_SIGNATURES: Record<string, { d: string; a: string }> = {
-  box_cutlery: { d: "1111101111110011111100111111000010011000000110111111011100111111", a: "0111111101111111000110010000100011001111110011110001111100000001" },
-  recycle_bags: { d: "0000000000000010000000110000000100001001000000010000000000000000", a: "1111110011111110111110001111000011100000110000001111100011111100" },
-  self_bottle_refill: { d: "0001000000001100010011000100110001001100010011000000110010001100", a: "1111111111100111111001111110011111100111111001111110010000000000" },
-  greenery_furniture: { d: "1101110011000110110101011011000000000100001101110111110011100001", a: "1110111111110011111111111111100011000000000000000000010001111000" },
-  greenery_furniture_alt: { d: "0101001101010010010100100111011000111001001000001011001010000000", a: "1001100100011011000110110001001110001000100100000001100011111111" },
-  handicraft_projects: { d: "1010111110001111100011010000110110001001000010100000000101000011", a: "1111011111100011110001011100000101000000110000001100000010110000" },
-  handicraft_projects_alt: { d: "0011110000111100001110100000111010001100100111001001111000111101", a: "1000111110001111100111111000001101000010010001110000011100001111" },
-};
-
-function isMockScreenshot(source: CanvasImageSource): boolean {
-  try {
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = 9;
-    tempCanvas.height = 8;
-    const ctx = tempCanvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return false;
-    ctx.drawImage(source, 0, 0, 9, 8);
-    const data = ctx.getImageData(0, 0, 9, 8).data;
-    const grays: number[][] = [];
-    for (let y = 0; y < 8; y++) {
-      grays[y] = [];
-      for (let x = 0; x < 9; x++) {
-        const idx = (y * 9 + x) * 4;
-        grays[y][x] = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      }
-    }
-    let dhash = "";
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 8; x++) {
-        dhash += grays[y][x + 1] > grays[y][x] ? "1" : "0";
-      }
-    }
-
-    tempCanvas.width = 8;
-    tempCanvas.height = 8;
-    ctx.drawImage(source, 0, 0, 8, 8);
-    const data8 = ctx.getImageData(0, 0, 8, 8).data;
-    let sum = 0;
-    const grays8: number[] = [];
-    for (let i = 0; i < 64; i++) {
-      const g = 0.299 * data8[i * 4] + 0.587 * data8[i * 4 + 1] + 0.114 * data8[i * 4 + 2];
-      grays8.push(g);
-      sum += g;
-    }
-    const avg = sum / 64;
-    let ahash = "";
-    for (let i = 0; i < 64; i++) {
-      ahash += grays8[i] > avg ? "1" : "0";
-    }
-
-    for (const sig of Object.values(MOCK_SIGNATURES)) {
-      let diffD = 0;
-      let diffA = 0;
-      for (let i = 0; i < 64; i++) {
-        if (dhash[i] !== sig.d[i]) diffD++;
-        if (ahash[i] !== sig.a[i]) diffA++;
-      }
-      if (diffD <= 12 && diffA <= 12) {
-        return true;
-      }
-    }
-  } catch (e) {
-    console.warn("Mock check:", e);
-  }
-  return false;
-}
-
 async function inferHabit(
   source: CanvasImageSource,
   targetHabit: string
 ): Promise<ModelDetection> {
-  if (isMockScreenshot(source)) {
-    return {
-      label: "other",
-      confidence: 0,
-      verified: false,
-      message: "Screenshot or mock image detected. Please take an authentic photo.",
-    };
-  }
 
   const ort = (window as unknown as { ort?: any }).ort;
   if (!ort) {
@@ -1857,23 +1821,17 @@ async function inferHabit(
   const otherIdx = CLASSES.indexOf("other");
   const otherProb = otherIdx >= 0 ? exps[otherIdx] / sumExp : 0;
 
-  // Clutter-tolerant verification logic:
-  // Approves genuine habit items even when background clutter, tables, or other misc objects are in the frame.
-  // 1. Top detected class matches target habit with at least 0.28 probability
-  // 2. OR target habit is prominently detected (>= 0.28), not dominated by 'other' (< 0.62) and targetProb >= otherProb * 0.80
+  // Verification gate: strictly matches target habit and meets the unified 0.85 threshold (FLAW-20, FLAW-25)
   const isHabitTarget = Boolean(targetHabit && targetHabit !== "other");
   const verified = Boolean(
-    isHabitTarget && (
-      (detectedLabel === targetHabit && targetProb >= 0.28) ||
-      (targetProb >= 0.28 && otherProb < 0.62 && targetProb >= (otherProb * 0.80))
-    )
+    isHabitTarget && detectedLabel === targetHabit && targetProb >= ML_SCORE_THRESHOLD_DEFAULT
   );
 
   const confidence = detectedLabel === targetHabit ? targetProb : Math.max(targetProb, bestProb);
 
   // If aligned: only two outcomes: Verified, Not verified
   // If not aligned: remain Photo not recognized. Please align your item and retake.
-  const isAligned = Boolean(confidence > 0.18 || otherProb < 0.85);
+  const isAligned = Boolean(confidence >= 0.25 || otherProb < 0.85);
   let message = "Photo not recognized. Please align your item and retake.";
   if (isAligned) {
     message = verified ? "Verified" : "Not verified";
@@ -1889,10 +1847,28 @@ async function inferHabit(
 
 async function runModelDetection(blob: Blob, targetHabit: string): Promise<ModelDetection> {
   try {
+    // FLAW-24: Guard against unbounded file size (max 10MB)
+    if (blob.size > 10 * 1024 * 1024) {
+      return {
+        label: "other",
+        confidence: 0,
+        verified: false,
+        message: "Image file is too large (maximum 10MB).",
+      };
+    }
     const img = new Image();
     const url = URL.createObjectURL(blob);
     await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
     URL.revokeObjectURL(url);
+    // FLAW-24: Guard against unbounded pixel dimension (> 25 megapixels)
+    if (img.width * img.height > 25_000_000 || img.width > 6000 || img.height > 6000) {
+      return {
+        label: "other",
+        confidence: 0,
+        verified: false,
+        message: "Image resolution is too high. Please take a standard photo.",
+      };
+    }
     return await inferHabit(img, targetHabit);
   } catch (err) {
     console.warn("Client model detection:", err);
@@ -2164,30 +2140,30 @@ function HabitInfoDialog({ code, onClose }: { code: HabitCode; onClose: () => vo
 
 function UsernamePromptDialog({
   initialUsername,
-  initialName,
   onSave,
   onDismiss,
 }: {
   initialUsername: string;
-  initialName: string;
+  initialName?: string;
   onSave: (username: string, name: string) => Promise<void>;
   onDismiss: () => void;
 }) {
-  const [username, setUsername] = useState(initialUsername.startsWith("user_") ? "" : initialUsername);
-  const [name, setName] = useState(initialName.startsWith("User ") ? "" : initialName);
+  const [username, setUsername] = useState(initialUsername.startsWith("user_") || /^user\d+/i.test(initialUsername) ? "" : initialUsername);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) {
-      setError("Please enter a username.");
+    const clean = username.trim();
+    const check = validateCustomUsername(clean);
+    if (!check.valid) {
+      setError(check.error || "Please enter a valid username.");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      await onSave(username.trim().toLowerCase(), name.trim() || username.trim());
+      await onSave(clean, clean);
       onDismiss();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to save username";
@@ -2202,31 +2178,19 @@ function UsernamePromptDialog({
       <div className="dialog auth-dialog" style={{ maxWidth: 440 }}>
         <button className="dialog-close" onClick={onDismiss} aria-label="Close"><Icon name="close" /></button>
         <BrandLogo scrolled />
-        <h2 id="username-prompt-title">Welcome! Choose Your Username</h2>
-        <p>You can set a custom username now for easy login and display, or keep your auto-generated ID.</p>
+        <h2 id="username-prompt-title">Choose Your Username</h2>
+        <p>You can set a custom username now for easy login, or keep your auto-generated ID.</p>
         <form onSubmit={(e) => void handleSubmit(e)}>
-          <label>
-            Username
+          <label>USERNAME
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30))}
-              placeholder={initialUsername || "e.g. warrior2026"}
-              minLength={3}
+              placeholder={initialUsername || "e.g. warrior"}
+              minLength={2}
               maxLength={30}
               autoFocus
               required
-            />
-            <span className="field-hint">3–30 characters: letters, numbers, underscore, hyphen.</span>
-          </label>
-          <label>
-            Display Name (Optional)
-            <input
-              type="text"
-              value={name}
-              maxLength={50}
-              onChange={(e) => setName(e.target.value.slice(0, 50))}
-              placeholder={initialName || "e.g. Eco Warrior"}
             />
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}

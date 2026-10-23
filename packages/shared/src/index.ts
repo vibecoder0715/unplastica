@@ -48,7 +48,7 @@ export const HABITS: readonly HabitDefinition[] = [
   },
 ];
 
-export const ML_SCORE_THRESHOLD_DEFAULT = 0.75;
+export const ML_SCORE_THRESHOLD_DEFAULT = 0.85;
 
 export const DAILY_HABIT_LIMITS: Record<HabitCode, number> = {
   box_cutlery: 3,

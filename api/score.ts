@@ -29,14 +29,19 @@ type RateLimitRecord = {
 const ipRateLimits = new Map<string, RateLimitRecord>();
 
 function getClientIp(request: VercelRequest): string {
-  const forwarded = request.headers["x-forwarded-for"];
-  if (forwarded) {
-    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(",")[0];
-    return first.trim();
+  const vercelIp = request.headers["x-vercel-forwarded-for"];
+  if (vercelIp) {
+    const ip = Array.isArray(vercelIp) ? vercelIp[0] : vercelIp.split(",")[0];
+    return ip.trim();
   }
   const realIp = request.headers["x-real-ip"];
   if (realIp) {
     return (Array.isArray(realIp) ? realIp[0] : realIp).trim();
+  }
+  const forwarded = request.headers["x-forwarded-for"];
+  if (forwarded) {
+    const list = Array.isArray(forwarded) ? forwarded : forwarded.split(",");
+    return list[list.length - 1].trim();
   }
   return "127.0.0.1";
 }
@@ -82,13 +87,6 @@ const VALID_HABITS = new Set([
   "self_bottle_refill",
 ]);
 
-const MOCK_IMAGE_SHA256 = new Set([
-  "437472beef862725c98374a92e4bc310a255a16b06fe2d043369bbaf68e5b5bd",
-  "cfe6f28d20592b4f6c5f3ebc558f0815697f725a35a6e49454f07ba68c3f1026",
-  "3563b334eae231b60bd0aaefd1e21de51ee9b36a514ed7e23a6809bd311b0471",
-  "fff618b66156a1b2a0a643871d52ff582fd8ed301cf5c3601cff88642c043c24",
-  "ef68e04a4ea7cb00419b91427e39ac6a20a21ec6868c119a196c637aa2bacecf",
-]);
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   // CORS & Security headers
@@ -114,8 +112,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
       status: "ready",
       model: "mobilenet_v3_small",
       model_version: "mobilenet_v3_small-v0.1.8-clutter-invariant",
+      model_sha256: "64f5e5741fd1dcb06132e1944b4320704b493c9cafc316f00ddfd6f88150a41b",
       classes: Array.from(VALID_HABITS).concat(["other"]).sort(),
-      threshold: 0.35,
+      threshold: 0.85,
       rate_limit: {
         max_requests_per_min: MAX_REQUESTS_PER_WINDOW,
         lockout_duration_sec: LOCKOUT_DURATION_MS / 1000,
@@ -208,16 +207,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
   try {
     const buffer = Buffer.from(imageBase64, "base64");
-    const imgSha256 = crypto.createHash("sha256").update(buffer).digest("hex").toLowerCase();
-    if (MOCK_IMAGE_SHA256.has(imgSha256)) {
-      return response.status(200).json({
-        status: "rejected",
-        predicted_label: "other",
-        confidence: 0.0,
+    if (buffer.length > 5 * 1024 * 1024) {
+      return response.status(413).json({
+        error: "Payload too large. Maximum proof size is 5MB.",
         verified: false,
-        error: "Screenshot or mock image detected. Please take an authentic photo.",
       });
     }
+
     const formData = new FormData();
     const blob = new Blob([buffer], { type: isJpeg ? "image/jpeg" : isPng ? "image/png" : "image/webp" });
     formData.append("file", blob, "proof.jpg");

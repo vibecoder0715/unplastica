@@ -4,7 +4,7 @@ declare const process: { env: Record<string, string | undefined> };
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (request.method !== "GET" && request.method !== "POST") return response.status(405).end();
-  const secret = process.env.RETENTION_CRON_SECRET;
+  const secret = process.env.CRON_SECRET || process.env.RETENTION_CRON_SECRET;
   const supabaseUrl = process.env.SUPABASE_URL;
   if (!secret || !supabaseUrl) return response.status(503).json({ error: "Retention service is not configured." });
   const header = request.headers.authorization;
