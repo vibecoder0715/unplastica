@@ -75,13 +75,19 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number; re
 }
 
 const VALID_HABITS = new Set([
-  "beeswax_food_wraps",
   "box_cutlery",
-  "bulk_pantry_refill",
   "greenery_furniture",
   "handicraft_projects",
   "recycle_bags",
   "self_bottle_refill",
+]);
+
+const MOCK_IMAGE_SHA256 = new Set([
+  "437472beef862725c98374a92e4bc310a255a16b06fe2d043369bbaf68e5b5bd",
+  "cfe6f28d20592b4f6c5f3ebc558f0815697f725a35a6e49454f07ba68c3f1026",
+  "3563b334eae231b60bd0aaefd1e21de51ee9b36a514ed7e23a6809bd311b0471",
+  "fff618b66156a1b2a0a643871d52ff582fd8ed301cf5c3601cff88642c043c24",
+  "ef68e04a4ea7cb00419b91427e39ac6a20a21ec6868c119a196c637aa2bacecf",
 ]);
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -98,7 +104,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
   if (!rateLimit.allowed) {
     response.setHeader("Retry-After", (rateLimit.retryAfter || 60).toString());
     return response.status(429).json({
-      error: `Too many requests. Rate limit exceeded (${MAX_REQUESTS_PER_WINDOW} requests/min). Locked for ${rateLimit.retryAfter || 60} seconds.`,
+      error: `Too many checks. Locked for ${rateLimit.retryAfter || 60} s.`,
       retry_after: rateLimit.retryAfter || 60,
     });
   }
@@ -202,6 +208,16 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
   try {
     const buffer = Buffer.from(imageBase64, "base64");
+    const imgSha256 = crypto.createHash("sha256").update(buffer).digest("hex").toLowerCase();
+    if (MOCK_IMAGE_SHA256.has(imgSha256)) {
+      return response.status(200).json({
+        status: "rejected",
+        predicted_label: "other",
+        confidence: 0.0,
+        verified: false,
+        error: "Screenshot or mock image detected. Please take an authentic photo.",
+      });
+    }
     const formData = new FormData();
     const blob = new Blob([buffer], { type: isJpeg ? "image/jpeg" : isPng ? "image/png" : "image/webp" });
     formData.append("file", blob, "proof.jpg");

@@ -118,6 +118,9 @@ Deno.serve(async (request: Request) => {
     });
     if (awardError) {
       if (awardError.message.includes("proof_already_used")) return json({ status: "rejected", error: "Error: Proof already used." }, 409);
+      if (awardError.message.includes("cooldown_active_5_hours")) {
+        return json({ status: "rejected", code: "box_cutlery_cooldown", error: "Box & Cutlery limit: 5-hour cooldown between submissions." }, 429);
+      }
       if (awardError.message.includes("daily_limit_reached")) {
         return json({ status: "rejected", code: "daily_limit_reached", error: "Daily limit reached for this habit today." }, 429);
       }

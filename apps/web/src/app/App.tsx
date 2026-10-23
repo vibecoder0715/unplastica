@@ -43,8 +43,6 @@ const habitImages: Record<HabitCode, string> = {
   self_bottle_refill: "/assets/habits/self-bottle-refill.png",
   greenery_furniture: "/assets/habits/greenery-furniture.png",
   handicraft_projects: "/assets/habits/handicraft-projects.png",
-  beeswax_food_wraps: "/assets/habits/beeswax-food-wraps.png",
-  bulk_pantry_refill: "/assets/habits/bulk-pantry-refill.png",
 };
 
 export const APP_BUILD_VERSION = "0.1.9";
@@ -129,6 +127,11 @@ export default function App() {
   userRef.current = user;
 
   const [dailyUsage, setDailyUsage] = useState<Record<string, number>>({});
+  const [boxCutleryLastVerified, setBoxCutleryLastVerified] = useState<number>(() => {
+    const local = localStorage.getItem("unplastica_box_cutlery_last_verified");
+    return local ? Number(local) : 0;
+  });
+  const boxCutleryCooldownMs = Math.max(0, 5 * 3600 * 1000 - (Date.now() - boxCutleryLastVerified));
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -145,11 +148,19 @@ export default function App() {
     const klDateStr = klNow.toISOString().slice(0, 10);
     const klStartUtc = new Date(`${klDateStr}T00:00:00.000+08:00`).toISOString();
 
-    const [profileResult, balanceResult, dailyResult] = await Promise.all([
+    const [profileResult, balanceResult, dailyResult, lastBoxResult] = await Promise.all([
       supabase.from("profiles").select("display_name,username,email,phone,tagline,preferences,avatar_path").eq("id", activeUser.id).maybeSingle(),
       supabase.from("greenbit_balances").select("balance").eq("user_id", activeUser.id).maybeSingle(),
       supabase.from("habit_submissions").select("habit_code").eq("user_id", activeUser.id).eq("status", "approved").gte("created_at", klStartUtc),
+      supabase.from("habit_submissions").select("scored_at,created_at").eq("user_id", activeUser.id).eq("habit_code", "box_cutlery").eq("status", "approved").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
+    if (lastBoxResult?.data) {
+      const lastTime = new Date(lastBoxResult.data.scored_at || lastBoxResult.data.created_at).getTime();
+      if (lastTime > 0) {
+        setBoxCutleryLastVerified(lastTime);
+        localStorage.setItem("unplastica_box_cutlery_last_verified", String(lastTime));
+      }
+    }
     const usage: Record<string, number> = {};
     if (dailyResult.data) {
       for (const item of dailyResult.data) {
@@ -548,11 +559,18 @@ export default function App() {
         {page === "earn" && <EarnPage
           selected={selectedHabit}
           dailyUsage={dailyUsage}
+          boxCutleryCooldownMs={boxCutleryCooldownMs}
           onSelect={setSelectedHabit}
           onInfo={setInfoHabit}
           onCamera={() => {
             if (guest) { requestLogin("earn"); return; }
             if (!selectedHabit) { notify(t("earn.chooseFirst")); return; }
+            if (selectedHabit === "box_cutlery" && boxCutleryCooldownMs > 0) {
+              const h = Math.floor(boxCutleryCooldownMs / 3600000);
+              const m = Math.ceil((boxCutleryCooldownMs % 3600000) / 60000);
+              notify(`${t("earn.boxCutleryLimit")} (${h}h ${m}m remaining)`);
+              return;
+            }
             const limit = selectedHabit === "box_cutlery" ? 3 : 1;
             const used = dailyUsage[selectedHabit] || 0;
             if (used >= limit) {
@@ -594,7 +612,16 @@ export default function App() {
       {camera && <CameraDialog
         habitCode={selectedHabit}
         onClose={() => setCamera(false)}
-        onComplete={(message) => { setCamera(false); notify(message); if (user) void loadAccount(user); }}
+        onComplete={(message) => {
+          setCamera(false);
+          notify(message);
+          if (selectedHabit === "box_cutlery" && (message.includes("Verified!") || message.includes("Disahkan!") || message.includes("已验证！"))) {
+            const now = Date.now();
+            setBoxCutleryLastVerified(now);
+            localStorage.setItem("unplastica_box_cutlery_last_verified", String(now));
+          }
+          if (user) void loadAccount(user);
+        }}
       />}
       {sample && <SampleDialog onClose={() => setSample(false)} />}
       {infoHabit && <HabitInfoDialog code={infoHabit} onClose={() => setInfoHabit(null)} />}
@@ -702,9 +729,10 @@ function HomePage({ onEnter }: { onEnter: () => void }) {
   </div>;
 }
 
-function EarnPage({ selected, dailyUsage, onSelect, onInfo, onCamera }: {
+function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo, onCamera }: {
   selected: HabitCode | null;
   dailyUsage: Record<string, number>;
+  boxCutleryCooldownMs: number;
   onSelect: (code: HabitCode) => void;
   onInfo: (code: HabitCode) => void;
   onCamera: () => void;
@@ -714,38 +742,49 @@ function EarnPage({ selected, dailyUsage, onSelect, onInfo, onCamera }: {
   const selectedLimit = selected === "box_cutlery" ? 3 : 1;
   const selectedUsed = (selected && dailyUsage[selected]) || 0;
   const isSelectedCapped = selectedUsed >= selectedLimit;
+  const isBoxCooldown = selected === "box_cutlery" && boxCutleryCooldownMs > 0;
+  const isBlocked = isSelectedCapped || isBoxCooldown;
 
   return <div className="content earn-content">
     <section className="earn-heading"><h1><span>{t("earn.titleStart")}</span><img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ background: "transparent" }} /><span>{t("earn.titleEnd")}</span></h1><p>{t("earn.subtitle")}</p></section>
     <section className="camera-section">
-      <div className="section-heading"><h2>{t("earn.checker")}</h2><span className="status-chip"><i />{isSelectedCapped ? "Daily limit reached" : t("common.ready")}</span></div>
-      <button className={"camera-frame " + (isSelectedCapped ? "is-capped" : "")} onClick={onCamera}>
+      <div className="section-heading"><h2>{t("earn.checker")}</h2></div>
+      <button className={"camera-frame " + (isBlocked ? "is-capped" : "")} onClick={onCamera}>
         <i className="frame-corner corner-top-left" /><i className="frame-corner corner-top-right" />
         <i className="frame-corner corner-bottom-left" /><i className="frame-corner corner-bottom-right" />
         <span className="camera-helper"><img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ width: 28, height: 28, objectFit: "contain", background: "transparent" }} /></span>
         <span className="camera-copy">
           <strong>{habit ? t("habit." + habit.code) : t("camera.title")}</strong>
-          <span>{isSelectedCapped ? "Daily limit reached for this habit today (resets at midnight)" : habit ? t("earn.reward", { points: habit.points }) : t("earn.hold")}</span>
+          <span>
+            {isBoxCooldown
+              ? `Cooldown active: ${Math.floor(boxCutleryCooldownMs / 3600000)}h ${Math.ceil((boxCutleryCooldownMs % 3600000) / 60000)}m remaining (5-hour limit)`
+              : isSelectedCapped
+              ? "Daily limit reached for this habit today (resets at midnight)"
+              : habit
+              ? t("earn.reward", { points: habit.points })
+              : t("earn.hold")}
+          </span>
         </span>
         <span className="camera-action"><Icon name="camera" size={25} /></span>
       </button>
     </section>
     <section className="habit-section">
-      <div className="section-heading"><h2>{t("earn.habits")}</h2><span className="count-chip">7 <small>{t("earn.actions")}</small></span></div>
+      <div className="section-heading"><h2>{t("earn.habits")}</h2></div>
       <div className="habit-list">{HABITS.map((item) => {
         const limit = item.code === "box_cutlery" ? 3 : 1;
         const used = dailyUsage[item.code] || 0;
         const capped = used >= limit;
+        const isCooldown = item.code === "box_cutlery" && boxCutleryCooldownMs > 0;
         return (
-          <article key={item.code} className={"habit-row " + (selected === item.code ? "selected" : "") + (capped ? " is-capped" : "")}>
+          <article key={item.code} className={"habit-row " + (selected === item.code ? "selected" : "") + (capped || isCooldown ? " is-capped" : "")}>
             <button className="habit-select" onClick={() => onSelect(item.code)} aria-pressed={selected === item.code}>
               <img src={habitImages[item.code]} alt="" />
               <span className="habit-labels">
                 <strong>{t("habit." + item.code)}</strong>
                 <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <b style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}><img className="habit-points-icon" src="/assets/brand/greenbits.png" alt="" style={{ width: 16, height: 16, objectFit: "contain", background: "transparent" }} />+{item.points}</b>
-                  <span className={"daily-quota-pill" + (capped ? " capped" : "")}>
-                    {capped ? "Daily limit reached" : `${used}/${limit} today`}
+                  <span className={"daily-quota-pill" + (capped || isCooldown ? " capped" : "")}>
+                    {isCooldown ? `Cooldown ${Math.floor(boxCutleryCooldownMs / 3600000)}h ${Math.ceil((boxCutleryCooldownMs % 3600000) / 60000)}m` : capped ? "Daily limit reached" : `${used}/${limit} today`}
                   </span>
                 </span>
               </span>
@@ -760,47 +799,133 @@ function EarnPage({ selected, dailyUsage, onSelect, onInfo, onCamera }: {
 
 function EventsPage({ onSample }: { onSample: () => void }) {
   const t = useCopy();
-  const entries = [
+  const [activeTab, setActiveTab] = useState<"challenge" | "done">("challenge");
+
+  const milestones = [
     { title: t("events.items"), detail: t("events.itemsDetail"), image: habitImages.box_cutlery },
     { title: t("events.campus"), detail: t("events.campusDetail"), image: habitImages.recycle_bags },
     { title: t("events.pioneer"), detail: t("events.pioneerDetail"), image: "/assets/events/apu-mark.png" },
   ];
-  return <div className="content events-content">
-    <section className="event-intro">
-      <h1>{t("events.headline")}</h1>
-      <article className="campus-feature">
-        <img className="campus-feature-logo" src="/assets/events/apu-mark.png" alt="APU logo" />
-        <h2>{t("events.campusName")}</h2>
-        <p>{t("events.campusFullName")}</p>
-      </article>
-    </section>
-    <section className="prizes">
-      <div className="section-heading"><h2>{t("events.prizes")}</h2><span>{t("events.pool")}</span></div>
-      <article className="champion-prize"><span className="prize-icon"><Icon name="trophy" /></span><strong>{t("events.champion")}</strong><b>RM<br />500</b></article>
-      <div className="runner-up-prizes">
-        <article><span><Icon name="medal" size={18} /> {t("events.runner")}</span><strong>{t("events.second")}</strong><b>RM 200</b></article>
-        <article><span><Icon name="medal" size={18} /> {t("events.tiers")}</span><strong>{t("events.third")}</strong><b>RM 100 <small>{t("events.each")}</small></b></article>
-      </div>
-    </section>
-    <section className="tournament"><h2>{t("events.details")}</h2><div className="action-card">
-      <h3>{t("events.action")}</h3>
-      <p><Icon name="check" />{t("events.proof")}</p>
-      <p><Icon name="check" />{t("events.measure")}</p>
-      <div className="social-rule"><strong>*{t("events.social")}</strong></div>
-      <img className="social-media-strip" src="/assets/brand/social-media.png" alt="Instagram, Facebook, YouTube, TikTok, RedNote, and X" />
-      <p className="hashtag-note">*{t("events.tag")} <b>#unplastica</b> and <b>#unplasticaAPU</b></p>
-    </div></section>
-    <section className="criteria"><h2>{t("events.judging")}</h2><div className="criteria-grid">
-      <Criterion icon="leaf" percent="40%" title={t("events.impact")} detail={t("events.diversion")} />
-      <Criterion icon="users" percent="25%" title={t("events.collaboration")} detail={t("events.engagement")} />
-      <Criterion icon="like" percent="20%" title={t("events.popularity")} detail={t("events.verification")} />
-      <Criterion icon="bulb" percent="15%" title={t("events.creative")} detail={t("events.substitutes")} />
-    </div></section>
-    <button className="sample-link" onClick={onSample}><span className="play-circle"><Icon name="play" /></span><span><strong>{t("events.sample")}</strong><small>{t("events.inspect")}</small></span><Icon name="arrow" /></button>
-    <section className="milestones"><div className="section-heading"><h2>{t("events.done")}</h2><span>{t("events.milestones")}</span></div><div className="milestone-list">
-      {entries.map((item) => <article className="milestone" key={item.title}><img src={item.image} alt="" /><div><span>{item.title}</span><strong>{item.detail}</strong></div></article>)}
-    </div></section>
-  </div>;
+
+  return (
+    <div className="content events-content">
+      {/* Two Columns Header (similar style as in earn, low alpha images) */}
+      <section className="events-columns-selector">
+        <button
+          className={"event-column-card " + (activeTab === "challenge" ? "active" : "")}
+          onClick={() => setActiveTab("challenge")}
+        >
+          <div className="event-column-bg" style={{ backgroundImage: "url(/assets/events/noplastic-challenge.png)" }} />
+          <div className="event-column-overlay" />
+          <div className="event-column-content">
+            <span className="event-column-badge"><Icon name="trophy" size={16} /> Challenge</span>
+            <h3>{t("events.columnChallenge")}</h3>
+            <p>RM 1,000 Pool · Win cash rewards</p>
+          </div>
+        </button>
+
+        <button
+          className={"event-column-card " + (activeTab === "done" ? "active" : "")}
+          onClick={() => setActiveTab("done")}
+        >
+          <div className="event-column-bg apu-logo-bg" style={{ backgroundImage: "url(/assets/events/apu-mark.png)" }} />
+          <div className="event-column-overlay" />
+          <div className="event-column-content">
+            <span className="event-column-badge"><Icon name="check" size={16} /> Campus Impact</span>
+            <h3>{t("events.columnDone")}</h3>
+            <p>500+ items · Pioneering Green Campus</p>
+          </div>
+        </button>
+      </section>
+
+      {/* Column 1 Content: No-plastic Challenge */}
+      {activeTab === "challenge" && (
+        <div className="event-column-view challenge-view">
+          <section className="event-intro">
+            <h1>{t("events.headline")}</h1>
+            <article className="campus-feature">
+              <img className="campus-feature-logo" src="/assets/events/apu-mark.png" alt="APU logo" />
+              <h2>{t("events.campusName")}</h2>
+              <p>{t("events.campusFullName")}</p>
+            </article>
+            <div className="deadline-badge">
+              <Icon name="check" size={16} />
+              <strong>{t("events.deadline")}</strong>
+            </div>
+          </section>
+
+          <section className="prizes">
+            <div className="section-heading"><h2>{t("events.prizes")}</h2><span>{t("events.pool")}</span></div>
+            <article className="champion-prize">
+              <span className="prize-icon"><Icon name="trophy" /></span>
+              <strong>{t("events.champion")}</strong>
+              <b>RM<br />500</b>
+            </article>
+            <div className="runner-up-prizes">
+              <article>
+                <span><Icon name="medal" size={18} /> {t("events.runner")}</span>
+                <strong>{t("events.second")}</strong>
+                <b>RM 200</b>
+              </article>
+              <article>
+                <span><Icon name="medal" size={18} /> {t("events.tiers")}</span>
+                <strong>{t("events.third")}</strong>
+                <b>RM 100</b>
+              </article>
+            </div>
+          </section>
+
+          <section className="tournament">
+            <h2>{t("events.details")}</h2>
+            <div className="action-card">
+              <h3>{t("events.action")}</h3>
+              <p className="action-subheading"><strong>{t("events.actionReduce")}</strong></p>
+              <p><Icon name="check" />{t("events.proof")}</p>
+              <p><Icon name="check" />{t("events.actionCollab")}</p>
+              <div className="social-rule">
+                <strong className="supported-social-media-title">{t("events.socialRule")}</strong>
+              </div>
+              <img className="social-media-strip" src="/assets/brand/social-media.png" alt="Supported social media" />
+              <p className="hashtag-note">*{t("events.tagRule")}</p>
+            </div>
+          </section>
+
+          <section className="criteria">
+            <h2>{t("events.judging")}</h2>
+            <div className="criteria-grid">
+              <Criterion icon="leaf" percent="50%" title={t("events.impact")} detail={t("events.diversion")} />
+              <Criterion icon="users" percent="25%" title={t("events.collaboration")} detail={t("events.engagement")} />
+              <Criterion icon="like" percent="15%" title={t("events.popularity")} detail={t("events.verification")} />
+              <Criterion icon="bulb" percent="10%" title={t("events.creative")} detail={t("events.substitutes")} />
+            </div>
+          </section>
+
+          <button className="sample-link" onClick={onSample}>
+            <span className="play-circle"><Icon name="play" /></span>
+            <span><strong>{t("events.sample")}</strong><small>{t("events.inspect")}</small></span>
+            <Icon name="arrow" />
+          </button>
+        </div>
+      )}
+
+      {/* Column 2 Content: What we had done in APU? */}
+      {activeTab === "done" && (
+        <div className="event-column-view done-view">
+          <section className="milestones">
+            <div className="section-heading"><h2>{t("events.done")}</h2><span>{t("events.milestones")}</span></div>
+            <div className="milestone-list">
+              {milestones.map((item) => (
+                <article className="milestone" key={item.title}>
+                  <img src={item.image} alt="" />
+                  <div><span>{item.title}</span><strong>{item.detail}</strong></div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Criterion({ icon, percent, title, detail }: { icon: IconName; percent: string; title: string; detail: string }) {
@@ -1595,10 +1720,85 @@ export function warmUpAiModel() {
   } catch {}
 }
 
+const MOCK_SIGNATURES: Record<string, { d: string; a: string }> = {
+  box_cutlery: { d: "1111101111110011111100111111000010011000000110111111011100111111", a: "0111111101111111000110010000100011001111110011110001111100000001" },
+  recycle_bags: { d: "0000000000000010000000110000000100001001000000010000000000000000", a: "1111110011111110111110001111000011100000110000001111100011111100" },
+  self_bottle_refill: { d: "0001000000001100010011000100110001001100010011000000110010001100", a: "1111111111100111111001111110011111100111111001111110010000000000" },
+  greenery_furniture: { d: "0101001101010010010100100111011000111001001000001011001010000000", a: "1001100100011011000110110001001110001000100100000001100011111111" },
+  handicraft_projects: { d: "0011110000111100001110100000111010001100100111001001111000111101", a: "1000111110001111100111111000001101000010010001110000011100001111" },
+};
+
+function isMockScreenshot(source: CanvasImageSource): boolean {
+  try {
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = 9;
+    tempCanvas.height = 8;
+    const ctx = tempCanvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return false;
+    ctx.drawImage(source, 0, 0, 9, 8);
+    const data = ctx.getImageData(0, 0, 9, 8).data;
+    const grays: number[][] = [];
+    for (let y = 0; y < 8; y++) {
+      grays[y] = [];
+      for (let x = 0; x < 9; x++) {
+        const idx = (y * 9 + x) * 4;
+        grays[y][x] = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+      }
+    }
+    let dhash = "";
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        dhash += grays[y][x + 1] > grays[y][x] ? "1" : "0";
+      }
+    }
+
+    tempCanvas.width = 8;
+    tempCanvas.height = 8;
+    ctx.drawImage(source, 0, 0, 8, 8);
+    const data8 = ctx.getImageData(0, 0, 8, 8).data;
+    let sum = 0;
+    const grays8: number[] = [];
+    for (let i = 0; i < 64; i++) {
+      const g = 0.299 * data8[i * 4] + 0.587 * data8[i * 4 + 1] + 0.114 * data8[i * 4 + 2];
+      grays8.push(g);
+      sum += g;
+    }
+    const avg = sum / 64;
+    let ahash = "";
+    for (let i = 0; i < 64; i++) {
+      ahash += grays8[i] > avg ? "1" : "0";
+    }
+
+    for (const sig of Object.values(MOCK_SIGNATURES)) {
+      let diffD = 0;
+      let diffA = 0;
+      for (let i = 0; i < 64; i++) {
+        if (dhash[i] !== sig.d[i]) diffD++;
+        if (ahash[i] !== sig.a[i]) diffA++;
+      }
+      if (diffD <= 12 && diffA <= 12) {
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn("Mock check:", e);
+  }
+  return false;
+}
+
 async function inferHabit(
   source: CanvasImageSource,
   targetHabit: string
 ): Promise<ModelDetection> {
+  if (isMockScreenshot(source)) {
+    return {
+      label: "other",
+      confidence: 0,
+      verified: false,
+      message: "Screenshot or mock image detected. Please take an authentic photo.",
+    };
+  }
+
   const ort = (window as unknown as { ort?: any }).ort;
   if (!ort) {
     return { label: "other", confidence: 0, verified: false, message: "Preparing camera…" };
@@ -1669,13 +1869,19 @@ async function inferHabit(
 
   const confidence = detectedLabel === targetHabit ? targetProb : Math.max(targetProb, bestProb);
 
+  // If aligned: only two outcomes: Verified, Not verified
+  // If not aligned: remain Photo not recognized. Please align your item and retake.
+  const isAligned = Boolean(confidence > 0.18 || otherProb < 0.85);
+  let message = "Photo not recognized. Please align your item and retake.";
+  if (isAligned) {
+    message = verified ? "Verified" : "Not verified";
+  }
+
   return {
     label: detectedLabel,
     confidence,
     verified,
-    message: verified
-      ? "Verified"
-      : "Photo not recognized. Please align your item and retake.",
+    message,
   };
 }
 
@@ -1850,9 +2056,8 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
     finally { setBusy(false); }
   };
 
-  return <Modal onClose={onClose} labelledBy="camera-title"><div className="dialog camera-dialog">
+  return <Modal onClose={onClose} labelledBy="camera-dialog"><div className="dialog camera-dialog">
     <button className="dialog-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
-    <h2 id="camera-title">{t("camera.title")}</h2><p>{habit ? t("habit." + habit.code) : ""} · +{habit?.points} Greenbits</p>
     <div className={"camera-preview " + (photoUrl ? "has-photo" : "")}>
       <video
         ref={video}
@@ -1884,14 +2089,22 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
 
     {lockoutSec > 0 && (
       <div className="ai-detection-pill flagged" style={{ background: "rgba(220, 38, 38, 0.12)", color: "#dc2626", border: "1px solid rgba(220, 38, 38, 0.3)" }}>
-        Rate limit protection: Too many photo checks. Locked for {lockoutSec}s.
+        {t("camera.rateLimit", { lockoutSec })}
       </div>
     )}
 
     {detecting && <div className="ai-detection-pill detecting">Checking photo…</div>}
     {detection && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
-        {detection.message}
+        {detection.message === "Verified"
+          ? t("camera.verified")
+          : detection.message === "Not verified"
+          ? t("camera.notVerified")
+          : detection.message === "Photo not recognized. Please align your item and retake."
+          ? t("camera.notRecognized")
+          : detection.message.includes("Screenshot or mock")
+          ? t("camera.mockRejected")
+          : detection.message}
       </div>
     )}
 
@@ -1943,7 +2156,7 @@ function HabitInfoDialog({ code, onClose }: { code: HabitCode; onClose: () => vo
   if (!habit) return null;
   return <Modal onClose={onClose} labelledBy="habit-info-title"><div className="dialog habit-info-dialog">
     <button className="dialog-close" onClick={onClose} aria-label={t("common.close")}><Icon name="close" /></button><img src={habitImages[code]} alt="" />
-    <h2 id="habit-info-title">{t("habit." + code)}</h2><p>{t("habitDescription." + code)}</p><strong>+{habit.points} Greenbits</strong><button className="primary-button" onClick={onClose}>{t("common.ok")}</button>
+    <h2 id="habit-info-title">{t("habit." + code)}</h2><p>{t("habitDescription." + code)}</p><strong>+{habit.points} Greenbits</strong>
   </div></Modal>;
 }
 

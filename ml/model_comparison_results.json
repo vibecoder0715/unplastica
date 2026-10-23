@@ -1,0 +1,23 @@
+{
+  "legacy_mobilenet": {
+    "size_mb": 5.83,
+    "latency_ms": 9.7,
+    "habit_approval_rate": "87.3%",
+    "negative_rejection_rate": "96.7%",
+    "deployment": "Browser WASM (ONNX Runtime Web) client-side + zero server costs"
+  },
+  "openclip_zero_shot": {
+    "size_mb": 605.0,
+    "latency_ms": 77.1,
+    "habit_approval_rate": "64.7%",
+    "negative_rejection_rate": "23.3%",
+    "deployment": "Requires backend server or heavy container (exceeds Vercel Serverless 50MB function limit)"
+  },
+  "openclip_embedding_classifier": {
+    "size_mb": 605.0,
+    "latency_ms": 77.1,
+    "habit_approval_rate": "78.7%",
+    "negative_rejection_rate": "83.3%",
+    "deployment": "Requires backend server (605MB weights exceed browser WASM / Vercel Serverless)"
+  }
+}
