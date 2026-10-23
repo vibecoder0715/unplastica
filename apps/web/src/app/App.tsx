@@ -553,7 +553,17 @@ export default function App() {
   return (
     <LanguageContext.Provider value={language}>
     <div className="app-shell">
-      <Header page={page} balance={balance} scrolled={scrolled} avatarUrl={profile?.avatar_url ?? null} onProfile={openSettings} onHome={() => navigate("home")} />
+      <Header
+        page={page}
+        balance={balance}
+        scrolled={scrolled}
+        avatarUrl={profile?.avatar_url ?? null}
+        onProfile={openSettings}
+        onHome={() => navigate("home")}
+        onNavigate={(target) => target === "earn" ? requestLogin("earn") : navigate(target)}
+        language={language}
+        onLanguage={(lang) => { setLanguage(lang); void savePreference("language", lang); }}
+      />
       <main className={"page page-" + page}>
         {page === "home" && <HomePage onEnter={() => requestLogin("earn")} />}
         {page === "earn" && <EarnPage
@@ -651,22 +661,96 @@ export default function App() {
   );
 }
 
-function Header({ page, balance, scrolled, avatarUrl, onProfile, onHome }: { page: Page; balance: number; scrolled: boolean; avatarUrl: string | null; onProfile: () => void; onHome: () => void }) {
+function Header({
+  page,
+  balance,
+  scrolled,
+  avatarUrl,
+  onProfile,
+  onHome,
+  onNavigate,
+  language,
+  onLanguage,
+}: {
+  page: Page;
+  balance: number;
+  scrolled: boolean;
+  avatarUrl: string | null;
+  onProfile: () => void;
+  onHome: () => void;
+  onNavigate?: (page: Page) => void;
+  language?: Language;
+  onLanguage?: (lang: Language) => void;
+}) {
   const t = useCopy();
   return (
     <header className={"topbar topbar-" + page}>
       <div className="topbar-inner">
-        {page === "settings" ? <>
-          <button className="header-back" onClick={onHome} aria-label={t("common.back")}><Icon name="back" /></button>
-          <h1 className="settings-header-title">{t("settings.profile")}</h1>
-          <span className="header-spacer" />
-        </> : <>
-          <button className={"brand-button " + (scrolled ? "is-scrolled" : "")} onClick={onHome} aria-label={t("nav.home")}>
-            <BrandLogo scrolled={scrolled} />
-          </button>
-          {page !== "login" && <div className="balance-pill"><img src="/assets/brand/greenbits.png" alt="" /><strong>{formatPoints(balance)}</strong></div>}
-          {page !== "login" && <button className="avatar-button" onClick={onProfile} aria-label={t("common.profile")}>{avatarUrl ? <img className="header-avatar-photo" src={avatarUrl} alt="" /> : <Icon name="user" />}</button>}
-        </>}
+        {page === "settings" ? (
+          <>
+            <button className="header-back" onClick={onHome} aria-label={t("common.back")}><Icon name="back" /></button>
+            <h1 className="settings-header-title">{t("settings.profile")}</h1>
+            <span className="header-spacer" />
+          </>
+        ) : (
+          <>
+            <div className="header-brand-group">
+              <button className={"brand-button " + (scrolled ? "is-scrolled" : "")} onClick={onHome} aria-label={t("nav.home")}>
+                <BrandLogo scrolled={scrolled} />
+              </button>
+            </div>
+
+            {page !== "login" && onNavigate && (
+              <nav className="desktop-header-nav" aria-label="Desktop navigation">
+                <button
+                  type="button"
+                  className={"desktop-nav-link " + (page === "home" ? "active" : "")}
+                  onClick={() => onNavigate("home")}
+                >
+                  <Icon name="home" size={17} />
+                  <span>{t("nav.home")}</span>
+                </button>
+                <button
+                  type="button"
+                  className={"desktop-nav-link " + (page === "earn" ? "active" : "")}
+                  onClick={() => onNavigate("earn")}
+                >
+                  <img src="/assets/brand/greenbits.png" alt="" className="desktop-nav-coin" />
+                  <span>{t("nav.earn")}</span>
+                </button>
+                <button
+                  type="button"
+                  className={"desktop-nav-link " + (page === "events" ? "active" : "")}
+                  onClick={() => onNavigate("events")}
+                >
+                  <Icon name="trophy" size={17} />
+                  <span>{t("nav.events")}</span>
+                </button>
+              </nav>
+            )}
+
+            <div className="header-right-group">
+              {page !== "login" && language && onLanguage && (
+                <div className="desktop-lang-switcher" aria-label="Language">
+                  <button type="button" className={language === "English" ? "active" : ""} onClick={() => onLanguage("English")}>EN</button>
+                  <button type="button" className={language === "Bahasa Melayu" ? "active" : ""} onClick={() => onLanguage("Bahasa Melayu")}>BM</button>
+                  <button type="button" className={language === "中文" ? "active" : ""} onClick={() => onLanguage("中文")}>中文</button>
+                </div>
+              )}
+              {page !== "login" && (
+                <div className="balance-pill">
+                  <img src="/assets/brand/greenbits.png" alt="" />
+                  <strong>{formatPoints(balance)}</strong>
+                </div>
+              )}
+              {page !== "login" && (
+                <button className="avatar-button" onClick={onProfile} aria-label={t("common.profile")}>
+                  {avatarUrl ? <img className="header-avatar-photo" src={avatarUrl} alt="" /> : <Icon name="user" />}
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </header>
   );
@@ -713,20 +797,30 @@ function BottomNav({ page, onNavigate }: { page: Page; onNavigate: (page: Page) 
 
 function HomePage({ onEnter }: { onEnter: () => void }) {
   const t = useCopy();
-  return <div className="content home-content">
-    <section className="home-hero">
-      <video className="hero-video" autoPlay muted loop playsInline aria-label="Polluted river with plastic waste">
-        <source src="/assets/home/polluted-river.mp4" type="video/mp4" />
-      </video>
-      <div className="hero-tint" />
-      <h1>{t("home.title1")}<br /><span>{t("home.title2")}</span></h1>
-    </section>
-    <section className="sanctuary">
-      <h2>{t("home.sanctuary")}</h2>
-      <button className="primary-button" onClick={onEnter}>{t("home.enter")} <Icon name="arrow" size={20} /></button>
-      <p className="speech-card">{t("home.speech")}</p>
-    </section>
-  </div>;
+  return (
+    <div className="content home-content">
+      <section className="home-hero">
+        <video className="hero-video" autoPlay muted loop playsInline aria-label="Polluted river with plastic waste">
+          <source src="/assets/home/polluted-river.mp4" type="video/mp4" />
+        </video>
+        <div className="hero-tint" />
+        <h1>{t("home.title1")}<br /><span>{t("home.title2")}</span></h1>
+      </section>
+      <section className="sanctuary">
+        <div className="sanctuary-inner">
+          <div className="sanctuary-action-pane">
+            <h2>{t("home.sanctuary")}</h2>
+            <button className="primary-button enter-sanctuary-btn" onClick={onEnter}>
+              {t("home.enter")} <Icon name="arrow" size={20} />
+            </button>
+          </div>
+          <div className="sanctuary-speech-pane">
+            <p className="speech-card">{t("home.speech")}</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo, onCamera }: {
@@ -738,63 +832,176 @@ function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo
   onCamera: () => void;
 }) {
   const t = useCopy();
-  const habit = HABITS.find((item) => item.code === selected);
-  const selectedLimit = selected === "box_cutlery" ? 3 : 1;
-  const selectedUsed = (selected && dailyUsage[selected]) || 0;
-  const isSelectedCapped = selectedUsed >= selectedLimit;
+  const activeCode = selected || "box_cutlery";
+  const habit = HABITS.find((item) => item.code === (selected || undefined));
+  const previewHabit = HABITS.find((item) => item.code === activeCode) || HABITS[0];
+  const selectedLimit = activeCode === "box_cutlery" ? 3 : 1;
+  const selectedUsed = dailyUsage[activeCode] || 0;
+  const isSelectedCapped = selected ? selectedUsed >= selectedLimit : false;
   const isBoxCooldown = selected === "box_cutlery" && boxCutleryCooldownMs > 0;
   const isBlocked = isSelectedCapped || isBoxCooldown;
 
-  return <div className="content earn-content">
-    <section className="earn-heading"><h1><span>{t("earn.titleStart")}</span><img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ background: "transparent" }} /><span>{t("earn.titleEnd")}</span></h1><p>{t("earn.subtitle")}</p></section>
-    <section className="camera-section">
-      <div className="section-heading"><h2>{t("earn.checker")}</h2></div>
-      <button className={"camera-frame " + (isBlocked ? "is-capped" : "")} onClick={onCamera}>
-        <i className="frame-corner corner-top-left" /><i className="frame-corner corner-top-right" />
-        <i className="frame-corner corner-bottom-left" /><i className="frame-corner corner-bottom-right" />
-        <span className="camera-helper"><img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ width: 28, height: 28, objectFit: "contain", background: "transparent" }} /></span>
-        <span className="camera-copy">
-          <strong>{habit ? t("habit." + habit.code) : t("camera.title")}</strong>
-          <span>
-            {isBoxCooldown
-              ? `Cooldown active: ${Math.floor(boxCutleryCooldownMs / 3600000)}h ${Math.ceil((boxCutleryCooldownMs % 3600000) / 60000)}m remaining (5-hour limit)`
-              : isSelectedCapped
-              ? "Daily limit reached for this habit today (resets at midnight)"
-              : habit
-              ? t("earn.reward", { points: habit.points })
-              : t("earn.hold")}
-          </span>
-        </span>
-        <span className="camera-action"><Icon name="camera" size={25} /></span>
-      </button>
-    </section>
-    <section className="habit-section">
-      <div className="section-heading"><h2>{t("earn.habits")}</h2></div>
-      <div className="habit-list">{HABITS.map((item) => {
-        const limit = item.code === "box_cutlery" ? 3 : 1;
-        const used = dailyUsage[item.code] || 0;
-        const capped = used >= limit;
-        const isCooldown = item.code === "box_cutlery" && boxCutleryCooldownMs > 0;
-        return (
-          <article key={item.code} className={"habit-row " + (selected === item.code ? "selected" : "") + (capped || isCooldown ? " is-capped" : "")}>
-            <button className="habit-select" onClick={() => onSelect(item.code)} aria-pressed={selected === item.code}>
-              <img src={habitImages[item.code]} alt="" />
-              <span className="habit-labels">
-                <strong>{t("habit." + item.code)}</strong>
-                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <b style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}><img className="habit-points-icon" src="/assets/brand/greenbits.png" alt="" style={{ width: 16, height: 16, objectFit: "contain", background: "transparent" }} />+{item.points}</b>
-                  <span className={"daily-quota-pill" + (capped || isCooldown ? " capped" : "")}>
-                    {isCooldown ? `Cooldown ${Math.floor(boxCutleryCooldownMs / 3600000)}h ${Math.ceil((boxCutleryCooldownMs % 3600000) / 60000)}m` : capped ? "Daily limit reached" : `${used}/${limit} today`}
-                  </span>
+  return (
+    <div className="content earn-content">
+      {/* Earn Page Heading & Desktop Impact Stats */}
+      <section className="earn-heading">
+        <div className="earn-heading-text">
+          <h1>
+            <span>{t("earn.titleStart")}</span>
+            <img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ background: "transparent" }} />
+            <span>{t("earn.titleEnd")}</span>
+          </h1>
+          <p>{t("earn.subtitle")}</p>
+        </div>
+        <div className="desktop-earn-stats-bar">
+          <div className="desktop-stat-badge">
+            <span className="stat-dot" />
+            <span><strong>5</strong> {t("earn.habits")}</span>
+          </div>
+          <div className="desktop-stat-badge">
+            <Icon name="leaf" size={15} />
+            <span><strong>+670</strong> Max / Day</span>
+          </div>
+          <div className="desktop-stat-badge">
+            <Icon name="shield" size={15} />
+            <span>AI Verified</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Main 2-Pane Responsive Grid */}
+      <div className="earn-main-grid">
+        {/* Left Column: The Habits Grid */}
+        <section className="habit-section">
+          <div className="section-heading">
+            <h2>{t("earn.habits")}</h2>
+            <span className="habit-sub-badge">Select a habit to verify</span>
+          </div>
+          <div className="habit-list">
+            {HABITS.map((item) => {
+              const limit = item.code === "box_cutlery" ? 3 : 1;
+              const used = dailyUsage[item.code] || 0;
+              const capped = used >= limit;
+              const isCooldown = item.code === "box_cutlery" && boxCutleryCooldownMs > 0;
+              const isSelected = selected === item.code;
+              return (
+                <article
+                  key={item.code}
+                  className={"habit-row " + (isSelected ? "selected" : "") + (capped || isCooldown ? " is-capped" : "")}
+                >
+                  <button className="habit-select" onClick={() => onSelect(item.code)} aria-pressed={isSelected}>
+                    <div className="habit-img-wrap">
+                      <img src={habitImages[item.code]} alt="" />
+                      {isSelected && <span className="habit-active-check"><Icon name="check" size={12} /></span>}
+                    </div>
+                    <span className="habit-labels">
+                      <strong>{t("habit." + item.code)}</strong>
+                      <span className="habit-meta-row">
+                        <b className="points-pill">
+                          <img className="habit-points-icon" src="/assets/brand/greenbits.png" alt="" />
+                          +{item.points}
+                        </b>
+                        <span className={"daily-quota-pill" + (capped || isCooldown ? " capped" : "")}>
+                          {isCooldown
+                            ? `Cooldown ${Math.floor(boxCutleryCooldownMs / 3600000)}h ${Math.ceil((boxCutleryCooldownMs % 3600000) / 60000)}m`
+                            : capped
+                            ? "Daily limit reached"
+                            : `${used}/${limit} today`}
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    className="info-button"
+                    aria-label={t("common.about", { habit: t("habit." + item.code) })}
+                    onClick={() => onInfo(item.code)}
+                  >
+                    <Icon name="info" />
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Right Sticky Column: Habit Checker & Verification Studio */}
+        <aside className="camera-section verification-studio">
+          <div className="section-heading">
+            <h2>{t("earn.checker")}</h2>
+            <span className="live-ai-badge">
+              <span className="pulse-dot" />
+              AI Studio
+            </span>
+          </div>
+
+          <div className="studio-card">
+            {/* Selected habit banner */}
+            <div className="studio-selected-habit">
+              <img
+                src={habitImages[previewHabit.code]}
+                alt=""
+                className="studio-habit-thumb"
+              />
+              <div className="studio-habit-info">
+                <span className="studio-label">{selected ? "Selected Habit" : "Ready to verify"}</span>
+                <strong>{t("habit." + previewHabit.code)}</strong>
+                <span className="studio-reward">+{previewHabit.points} Greenbits</span>
+              </div>
+            </div>
+
+            {/* Interactive Viewfinder Frame */}
+            <button
+              className={"camera-frame " + (isBlocked ? "is-capped" : "")}
+              onClick={onCamera}
+              type="button"
+            >
+              <i className="frame-corner corner-top-left" />
+              <i className="frame-corner corner-top-right" />
+              <i className="frame-corner corner-bottom-left" />
+              <i className="frame-corner corner-bottom-right" />
+
+              <span className="camera-helper">
+                <img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ width: 32, height: 32, objectFit: "contain" }} />
+              </span>
+
+              <span className="camera-copy">
+                <strong>{habit ? t("habit." + habit.code) : t("camera.title")}</strong>
+                <span>
+                  {isBoxCooldown
+                    ? `Cooldown active: ${Math.floor(boxCutleryCooldownMs / 3600000)}h ${Math.ceil((boxCutleryCooldownMs % 3600000) / 60000)}m remaining (5-hour limit)`
+                    : isSelectedCapped
+                    ? "Daily limit reached for this habit today (resets at midnight)"
+                    : habit
+                    ? t("earn.reward", { points: habit.points })
+                    : t("earn.hold")}
                 </span>
               </span>
+
+              <span className="camera-action">
+                <Icon name="camera" size={26} />
+              </span>
             </button>
-            <button className="info-button" aria-label={t("common.about", { habit: t("habit." + item.code) })} onClick={() => onInfo(item.code)}><Icon name="info" /></button>
-          </article>
-        );
-      })}</div>
-    </section>
-  </div>;
+
+            {/* Verification Console Quick Tips */}
+            <div className="studio-guidelines">
+              <div className="studio-guideline-item">
+                <Icon name="check" size={14} />
+                <span>Live photo of your reusable habit</span>
+              </div>
+              <div className="studio-guideline-item">
+                <Icon name="check" size={14} />
+                <span>Instant on-device AI recognition</span>
+              </div>
+              <div className="studio-guideline-item">
+                <Icon name="check" size={14} />
+                <span>Instant Greenbits balance credit</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
 }
 
 function EventsPage({ onSample }: { onSample: () => void }) {
@@ -845,8 +1052,10 @@ function EventsPage({ onSample }: { onSample: () => void }) {
             <h1>{t("events.headline")}</h1>
             <article className="campus-feature">
               <img className="campus-feature-logo" src="/assets/events/apu-mark.png" alt="APU logo" />
-              <h2>{t("events.campusName")}</h2>
-              <p>{t("events.campusFullName")}</p>
+              <div className="campus-feature-text">
+                <h2>{t("events.campusName")}</h2>
+                <p>{t("events.campusFullName")}</p>
+              </div>
             </article>
             <div className="deadline-badge">
               <Icon name="check" size={16} />
@@ -854,41 +1063,43 @@ function EventsPage({ onSample }: { onSample: () => void }) {
             </div>
           </section>
 
-          <section className="prizes">
-            <div className="section-heading"><h2>{t("events.prizes")}</h2><span>{t("events.pool")}</span></div>
-            <article className="champion-prize">
-              <span className="prize-icon"><Icon name="trophy" /></span>
-              <strong>{t("events.champion")}</strong>
-              <b>RM<br />500</b>
-            </article>
-            <div className="runner-up-prizes">
-              <article>
-                <span><Icon name="medal" size={18} /> {t("events.runner")}</span>
-                <strong>{t("events.second")}</strong>
-                <b>RM 200</b>
+          <div className="challenge-desktop-split">
+            <section className="prizes">
+              <div className="section-heading"><h2>{t("events.prizes")}</h2><span>{t("events.pool")}</span></div>
+              <article className="champion-prize">
+                <span className="prize-icon"><Icon name="trophy" /></span>
+                <strong>{t("events.champion")}</strong>
+                <b>RM<br />500</b>
               </article>
-              <article>
-                <span><Icon name="medal" size={18} /> {t("events.tiers")}</span>
-                <strong>{t("events.third")}</strong>
-                <b>RM 100</b>
-              </article>
-            </div>
-          </section>
-
-          <section className="tournament">
-            <h2>{t("events.details")}</h2>
-            <div className="action-card">
-              <h3>{t("events.action")}</h3>
-              <p className="action-subheading"><strong>{t("events.actionReduce")}</strong></p>
-              <p><Icon name="check" />{t("events.proof")}</p>
-              <p><Icon name="check" />{t("events.actionCollab")}</p>
-              <div className="social-rule">
-                <strong className="supported-social-media-title">{t("events.socialRule")}</strong>
+              <div className="runner-up-prizes">
+                <article>
+                  <span><Icon name="medal" size={18} /> {t("events.runner")}</span>
+                  <strong>{t("events.second")}</strong>
+                  <b>RM 200</b>
+                </article>
+                <article>
+                  <span><Icon name="medal" size={18} /> {t("events.tiers")}</span>
+                  <strong>{t("events.third")}</strong>
+                  <b>RM 100</b>
+                </article>
               </div>
-              <img className="social-media-strip" src="/assets/brand/social-media.png" alt="Supported social media" />
-              <p className="hashtag-note">*{t("events.tagRule")}</p>
-            </div>
-          </section>
+            </section>
+
+            <section className="tournament">
+              <h2>{t("events.details")}</h2>
+              <div className="action-card">
+                <h3>{t("events.action")}</h3>
+                <p className="action-subheading"><strong>{t("events.actionReduce")}</strong></p>
+                <p><Icon name="check" /><span>{t("events.proof")}</span></p>
+                <p><Icon name="check" /><span>{t("events.actionCollab")}</span></p>
+                <div className="social-rule">
+                  <strong className="supported-social-media-title">{t("events.socialRule")}</strong>
+                </div>
+                <img className="social-media-strip" src="/assets/brand/social-media.png" alt="Supported social media" />
+                <p className="hashtag-note">*{t("events.tagRule")}</p>
+              </div>
+            </section>
+          </div>
 
           <section className="criteria">
             <h2>{t("events.judging")}</h2>
