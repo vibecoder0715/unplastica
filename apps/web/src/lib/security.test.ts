@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { validatePasswordComplexity, APP_BUILD_VERSION } from "../app/App";
 
 describe("Security Hardening & Password Policy", () => {
-  it("enforces version 0.2.1", () => {
-    expect(APP_BUILD_VERSION).toBe("0.2.1");
+  it("enforces version 0.2.2", () => {
+    expect(APP_BUILD_VERSION).toBe("0.2.2");
   });
 
   it("rejects passwords shorter than 8 characters", () => {

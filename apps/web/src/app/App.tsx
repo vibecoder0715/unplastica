@@ -45,7 +45,7 @@ const habitImages: Record<HabitCode, string> = {
   handicraft_projects: "/assets/habits/handicraft-projects.png?v=2",
 };
 
-export const APP_BUILD_VERSION = "0.2.1";
+export const APP_BUILD_VERSION = "0.2.2";
 
 export type PasswordCheck = {
   valid: boolean;
@@ -843,7 +843,6 @@ function EventsPage({ onSample }: { onSample: () => void }) {
             <div className="event-column-overlay" />
             <div className="event-column-content">
               <h3>{t("events.columnChallenge")}</h3>
-              <p>RM 1,000 Pool · Win cash rewards</p>
             </div>
             <span className="event-card-arrow"><Icon name="arrow" size={20} /></span>
           </button>
@@ -852,11 +851,11 @@ function EventsPage({ onSample }: { onSample: () => void }) {
             className="event-column-card"
             onClick={() => setActiveTab("done")}
           >
+            <div className="event-column-bg green-campus-bg" style={{ backgroundImage: "url(/assets/events/green-campus-initiative.jpg)" }} />
             <div className="event-column-bg apu-logo-bg" style={{ backgroundImage: "url(/assets/events/apu-mark.png)" }} />
             <div className="event-column-overlay" />
             <div className="event-column-content">
               <h3>{t("events.columnDone")}</h3>
-              <p>500+ items · Pioneering Green Campus</p>
             </div>
             <span className="event-card-arrow"><Icon name="arrow" size={20} /></span>
           </button>
@@ -1125,51 +1124,49 @@ function SettingsPage(props: {
       <p className="profile-photo-note">{t("profile.photoLimit")}</p>
     </div>
 
-    {updatePending && (
-      <div style={{ textAlign: "center", margin: "6px 0 16px" }}>
-        <button
-          type="button"
-          className="ghost-button"
-          disabled={updatingApp}
-          style={{
-            fontSize: "0.85rem",
-            fontWeight: 700,
-            color: "var(--forest)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "9px 18px",
-            border: "1.5px dashed var(--leaf)",
-            borderRadius: 100,
-            background: "rgba(86, 217, 133, 0.14)",
-            cursor: "pointer",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
-          }}
-          onClick={async () => {
-            setUpdatingApp(true);
-            try {
-              if ("serviceWorker" in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                for (const reg of regs) await reg.unregister();
-              }
-              if ("caches" in window) {
-                const keys = await caches.keys();
-                for (const key of keys) await caches.delete(key);
-              }
-            } catch (e) {
-              console.error(e);
+    <div style={{ textAlign: "center", margin: "6px 0 16px" }}>
+      <button
+        type="button"
+        className="ghost-button"
+        disabled={updatingApp}
+        style={{
+          fontSize: "0.85rem",
+          fontWeight: 700,
+          color: "var(--forest)",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "9px 18px",
+          border: "1.5px dashed var(--leaf)",
+          borderRadius: 100,
+          background: "rgba(86, 217, 133, 0.14)",
+          cursor: "pointer",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
+        }}
+        onClick={async () => {
+          setUpdatingApp(true);
+          try {
+            if ("serviceWorker" in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              for (const reg of regs) await reg.unregister();
             }
-            localStorage.setItem("unplastica_acknowledged_update_ver", APP_BUILD_VERSION);
-            localStorage.setItem("unplastica_app_version", APP_BUILD_VERSION);
-            setUpdatePending(false);
-            window.location.reload();
-          }}
-        >
-          <Icon name="arrow" size={14} />
-          <span>{updatingApp ? "Updating App…" : `v${APP_BUILD_VERSION} • Force Refresh & Clear Cache`}</span>
-        </button>
-      </div>
-    )}
+            if ("caches" in window) {
+              const keys = await caches.keys();
+              for (const key of keys) await caches.delete(key);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+          localStorage.setItem("unplastica_acknowledged_update_ver", APP_BUILD_VERSION);
+          localStorage.setItem("unplastica_app_version", APP_BUILD_VERSION);
+          setUpdatePending(false);
+          window.location.reload();
+        }}
+      >
+        <Icon name="arrow" size={14} />
+        <span>{updatingApp ? "Updating App…" : updatePending ? `v${APP_BUILD_VERSION} (Update Ready) • Force Refresh & Clear Cache` : `v${APP_BUILD_VERSION} • Force Refresh & Clear Cache`}</span>
+      </button>
+    </div>
 
     <div className="profile-details">
       <DetailRow label={t("settings.username")} value={props.guest ? t("settings.guest") : "@" + props.profile.username} icon="users" />
@@ -1257,7 +1254,7 @@ function SettingsPage(props: {
 
     {showSetPassword && (
       <section className="settings-edit-card">
-        <h4>Set Account Password:</h4>
+        <h4>Set Account Password</h4>
         <p>
           {isGoogleOAuth
             ? "Your account was connected via Google. Setting a password allows you to also log in manually using your username or email on any computer or mobile device!"
@@ -1275,12 +1272,26 @@ function SettingsPage(props: {
               required
             />
             <div className="password-criteria-list">
-              <span className={"password-criterion " + (pwCheck.hasLength ? "met" : "")}>
-                <span className="criterion-bullet">●</span> 8-36 Characters
-              </span>
-              <span className={"password-criterion " + (pwCheck.hasLetterAndNumberAndSpecial ? "met" : "")}>
-                <span className="criterion-bullet">●</span> 1 number, alphabet and special character (!@#$)
-              </span>
+              <div className={"password-criterion " + (pwCheck.hasLength ? "met" : "")}>
+                <span className="criterion-circle" aria-hidden="true">
+                  {pwCheck.hasLength && (
+                    <svg className="criterion-tick" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3.5 8.5l3 3 6-6" />
+                    </svg>
+                  )}
+                </span>
+                <span>8-36 Characters</span>
+              </div>
+              <div className={"password-criterion " + (pwCheck.hasLetterAndNumberAndSpecial ? "met" : "")}>
+                <span className="criterion-circle" aria-hidden="true">
+                  {pwCheck.hasLetterAndNumberAndSpecial && (
+                    <svg className="criterion-tick" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3.5 8.5l3 3 6-6" />
+                    </svg>
+                  )}
+                </span>
+                <span>1 number, alphabet and special character (!@#$)</span>
+              </div>
             </div>
           </label>
           <label>CONFIRM PASSWORD
@@ -1303,7 +1314,15 @@ function SettingsPage(props: {
     )}
 
     <section className="preferences"><h3>{t("settings.preferences")}</h3>
-      <div className="setting-card setting-toggle"><span className="setting-icon"><Icon name="bell" /></span><strong>{t("settings.notifications")}</strong><button className={"switch " + (props.notifications ? "on" : "")} role="switch" aria-checked={props.notifications} onClick={() => props.onNotification(!props.notifications)}><span /></button></div>
+      <div className="setting-card setting-toggle"><span className="setting-icon"><Icon name="bell" /></span><strong>{t("settings.notifications")}</strong><button className={"switch " + (props.notifications ? "on" : "")} role="switch" aria-checked={props.notifications} onClick={async () => {
+        const next = !props.notifications;
+        props.onNotification(next);
+        if (next && "Notification" in window && Notification.permission === "default") {
+          try {
+            await Notification.requestPermission();
+          } catch (_) {}
+        }
+      }}><span /></button></div>
       <div className="setting-card setting-select"><div className="setting-title"><span className="setting-icon"><Icon name="globe" /></span><strong>{t("settings.language")}</strong></div><div className="segmented language-options">
         {(["Bahasa Melayu", "English", "中文"] as const).map((value) => <button key={value} className={props.language === value ? "active" : ""} onClick={() => props.onLanguage(value)}>{value}</button>)}
       </div></div>
@@ -2239,98 +2258,171 @@ function InstallPrompt({ prompt, environment, onInstall }: { prompt: InstallProm
 function UpdateNotice() {
   const t = useCopy();
   const [updating, setUpdating] = useState(false);
+  const [availableVersion, setAvailableVersion] = useState<string | null>(null);
+
+  const performClearCacheAndUpdate = async () => {
+    if (updating) return;
+    setUpdating(true);
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) await reg.unregister();
+      }
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        for (const key of keys) await caches.delete(key);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    const targetVer = availableVersion || APP_BUILD_VERSION;
+    localStorage.setItem("unplastica_acknowledged_update_ver", targetVer);
+    localStorage.setItem("unplastica_app_version", targetVer);
+    window.location.reload();
+  };
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-
-    let refreshing = false;
     let pollTimer: number | undefined;
     let cleanupListeners: (() => void) | undefined;
 
-    const onControllerChange = () => {
-      if (refreshing) return;
-      refreshing = true;
-      setUpdating(true);
-      window.location.reload();
-    };
-    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-
-    void import("virtual:pwa-register").then(({ registerSW }) => {
-      const updateSW = registerSW({
-        immediate: true,
-        onNeedRefresh() {
-          setUpdating(true);
-          void updateSW(true);
-        },
-        onRegisteredSW(_swUrl, registration) {
-          if (!registration) return;
-
-          // If a worker is already waiting (e.g. from previous background fetch in PWA), activate it immediately
-          if (registration.waiting) {
-            setUpdating(true);
-            void updateSW(true);
-            return;
-          }
-
-          let lastCheck = 0;
-          const checkForUpdates = () => {
-            const now = Date.now();
-            // Throttle checks to once every 10 seconds to avoid spamming the network
-            if (now - lastCheck < 10_000 || !navigator.onLine) return;
-            lastCheck = now;
-            registration.update().catch(() => {});
-          };
-
-          // 1. Initial check when app opens
-          checkForUpdates();
-
-          // 2. Poll every 25 seconds while app is running
-          pollTimer = window.setInterval(checkForUpdates, 25_000);
-
-          // 3. Handlers for when phone or laptop PWA is resumed/brought to foreground
-          const onVisibleOrFocus = () => {
-            if (document.visibilityState === "visible") checkForUpdates();
-          };
-          const onPageShow = () => checkForUpdates();
-          const onOnline = () => checkForUpdates();
-
-          document.addEventListener("visibilitychange", onVisibleOrFocus);
-          window.addEventListener("focus", onVisibleOrFocus);
-          window.addEventListener("pageshow", onPageShow);
-          window.addEventListener("online", onOnline);
-
-          // 4. Also listen for new worker installation
-          registration.addEventListener("updatefound", () => {
-            const installing = registration.installing;
-            if (!installing) return;
-            installing.addEventListener("statechange", () => {
-              if (installing.state === "installed" && navigator.serviceWorker.controller) {
-                setUpdating(true);
-                void updateSW(true);
-              }
-            });
+    const notifyUpdate = (newVer: string) => {
+      setAvailableVersion(newVer);
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification("Unplastica Update Available", {
+            body: `Version ${newVer} is ready! Tap to update and clear cache.`,
+            icon: "/icons/icon-192.png",
+            tag: "unplastica-update",
           });
+        } catch (_) {}
+      }
+    };
 
-          cleanupListeners = () => {
-            document.removeEventListener("visibilitychange", onVisibleOrFocus);
-            window.removeEventListener("focus", onVisibleOrFocus);
-            window.removeEventListener("pageshow", onPageShow);
-            window.removeEventListener("online", onOnline);
-          };
-        },
+    const checkRemoteVersion = async () => {
+      if (!navigator.onLine) return;
+      try {
+        const res = await fetch(`/version.json?_t=${Date.now()}`, { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.version && data.version !== APP_BUILD_VERSION) {
+            notifyUpdate(data.version);
+          }
+        }
+      } catch (_) {}
+    };
+
+    if ("serviceWorker" in navigator) {
+      let refreshing = false;
+      const onControllerChange = () => {
+        if (refreshing) return;
+        refreshing = true;
+        setUpdating(true);
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+      void import("virtual:pwa-register").then(({ registerSW }) => {
+        registerSW({
+          immediate: true,
+          onNeedRefresh() {
+            notifyUpdate(APP_BUILD_VERSION);
+          },
+          onRegisteredSW(_swUrl, registration) {
+            if (!registration) return;
+
+            if (registration.waiting) {
+              notifyUpdate(APP_BUILD_VERSION);
+              return;
+            }
+
+            let lastCheck = 0;
+            const checkForUpdates = () => {
+              const now = Date.now();
+              if (now - lastCheck < 10_000 || !navigator.onLine) return;
+              lastCheck = now;
+              registration.update().catch(() => {});
+              void checkRemoteVersion();
+            };
+
+            checkForUpdates();
+            pollTimer = window.setInterval(checkForUpdates, 20_000);
+
+            const onVisibleOrFocus = () => {
+              if (document.visibilityState === "visible") checkForUpdates();
+            };
+            const onOnline = () => checkForUpdates();
+
+            document.addEventListener("visibilitychange", onVisibleOrFocus);
+            window.addEventListener("focus", onVisibleOrFocus);
+            window.addEventListener("pageshow", checkForUpdates);
+            window.addEventListener("online", onOnline);
+
+            registration.addEventListener("updatefound", () => {
+              const installing = registration.installing;
+              if (!installing) return;
+              installing.addEventListener("statechange", () => {
+                if (installing.state === "installed" && navigator.serviceWorker.controller) {
+                  notifyUpdate(APP_BUILD_VERSION);
+                }
+              });
+            });
+
+            cleanupListeners = () => {
+              navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+              document.removeEventListener("visibilitychange", onVisibleOrFocus);
+              window.removeEventListener("focus", onVisibleOrFocus);
+              window.removeEventListener("pageshow", checkForUpdates);
+              window.removeEventListener("online", onOnline);
+            };
+          },
+        });
       });
-    });
+    } else {
+      void checkRemoteVersion();
+      pollTimer = window.setInterval(checkRemoteVersion, 20_000);
+      const onVisible = () => {
+        if (document.visibilityState === "visible") void checkRemoteVersion();
+      };
+      document.addEventListener("visibilitychange", onVisible);
+      cleanupListeners = () => {
+        document.removeEventListener("visibilitychange", onVisible);
+      };
+    }
 
     return () => {
-      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
       if (pollTimer) window.clearInterval(pollTimer);
       if (cleanupListeners) cleanupListeners();
     };
   }, []);
 
-  return updating ? (
-    <div className="update-notice force-update-pill" role="status">
-      <span>{t("update.notice")}</span>
-    </div>
-  ) : null;
+  if (updating) {
+    return (
+      <div className="app-update-banner is-updating" role="status">
+        <span className="update-banner-spinner" aria-hidden="true" />
+        <span>{t("update.notice")}</span>
+      </div>
+    );
+  }
+
+  if (availableVersion) {
+    return (
+      <div className="app-update-banner" role="alert">
+        <div className="update-banner-content">
+          <span className="update-banner-badge">NEW</span>
+          <span className="update-banner-text">
+            {t("update.available")} <strong>v{availableVersion}</strong>
+          </span>
+        </div>
+        <button
+          type="button"
+          className="update-banner-action"
+          onClick={() => void performClearCacheAndUpdate()}
+        >
+          {t("update.clearCache")}
+        </button>
+      </div>
+    );
+  }
+
+  return null;
 }
