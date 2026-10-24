@@ -111,8 +111,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
     return response.status(200).json({
       status: "ready",
       model: "mobilenet_v3_small",
-      model_version: "mobilenet_v3_small-v0.1.8-clutter-invariant",
-      model_sha256: "64f5e5741fd1dcb06132e1944b4320704b493c9cafc316f00ddfd6f88150a41b",
+      model_version: "mobilenet_v3_small-v0.2.0-edge-refined",
+      model_sha256: "fec8c7aeda33e9cb407a5f01b454f5b1f26efb841dc3b04e52b775dfbdf1ef26",
       classes: Array.from(VALID_HABITS).concat(["other"]).sort(),
       threshold: 0.85,
       rate_limit: {
@@ -238,7 +238,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       status: verified ? "verified" : "rejected",
       predicted_label: mlData.predicted_label,
       confidence: mlData.confidence,
-      model_version: mlData.model_version || "mobilenet_v3_small-v0.1.8-clutter-invariant",
+      model_version: mlData.model_version || "mobilenet_v3_small-v0.2.0-edge-refined",
       verified,
     });
   } catch (err) {

@@ -45,7 +45,7 @@ const habitImages: Record<HabitCode, string> = {
   handicraft_projects: "/assets/habits/handicraft-projects.png?v=2",
 };
 
-export const APP_BUILD_VERSION = "0.2.2";
+export const APP_BUILD_VERSION = "0.2.3";
 
 export type PasswordCheck = {
   valid: boolean;
@@ -1138,7 +1138,7 @@ function SettingsPage(props: {
           gap: 8,
           padding: "9px 18px",
           border: "1.5px dashed var(--leaf)",
-          borderRadius: 100,
+          borderRadius: 8,
           background: "rgba(86, 217, 133, 0.14)",
           cursor: "pointer",
           boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
@@ -1495,12 +1495,13 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
           }
 
           const msg = authError.message || "";
-          if (msg.includes("Invalid login credentials") || msg.includes("invalid_grant") || msg.includes("Google")) {
+          if (msg.includes("Invalid login credentials") || msg.includes("invalid_grant") || msg.includes("Google") || msg.includes("Microsoft") || msg.includes("Azure")) {
             setShowOAuthHint(true);
+            const isMs = identifier.toLowerCase().includes("@outlook.") || identifier.toLowerCase().includes("@hotmail.") || identifier.toLowerCase().includes("@live.") || msg.includes("Microsoft") || msg.includes("Azure");
             throw new Error(
-              msg.includes("Google")
-                ? msg
-                : "Invalid login credentials. If your account was registered with Google OAuth, click 'Continue with Google' or use the link below to set a password."
+              isMs
+                ? "Invalid login credentials. If your account was registered with Microsoft click 'Continue with Microsoft' or use the link below to set a password."
+                : "Invalid login credentials. If your account was registered with Google click 'Continue with Google' or use the link below to set a password."
             );
           }
           if (msg.includes("Email not confirmed")) {
@@ -1576,7 +1577,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
             {t("auth.name")}
             <input
               autoComplete="name"
-              placeholder="e.g. User 6s37a29f31"
+              placeholder=""
               maxLength={50}
               value={name}
               onChange={(event) => setName(event.target.value.slice(0, 50))}
@@ -1587,7 +1588,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
             {t("auth.username")}
             <input
               autoComplete="username"
-              placeholder="e.g. user_6s37a29f31"
+              placeholder=""
               value={username}
               onChange={(event) => setUsername(event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30))}
               minLength={3}
@@ -1614,9 +1615,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
             placeholder={
               mode === "signup" && method === "phone"
                 ? "+60 12 345 6789"
-                : mode === "login"
-                ? "e.g. user_6s37a29f31 or user_6s37a29f31@gmail.com"
-                : "e.g. user_6s37a29f31@gmail.com"
+                : ""
             }
             value={identifier}
             onChange={(event) => setIdentifier(event.target.value.slice(0, 100))}
@@ -1630,7 +1629,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
           <input
             type="password"
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            placeholder="••••••••"
+            placeholder=""
             value={password}
             onChange={(event) => setPassword(event.target.value.slice(0, 72))}
             minLength={8}
@@ -1661,10 +1660,21 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
       {error && <p className="form-error" role="alert">{error}</p>}
       {showOAuthHint && (
         <div className="auth-oauth-guidance">
-          <p><strong>Google OAuth Notice:</strong> Accounts created using Google don't have a manual password by default.</p>
-          <button type="button" className="google-button" style={{ margin: "2px 0" }} onClick={() => void google()} disabled={busy}>
-            <GoogleMark /> Continue with Google
-          </button>
+          {identifier.toLowerCase().includes("@outlook.") || identifier.toLowerCase().includes("@hotmail.") || identifier.toLowerCase().includes("@live.") ? (
+            <>
+              <p><strong>Notice:</strong> Accounts created using Microsoft don't have a manual password by default.</p>
+              <button type="button" className="microsoft-button" style={{ margin: "2px 0" }} onClick={() => void microsoft()} disabled={busy}>
+                <MicrosoftMark /> Continue with Microsoft / Outlook
+              </button>
+            </>
+          ) : (
+            <>
+              <p><strong>Notice:</strong> Accounts created using Google don't have a manual password by default.</p>
+              <button type="button" className="google-button" style={{ margin: "2px 0" }} onClick={() => void google()} disabled={busy}>
+                <GoogleMark /> Continue with Google
+              </button>
+            </>
+          )}
           <button type="button" className="text-button" style={{ textDecoration: "underline", fontSize: "12px", textAlign: "left", cursor: "pointer" }} onClick={() => void sendPasswordReset()}>
             Send password setup link to my email
           </button>
