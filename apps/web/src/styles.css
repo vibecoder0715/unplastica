@@ -636,19 +636,14 @@ img { max-width: 100%; }
   filter: saturate(0.85);
   transition: opacity 0.2s ease, transform 0.3s ease;
 }
-.event-column-bg.green-campus-bg {
-  background-size: cover;
-  background-position: left center;
-  opacity: 0.20;
-}
 .event-column-bg.apu-logo-bg {
   background-size: contain;
   background-repeat: no-repeat;
   background-position: right center;
-  opacity: 0.15;
+  opacity: 0.16;
 }
 .event-column-card:hover .event-column-bg {
-  opacity: 0.24;
+  opacity: 0.25;
   transform: scale(1.02);
 }
 .event-column-overlay {

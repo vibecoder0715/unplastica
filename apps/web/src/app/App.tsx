@@ -417,7 +417,7 @@ export default function App() {
     setProfile((current) => current ? { ...current, preferences: next } : current);
     if (supabase && user) {
       const { error } = await supabase.from("profiles").update({ preferences: next }).eq("id", user.id);
-      if (error) notify("Could not save this preference. Please try again.");
+      if (error) notify(t("settings.preferenceSaveError"));
     } else {
       localStorage.setItem("unplastica-guest-preferences", JSON.stringify(next));
     }
@@ -551,17 +551,17 @@ export default function App() {
     });
 
     await loadAccount(user);
-    notify("Profile updated successfully!");
+    notify(t("settings.profileUpdatedSuccess"));
   };
 
   const updatePassword = async (newPassword: string) => {
     if (!supabase || !user) return;
     const { error: pwdErr } = await supabase.auth.updateUser({ password: newPassword });
     if (pwdErr) {
-      notify("Failed to set password: " + pwdErr.message);
+      notify(t("auth.passwordSetFailed", { error: pwdErr.message }));
       throw pwdErr;
     }
-    notify("Password set successfully! You can now log in manually or via Google.");
+    notify(t("auth.passwordSetSuccess"));
   };
 
   return (
@@ -582,13 +582,13 @@ export default function App() {
             if (selectedHabit === "box_cutlery" && boxCutleryCooldownMs > 0) {
               const h = Math.floor(boxCutleryCooldownMs / 3600000);
               const m = Math.ceil((boxCutleryCooldownMs % 3600000) / 60000);
-              notify(`${t("earn.boxCutleryLimit")} (${h}h ${m}m remaining)`);
+              notify(t("earn.cooldownActive", { h, m }));
               return;
             }
             const limit = selectedHabit === "box_cutlery" ? 3 : 1;
             const used = dailyUsage[selectedHabit] || 0;
             if (used >= limit) {
-              notify(`Daily limit reached for this habit (${limit} time${limit > 1 ? "s" : ""}/day: 3 times/day for Box & Cutlery, 1 time/day for others). Come back tomorrow!`);
+              notify(t("earn.dailyQuotaNotice", { limit, s: limit > 1 ? "s" : "" }));
               return;
             }
             setCamera(true);
@@ -651,7 +651,7 @@ export default function App() {
             });
             localStorage.setItem("unplastica_username_prompted_" + user.id, "true");
             setShowUsernamePrompt(false);
-            notify("Username updated successfully!");
+            notify(t("auth.usernameUpdatedSuccess"));
           }}
           onDismiss={() => {
             localStorage.setItem("unplastica_username_prompted_" + user.id, "true");
@@ -770,9 +770,9 @@ function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo
           <strong>{habit ? t("habit." + habit.code) : t("camera.title")}</strong>
           <span>
             {isBoxCooldown
-              ? `Cooldown active: ${Math.floor(boxCutleryCooldownMs / 3600000)}h ${Math.ceil((boxCutleryCooldownMs % 3600000) / 60000)}m remaining (5-hour limit)`
+              ? t("earn.cooldownActive", { h: Math.floor(boxCutleryCooldownMs / 3600000), m: Math.ceil((boxCutleryCooldownMs % 3600000) / 60000) })
               : isSelectedCapped
-              ? "Daily limit reached for this habit today (resets at midnight)"
+              ? t("earn.dailyLimitReachedToday")
               : habit
               ? t("earn.reward", { points: habit.points })
               : t("earn.hold")}
@@ -797,7 +797,7 @@ function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo
                 <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <b style={{ display: "inline-flex", alignItems: "center", gap: "2px" }}><img className="habit-points-icon" src="/assets/brand/greenbits.png" alt="" style={{ width: 16, height: 16, objectFit: "contain", background: "transparent" }} />+{item.points}</b>
                   <span className={"daily-quota-pill" + (capped || isCooldown ? " capped" : "")}>
-                    {isCooldown ? `Cooldown ${Math.floor(boxCutleryCooldownMs / 3600000)}h ${Math.ceil((boxCutleryCooldownMs % 3600000) / 60000)}m` : capped ? "Daily limit reached" : `${used}/${limit} today`}
+                    {isCooldown ? t("earn.dailyQuotaCooldown", { h: Math.floor(boxCutleryCooldownMs / 3600000), m: Math.ceil((boxCutleryCooldownMs % 3600000) / 60000) }) : capped ? t("earn.dailyQuotaCapped") : t("earn.dailyQuotaToday", { used, limit })}
                   </span>
                 </span>
               </span>
@@ -851,7 +851,6 @@ function EventsPage({ onSample }: { onSample: () => void }) {
             className="event-column-card"
             onClick={() => setActiveTab("done")}
           >
-            <div className="event-column-bg green-campus-bg" style={{ backgroundImage: "url(/assets/events/green-campus-initiative.jpg)" }} />
             <div className="event-column-bg apu-logo-bg" style={{ backgroundImage: "url(/assets/events/apu-mark.png)" }} />
             <div className="event-column-overlay" />
             <div className="event-column-content">
@@ -977,7 +976,26 @@ function SettingsPage(props: {
   onUpdatePassword?: (password: string) => Promise<void>;
 }) {
   const t = useCopy();
-  const [updatePending, setUpdatePending] = useState(() => localStorage.getItem("unplastica_acknowledged_update_ver") !== APP_BUILD_VERSION);
+  const [updatePending, setUpdatePending] = useState(() => {
+    const pendingVer = localStorage.getItem("unplastica_update_available");
+    return Boolean(pendingVer && pendingVer !== APP_BUILD_VERSION);
+  });
+  const [targetVersion, setTargetVersion] = useState(() => {
+    return localStorage.getItem("unplastica_update_available") || APP_BUILD_VERSION;
+  });
+
+  useEffect(() => {
+    const handleUpdateDetected = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail;
+      const newVer = detail?.version;
+      if (newVer && newVer !== APP_BUILD_VERSION) {
+        setTargetVersion(newVer);
+        setUpdatePending(true);
+      }
+    };
+    window.addEventListener("unplastica-update-detected", handleUpdateDetected);
+    return () => window.removeEventListener("unplastica-update-detected", handleUpdateDetected);
+  }, []);
   const [updatingApp, setUpdatingApp] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -1074,11 +1092,11 @@ function SettingsPage(props: {
     if (!props.onUpdatePassword) return;
     setPasswordError("");
     if (!pwCheck.valid) {
-      setPasswordError("Password must be 8-36 characters long and include 1 number, alphabet and special character (!@#$).");
+      setPasswordError(t("auth.passwordRequirement"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError("Passwords do not match.");
+      setPasswordError(t("auth.passwordMismatch"));
       return;
     }
     setSavingPassword(true);
@@ -1088,7 +1106,7 @@ function SettingsPage(props: {
       setConfirmPassword("");
       setShowSetPassword(false);
     } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : "Failed to set password");
+      setPasswordError(err instanceof Error ? err.message : t("auth.passwordSetFailed", { error: "" }));
     } finally {
       setSavingPassword(false);
     }
@@ -1124,60 +1142,63 @@ function SettingsPage(props: {
       <p className="profile-photo-note">{t("profile.photoLimit")}</p>
     </div>
 
-    <div style={{ textAlign: "center", margin: "6px 0 16px" }}>
-      <button
-        type="button"
-        className="ghost-button"
-        disabled={updatingApp}
-        style={{
-          fontSize: "0.85rem",
-          fontWeight: 700,
-          color: "var(--forest)",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "9px 18px",
-          border: "1.5px dashed var(--leaf)",
-          borderRadius: 8,
-          background: "rgba(86, 217, 133, 0.14)",
-          cursor: "pointer",
-          boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
-        }}
-        onClick={async () => {
-          setUpdatingApp(true);
-          try {
-            if ("serviceWorker" in navigator) {
-              const regs = await navigator.serviceWorker.getRegistrations();
-              for (const reg of regs) await reg.unregister();
+    {updatePending && (
+      <div style={{ textAlign: "center", margin: "6px 0 16px" }}>
+        <button
+          type="button"
+          className="ghost-button"
+          disabled={updatingApp}
+          style={{
+            fontSize: "0.85rem",
+            fontWeight: 700,
+            color: "var(--forest)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "9px 18px",
+            border: "1.5px dashed var(--leaf)",
+            borderRadius: 8,
+            background: "rgba(86, 217, 133, 0.14)",
+            cursor: "pointer",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
+          }}
+          onClick={async () => {
+            setUpdatingApp(true);
+            try {
+              if ("serviceWorker" in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) await reg.unregister();
+              }
+              if ("caches" in window) {
+                const keys = await caches.keys();
+                for (const key of keys) await caches.delete(key);
+              }
+            } catch (e) {
+              console.error(e);
             }
-            if ("caches" in window) {
-              const keys = await caches.keys();
-              for (const key of keys) await caches.delete(key);
-            }
-          } catch (e) {
-            console.error(e);
-          }
-          localStorage.setItem("unplastica_acknowledged_update_ver", APP_BUILD_VERSION);
-          localStorage.setItem("unplastica_app_version", APP_BUILD_VERSION);
-          setUpdatePending(false);
-          window.location.reload();
-        }}
-      >
-        <Icon name="arrow" size={14} />
-        <span>{updatingApp ? "Updating App…" : updatePending ? `v${APP_BUILD_VERSION} (Update Ready) • Force Refresh & Clear Cache` : `v${APP_BUILD_VERSION} • Force Refresh & Clear Cache`}</span>
-      </button>
-    </div>
+            localStorage.removeItem("unplastica_update_available");
+            localStorage.setItem("unplastica_acknowledged_update_ver", targetVersion);
+            localStorage.setItem("unplastica_app_version", targetVersion);
+            setUpdatePending(false);
+            window.location.reload();
+          }}
+        >
+          <Icon name="arrow" size={14} />
+          <span>{updatingApp ? t("settings.updatingApp") : `v${targetVersion} (${t("settings.updateReady")}) • ${t("settings.forceRefreshClearCache")}`}</span>
+        </button>
+      </div>
+    )}
 
     <div className="profile-details">
       <DetailRow label={t("settings.username")} value={props.guest ? t("settings.guest") : "@" + props.profile.username} icon="users" />
       <DetailRow
-        label={isMicrosoftOAuth ? "Outlook / Microsoft Account" : isGoogleOAuth || displayEmail.toLowerCase().endsWith("@gmail.com") ? "Google Account (Gmail)" : t("settings.email")}
-        value={displayEmail ? displayEmail : props.guest ? "Guest (Log in to connect email/OAuth)" : "Not linked (tap Edit Profile to add)"}
+        label={isMicrosoftOAuth ? t("settings.outlookAccountLabel") : isGoogleOAuth || displayEmail.toLowerCase().endsWith("@gmail.com") ? t("settings.googleAccountLabel") : t("settings.email")}
+        value={displayEmail ? displayEmail : props.guest ? t("settings.guestConnectHint") : t("settings.notLinkedHint")}
         icon="mail"
       />
       <DetailRow
         label={t("settings.phone")}
-        value={props.profile.phone ? props.profile.phone : props.guest ? "Guest (Log in to add phone)" : "Not linked (tap Edit Profile to add)"}
+        value={props.profile.phone ? props.profile.phone : props.guest ? t("settings.guestPhoneHint") : t("settings.notLinkedHint")}
         icon="user"
       />
       {!props.guest && props.profile.tagline && <DetailRow label={t("settings.tagline")} value={props.profile.tagline} icon="bulb" />}
@@ -1191,7 +1212,7 @@ function SettingsPage(props: {
           onClick={() => { setShowEditProfile(!showEditProfile); setShowSetPassword(false); }}
         >
           <Icon name="user" size={17} />
-          {showEditProfile ? "Close Profile Edit" : "Edit Profile & Username"}
+          {showEditProfile ? t("settings.closeProfileEditBtn") : t("settings.editProfileBtn")}
         </button>
         <button
           type="button"
@@ -1199,16 +1220,16 @@ function SettingsPage(props: {
           onClick={() => { setShowSetPassword(!showSetPassword); setShowEditProfile(false); }}
         >
           <Icon name="shield" size={17} />
-          {showSetPassword ? "Close Password" : "Set Password"}
+          {showSetPassword ? t("auth.closePassword") : t("auth.setPassword")}
         </button>
       </div>
     )}
 
     {showEditProfile && (
       <section className="settings-edit-card">
-        <h4>Edit Profile & Credentials</h4>
+        <h4>{t("settings.editProfileTitle")}</h4>
         <form onSubmit={(e) => void handleSaveProfile(e)}>
-          <label>USERNAME
+          <label>{t("settings.usernameUpper")}
             <input
               type="text"
               value={editUsername}
@@ -1217,7 +1238,7 @@ function SettingsPage(props: {
               required
             />
           </label>
-          <label>EMAIL ADDRESS
+          <label>{t("settings.emailUpper")}
             <input
               type="email"
               value={editEmail}
@@ -1226,7 +1247,7 @@ function SettingsPage(props: {
               placeholder="e.g. warrior@gmail.com"
             />
           </label>
-          <label>PHONE NUMBER
+          <label>{t("settings.phoneUpper")}
             <input
               type="tel"
               value={editPhone}
@@ -1235,18 +1256,18 @@ function SettingsPage(props: {
               placeholder="+60 12 345 6789"
             />
           </label>
-          <label>TAGLINE
+          <label>{t("settings.taglineUpper")}
             <input
               type="text"
               value={editTagline}
               maxLength={120}
               onChange={(e) => setEditTagline(e.target.value.slice(0, 120))}
-              placeholder="Refusing plastic, one meal at a time."
+              placeholder={t("settings.taglinePlaceholder")}
             />
           </label>
           {profileError && <p className="form-error" role="alert">{profileError}</p>}
           <button className="settings-save-button" disabled={savingProfile}>
-            {savingProfile ? "Saving…" : "Save Profile & Credentials"}
+            {savingProfile ? t("settings.saving") : t("settings.saveProfileBtn")}
           </button>
         </form>
       </section>
@@ -1254,21 +1275,21 @@ function SettingsPage(props: {
 
     {showSetPassword && (
       <section className="settings-edit-card">
-        <h4>Set Account Password</h4>
+        <h4>{t("auth.setAccountPasswordTitle")}</h4>
         <p>
           {isGoogleOAuth
-            ? "Your account was connected via Google. Setting a password allows you to also log in manually using your username or email on any computer or mobile device!"
-            : "Your account was created on this device. Setting a password allows you to log in manually on any computer or mobile device!"}
+            ? t("auth.setPasswordGoogleDesc")
+            : t("auth.setPasswordDeviceDesc")}
         </p>
         <form onSubmit={(e) => void handleSavePassword(e)}>
-          <label>NEW PASSWORD
+          <label>{t("auth.newPasswordLabel")}
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value.slice(0, 36))}
               minLength={8}
               maxLength={36}
-              placeholder="8-36 characters"
+              placeholder={t("criteria.length36")}
               required
             />
             <div className="password-criteria-list">
@@ -1280,7 +1301,7 @@ function SettingsPage(props: {
                     </svg>
                   )}
                 </span>
-                <span>8-36 Characters</span>
+                <span>{t("criteria.length36")}</span>
               </div>
               <div className={"password-criterion " + (pwCheck.hasLetterAndNumberAndSpecial ? "met" : "")}>
                 <span className="criterion-circle" aria-hidden="true">
@@ -1290,24 +1311,24 @@ function SettingsPage(props: {
                     </svg>
                   )}
                 </span>
-                <span>1 number, alphabet and special character (!@#$)</span>
+                <span>{t("criteria.complexity")}</span>
               </div>
             </div>
           </label>
-          <label>CONFIRM PASSWORD
+          <label>{t("auth.confirmPasswordLabel")}
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value.slice(0, 36))}
               minLength={8}
               maxLength={36}
-              placeholder="Repeat password"
+              placeholder={t("auth.repeatPasswordPlaceholder")}
               required
             />
           </label>
           {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
           <button className="settings-save-button" disabled={savingPassword || !pwCheck.valid}>
-            {savingPassword ? "Updating…" : "Set Password"}
+            {savingPassword ? t("auth.updating") : t("auth.setPassword")}
           </button>
         </form>
       </section>
@@ -1349,6 +1370,8 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
   const [method, setMethod] = useState<"email" | "phone">("email");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [phoneCode, setPhoneCode] = useState("");
@@ -1375,10 +1398,10 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
     try {
       const { error: resendErr } = await supabase.auth.resend({ type: "signup", email: identifier.trim() });
       if (resendErr) throw resendErr;
-      setNotice("Confirmation email resent! Please check your inbox and spam folder.");
+      setNotice(t("auth.confirmationResent"));
       setShowResend(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to resend confirmation email.");
+      setError(err instanceof Error ? err.message : t("auth.resendFailed"));
     } finally {
       setBusy(false);
     }
@@ -1387,7 +1410,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
   const sendPasswordReset = async () => {
     const targetEmail = identifier.trim();
     if (!supabase || !targetEmail || !targetEmail.includes("@")) {
-      setError("Please enter your email address in the field above to receive a password setup link.");
+      setError(t("auth.enterEmailForReset"));
       return;
     }
     setBusy(true); setError("");
@@ -1396,10 +1419,10 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
         redirectTo: `${window.location.origin}/settings`
       });
       if (resetErr) throw resetErr;
-      setNotice(`Password setup email sent to ${targetEmail}! Please check your inbox.`);
+      setNotice(t("auth.resetEmailSent", { email: targetEmail }));
       setShowOAuthHint(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send password setup email.");
+      setError(err instanceof Error ? err.message : t("auth.resetEmailFailed"));
     } finally {
       setBusy(false);
     }
@@ -1408,7 +1431,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (authLockoutSec > 0) {
-      setError(`Too many failed login attempts. Locked for ${authLockoutSec} seconds for security.`);
+      setError(t("auth.lockoutMessage", { sec: authLockoutSec }));
       return;
     }
     if (!supabase) { setError(t("auth.setupNeeded")); return; }
@@ -1442,7 +1465,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
           onAuthenticated();
           return;
         }
-        setNotice("Account created! You can now log in with your email or username.");
+        setNotice(t("auth.accountCreatedNotice"));
         setMode("login");
       } else if (mode === "signup") {
         const check = validatePasswordComplexity(password);
@@ -1474,11 +1497,11 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
               const body = await (result.error as any).context?.json?.();
               if (body?.error) detail = body.error;
             } catch {}
-            authError = new Error(detail || result.error.message || "Invalid username or password.");
+            authError = new Error(detail || result.error.message || t("auth.invalidUsernameOrPassword"));
           } else {
             const session = result.data as { access_token?: string; refresh_token?: string };
             if (!session?.access_token || !session.refresh_token) {
-              authError = new Error("Invalid username or password.");
+              authError = new Error(t("auth.invalidUsernameOrPassword"));
             } else {
               const saved = await supabase.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
               if (saved.error) authError = saved.error;
@@ -1554,7 +1577,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
     });
     if (oauthError) {
       if (oauthError.message.includes("provider is not enabled") || oauthError.message.includes("azure")) {
-        setError("Microsoft / Outlook OAuth requires Azure credentials in Supabase Dashboard. You can also log in directly using your Outlook email!");
+        setError(t("auth.microsoftAzureNotice"));
       } else {
         setError(oauthError.message || t("auth.oauthError"));
       }
@@ -1566,7 +1589,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
     <p>{t("auth.subtitle")}</p>
     <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "8px 0" }}>
       <button className="google-button" style={{ margin: 0 }} type="button" onClick={() => void google()} disabled={busy}><GoogleMark />{t("auth.google")}</button>
-      <button className="microsoft-button" style={{ margin: 0 }} type="button" onClick={() => void microsoft()} disabled={busy}><MicrosoftMark />Continue with Microsoft / Outlook</button>
+      <button className="microsoft-button" style={{ margin: 0 }} type="button" onClick={() => void microsoft()} disabled={busy}><MicrosoftMark />{t("auth.microsoft")}</button>
     </div>
     <div className="auth-divider"><span>{t("auth.or")}</span></div>
     {mode === "signup" && <div className="segmented auth-method"><button className={method === "email" ? "active" : ""} onClick={() => { setMethod("email"); setIdentifier(""); setNotice(""); setAwaitingPhoneCode(false); }}>{t("auth.emailMode")}</button><button className={method === "phone" ? "active" : ""} onClick={() => { setMethod("phone"); setIdentifier(""); setNotice(""); setAwaitingPhoneCode(false); }}>{t("auth.phoneMode")}</button></div>}
@@ -1590,12 +1613,28 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
               autoComplete="username"
               placeholder=""
               value={username}
-              onChange={(event) => setUsername(event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30))}
+              onChange={(event) => {
+                const val = event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30);
+                setUsername(val);
+                if (usernameTouched && val.length > 0 && val.length < 3) {
+                  setUsernameError(t("auth.usernameRuleError"));
+                } else {
+                  setUsernameError("");
+                }
+              }}
+              onBlur={() => {
+                setUsernameTouched(true);
+                if (username.length > 0 && username.length < 3) {
+                  setUsernameError(t("auth.usernameRuleError"));
+                } else {
+                  setUsernameError("");
+                }
+              }}
               minLength={3}
               maxLength={30}
               required
             />
-            <span className="field-hint">3–30 characters: letters, numbers, underscore, hyphen.</span>
+            {usernameError && <p className="form-error" role="alert" style={{ marginTop: 4 }}>{usernameError}</p>}
           </label>
         </>
       )}
@@ -1637,11 +1676,27 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
             required
           />
           {mode === "signup" && (
-            <div style={{ margin: "6px 0", fontSize: "11px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" }}>
-              <span style={{ color: authPwCheck.hasLength ? "#2e7d32" : "#999" }}>{authPwCheck.hasLength ? "✓" : "○"} 8-72 characters</span>
-              <span style={{ color: authPwCheck.hasLetter ? "#2e7d32" : "#999" }}>{authPwCheck.hasLetter ? "✓" : "○"} At least 1 alphabet</span>
-              <span style={{ color: authPwCheck.hasNumber ? "#2e7d32" : "#999" }}>{authPwCheck.hasNumber ? "✓" : "○"} At least 1 number</span>
-              <span style={{ color: authPwCheck.hasSpecial ? "#2e7d32" : "#999" }}>{authPwCheck.hasSpecial ? "✓" : "○"} 1 special char (!@#$)</span>
+            <div className="password-criteria-list">
+              <div className={"password-criterion " + (authPwCheck.hasLength ? "met" : "")}>
+                <span className="criterion-circle" aria-hidden="true">
+                  {authPwCheck.hasLength && (
+                    <svg className="criterion-tick" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3.5 8.5l3 3 6-6" />
+                    </svg>
+                  )}
+                </span>
+                <span>{t("criteria.length72")}</span>
+              </div>
+              <div className={"password-criterion " + (authPwCheck.hasLetterAndNumberAndSpecial ? "met" : "")}>
+                <span className="criterion-circle" aria-hidden="true">
+                  {authPwCheck.hasLetterAndNumberAndSpecial && (
+                    <svg className="criterion-tick" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3.5 8.5l3 3 6-6" />
+                    </svg>
+                  )}
+                </span>
+                <span>{t("criteria.complexity")}</span>
+              </div>
             </div>
           )}
         </label>
@@ -1653,7 +1708,7 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
           style={{ textDecoration: "underline", fontSize: "12px", textAlign: "right", margin: "2px 0 8px", cursor: "pointer" }}
           onClick={() => void sendPasswordReset()}
         >
-          Forgot password or need to set credentials?
+          {t("auth.forgotPasswordPrompt")}
         </button>
       )}
       {notice && <p className="auth-notice" role="status">{notice}</p>}
@@ -1662,25 +1717,25 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
         <div className="auth-oauth-guidance">
           {identifier.toLowerCase().includes("@outlook.") || identifier.toLowerCase().includes("@hotmail.") || identifier.toLowerCase().includes("@live.") ? (
             <>
-              <p><strong>Notice:</strong> Accounts created using Microsoft don't have a manual password by default.</p>
+              <p><strong>{t("auth.oauthNoticePrefix")}</strong> {t("auth.oauthMicrosoftNotice")}</p>
               <button type="button" className="microsoft-button" style={{ margin: "2px 0" }} onClick={() => void microsoft()} disabled={busy}>
-                <MicrosoftMark /> Continue with Microsoft / Outlook
+                <MicrosoftMark /> {t("auth.microsoft")}
               </button>
             </>
           ) : (
             <>
-              <p><strong>Notice:</strong> Accounts created using Google don't have a manual password by default.</p>
+              <p><strong>{t("auth.oauthNoticePrefix")}</strong> {t("auth.oauthGoogleNotice")}</p>
               <button type="button" className="google-button" style={{ margin: "2px 0" }} onClick={() => void google()} disabled={busy}>
-                <GoogleMark /> Continue with Google
+                <GoogleMark /> {t("auth.google")}
               </button>
             </>
           )}
           <button type="button" className="text-button" style={{ textDecoration: "underline", fontSize: "12px", textAlign: "left", cursor: "pointer" }} onClick={() => void sendPasswordReset()}>
-            Send password setup link to my email
+            {t("auth.sendPasswordSetupLink")}
           </button>
         </div>
       )}
-      {showResend && <button type="button" className="text-button" style={{ textDecoration: "underline", marginBottom: "10px", width: "100%", textAlign: "center" }} onClick={() => void resendConfirmation()}>Resend confirmation email</button>}
+      {showResend && <button type="button" className="text-button" style={{ textDecoration: "underline", marginBottom: "10px", width: "100%", textAlign: "center" }} onClick={() => void resendConfirmation()}>{t("auth.resendConfirmation")}</button>}
       <button className="primary-button" disabled={busy}>{busy ? t("common.wait") : awaitingPhoneCode ? t("auth.verify") : mode === "signup" ? t("auth.signup") : t("auth.login")}</button>
     </form>
     {!awaitingPhoneCode && (
@@ -1766,7 +1821,16 @@ function getSharedCanvas(): HTMLCanvasElement {
 let ortSessionPromise: Promise<any> | null = null;
 function getOrtSession(ort: any): Promise<any> {
   if (!ortSessionPromise) {
-    ortSessionPromise = ort.InferenceSession.create("/model/model.onnx").catch((err: any) => {
+    try {
+      if (ort.env?.wasm) {
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.proxy = false;
+      }
+    } catch (_) {}
+    ortSessionPromise = ort.InferenceSession.create("/model/model.onnx", {
+      executionProviders: ["wasm"],
+      graphOptimizationLevel: "all",
+    }).catch((err: any) => {
       ortSessionPromise = null;
       throw err;
     });
@@ -1822,8 +1886,14 @@ async function inferHabit(
 
   const session = await getOrtSession(ort);
   const tensor = new ort.Tensor("float32", floatData, [1, 3, 224, 224]);
-  const results = await session.run({ input: tensor });
-  const output = results.output.data as Float32Array;
+  let output: Float32Array;
+  try {
+    const results = await session.run({ input: tensor });
+    output = new Float32Array(results.output.data as Float32Array);
+    try { results.output?.dispose?.(); } catch (_) {}
+  } finally {
+    try { tensor.dispose?.(); } catch (_) {}
+  }
 
   let maxVal = -Infinity;
   for (let i = 0; i < output.length; i++) if (output[i] > maxVal) maxVal = output[i];
@@ -2033,7 +2103,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
         const context = (created.error as { context?: Response }).context;
         const details = context ? await context.clone().json().catch(() => null) : null;
         if (details?.code === "daily_limit_reached" || details?.error?.includes("Daily limit")) {
-          onComplete("Daily limit reached for this habit today.");
+          onComplete(t("earn.dailyLimitReachedToast"));
           return;
         }
         throw created.error;
@@ -2049,7 +2119,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
           return;
         }
         if (details?.code === "daily_limit_reached" || details?.error?.includes("Daily limit")) {
-          onComplete("Daily limit reached for this habit today.");
+          onComplete(t("earn.dailyLimitReachedToast"));
           return;
         }
         throw result.error;
@@ -2100,7 +2170,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       </div>
     )}
 
-    {detecting && <div className="ai-detection-pill detecting">Checking photo…</div>}
+    {detecting && <div className="ai-detection-pill detecting">{t("camera.checkingPhoto")}</div>}
     {detection && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
         {detection.message === "Verified"
@@ -2129,7 +2199,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
             <Icon name="camera" /> {t("camera.capture")}
           </button>
           <button className="secondary-button" disabled={lockoutSec > 0} onClick={() => fileInputRef.current?.click()}>
-            <Icon name="camera" /> Upload Photo
+            <Icon name="camera" /> {t("camera.uploadPhoto")}
           </button>
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={onFileSelect} />
         </>
@@ -2177,6 +2247,7 @@ function UsernamePromptDialog({
   onSave: (username: string, name: string) => Promise<void>;
   onDismiss: () => void;
 }) {
+  const t = useCopy();
   const [username, setUsername] = useState(initialUsername.startsWith("user_") || /^user\d+/i.test(initialUsername) ? "" : initialUsername);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -2207,10 +2278,10 @@ function UsernamePromptDialog({
       <div className="dialog auth-dialog" style={{ maxWidth: 440 }}>
         <button className="dialog-close" onClick={onDismiss} aria-label="Close"><Icon name="close" /></button>
         <BrandLogo scrolled />
-        <h2 id="username-prompt-title">Choose Your Username</h2>
-        <p>You can set a custom username now for easy login, or keep your auto-generated ID.</p>
+        <h2 id="username-prompt-title">{t("auth.usernamePromptTitle")}</h2>
+        <p>{t("auth.usernamePromptBody")}</p>
         <form onSubmit={(e) => void handleSubmit(e)}>
-          <label>USERNAME
+          <label>{t("settings.usernameUpper")}
             <input
               type="text"
               value={username}
@@ -2225,10 +2296,10 @@ function UsernamePromptDialog({
           {error && <p className="form-error" role="alert">{error}</p>}
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
             <button className="primary-button" disabled={busy}>
-              {busy ? "Saving…" : "Save Username"}
+              {busy ? t("settings.saving") : t("auth.saveUsername")}
             </button>
             <button type="button" className="secondary-button" onClick={onDismiss} disabled={busy}>
-              Keep Default (@{initialUsername})
+              {t("auth.keepUsername", { username: `@${initialUsername}` })}
             </button>
           </div>
         </form>
@@ -2295,17 +2366,68 @@ function UpdateNotice() {
     let pollTimer: number | undefined;
     let cleanupListeners: (() => void) | undefined;
 
+    const sendSystemUpdateNotification = async (newVer: string) => {
+      try {
+        let notificationsAllowed = true;
+        try {
+          const guestPref = localStorage.getItem("unplastica-guest-preferences");
+          if (guestPref) {
+            const parsed = JSON.parse(guestPref);
+            if (parsed.notifications === false) notificationsAllowed = false;
+          }
+          const rawNotif = localStorage.getItem("unplastica-notifications");
+          if (rawNotif === "false") notificationsAllowed = false;
+        } catch (_) {}
+
+        if (!notificationsAllowed) return;
+        if (!("Notification" in window)) return;
+
+        let permission = Notification.permission;
+        if (permission === "default") {
+          try {
+            permission = await Notification.requestPermission();
+          } catch (_) {}
+        }
+
+        if (permission !== "granted") return;
+
+        const title = "Unplastica Update Available";
+        const options: any = {
+          body: `Version ${newVer} is ready! Tap to update and clear cache.`,
+          icon: "/icons/icon-192.png",
+          badge: "/icons/icon-192.png",
+          tag: `unplastica-update-${newVer}`,
+          renotify: true,
+          data: { url: "/settings" }
+        };
+
+        // Phone / Mobile PWA (Android / iOS) & PC ServiceWorker showNotification
+        if ("serviceWorker" in navigator) {
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            if (reg && typeof reg.showNotification === "function") {
+              await reg.showNotification(title, options);
+              return;
+            }
+          } catch (_) {}
+        }
+
+        // Desktop/PC Window fallback
+        try {
+          const notification = new Notification(title, options);
+          notification.onclick = () => {
+            window.focus();
+            window.location.href = "/settings";
+          };
+        } catch (_) {}
+      } catch (_) {}
+    };
+
     const notifyUpdate = (newVer: string) => {
       setAvailableVersion(newVer);
-      if ("Notification" in window && Notification.permission === "granted") {
-        try {
-          new Notification("Unplastica Update Available", {
-            body: `Version ${newVer} is ready! Tap to update and clear cache.`,
-            icon: "/icons/icon-192.png",
-            tag: "unplastica-update",
-          });
-        } catch (_) {}
-      }
+      localStorage.setItem("unplastica_update_available", newVer);
+      window.dispatchEvent(new CustomEvent("unplastica-update-detected", { detail: { version: newVer } }));
+      void sendSystemUpdateNotification(newVer);
     };
 
     const checkRemoteVersion = async () => {
@@ -2418,7 +2540,7 @@ function UpdateNotice() {
     return (
       <div className="app-update-banner" role="alert">
         <div className="update-banner-content">
-          <span className="update-banner-badge">NEW</span>
+          <span className="update-banner-badge">{t("settings.newBadge")}</span>
           <span className="update-banner-text">
             {t("update.available")} <strong>v{availableVersion}</strong>
           </span>

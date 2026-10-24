@@ -23,15 +23,14 @@ ml/test_adversarial/
 .vercel
 .env*
 
-.freebuff/
+
 ml/test_300_suite/
 ml/test_50_mixed/
 ml/stress_report/
 # Noulette (private findings and logs)
-VULN.md
-LOGS.md
-.noulette/
+PROOF.md
 ml/data_multistyle/
 ml/data_multistyle_split/
 ml/model/live_*.onnx
 ml/model/*.data
+architecture.md
