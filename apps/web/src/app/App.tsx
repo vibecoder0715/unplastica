@@ -1163,7 +1163,7 @@ function EventsPage({
 
           <div className="challenge-columns-wrapper">
             <section className="prizes">
-              <div className="section-heading"><h2>{t("events.prizes")}</h2><span>{t("events.pool")}</span></div>
+              <div className="section-heading"><h2>{t("events.prizes")}</h2></div>
               <article className="champion-prize">
                 <span className="prize-icon"><Icon name="trophy" /></span>
                 <strong>{t("events.champion")}</strong>
