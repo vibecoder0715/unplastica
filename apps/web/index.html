@@ -18,7 +18,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Unplastica — Play to reduce plastic" />
     <meta name="twitter:description" content="Small plastic-free habits. A cleaner Malaysia, one choice at a time." />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://jkdepxzpqbridnkcnvyj.supabase.co wss://jkdepxzpqbridnkcnvyj.supabase.co https://cdn.jsdelivr.net; media-src 'self' blob:; object-src 'none'; base-uri 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self';" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="X-Frame-Options" content="DENY" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=0.2.4" />
@@ -72,7 +72,30 @@
         :root:not([data-theme="light"]) .pwa-wordmark-dark { display: block !important; }
       }
     </style>
-    <script type="module" src="/src/theme-bootstrap.ts"></script>
+    <script>
+      (function() {
+        var APP_VER = "0.2.2";
+        try {
+          var stored = localStorage.getItem("unplastica_app_version");
+          if (stored !== APP_VER) {
+            localStorage.setItem("unplastica_app_version", APP_VER);
+            if (stored && "serviceWorker" in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                for (var i = 0; i < regs.length; i++) regs[i].unregister();
+              });
+              if ("caches" in window) {
+                caches.keys().then(function(keys) {
+                  for (var j = 0; j < keys.length; j++) caches.delete(keys[j]);
+                });
+              }
+            }
+          }
+          var storedTheme = localStorage.getItem("theme");
+          var isDark = storedTheme === "dark" || (!storedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root">
