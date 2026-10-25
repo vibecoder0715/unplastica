@@ -1172,12 +1172,10 @@ function EventsPage({
               <div className="runner-up-prizes">
                 <article>
                   <span><Icon name="medal" size={18} /> {t("events.runner")}</span>
-                  <strong>{t("events.second")}</strong>
                   <b>{t("events.prizeSecond")}</b>
                 </article>
                 <article>
                   <span><Icon name="medal" size={18} /> {t("events.tiers")}</span>
-                  <strong>{t("events.third")}</strong>
                   <b>{t("events.prizeThird")}</b>
                 </article>
               </div>
