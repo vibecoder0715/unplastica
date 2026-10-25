@@ -1,10 +1,21 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const versionData = JSON.parse(fs.readFileSync(path.resolve(__dirname, "public/version.json"), "utf-8"));
+const appVersion = versionData.version || "0.2.4";
+
 export default defineConfig({
   envDir: "../../",
   envPrefix: ["VITE_", "NEXT_PUBLIC_"],
+  define: {
+    __APP_BUILD_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     {
       name: "block-sensitive-files",
@@ -29,20 +40,20 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["offline.html", "robots.txt", "icons/*.png", "apple-touch-icon.png"],
       manifest: {
-        id: "/?v=0.2.4",
+        id: `/?v=${appVersion}`,
         name: "Unplastica",
         short_name: "Unplastica",
-        start_url: "/?v=0.2.4",
+        start_url: `/?v=${appVersion}`,
         scope: "/",
         display: "standalone",
         theme_color: "#fafaed",
         background_color: "#fafaed",
         description: "Small plastic-free habits. A cleaner Malaysia, one choice at a time.",
         icons: [
-          { src: "/icons/icon-192.png?v=0.2.4", sizes: "192x192", type: "image/png" },
-          { src: "/icons/icon-512.png?v=0.2.4", sizes: "512x512", type: "image/png" },
+          { src: `/icons/icon-192.png?v=${appVersion}`, sizes: "192x192", type: "image/png" },
+          { src: `/icons/icon-512.png?v=${appVersion}`, sizes: "512x512", type: "image/png" },
           {
-            src: "/icons/icon-maskable-512.png?v=0.2.4",
+            src: `/icons/icon-maskable-512.png?v=${appVersion}`,
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",

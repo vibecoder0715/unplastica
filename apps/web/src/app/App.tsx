@@ -45,7 +45,30 @@ const habitImages: Record<HabitCode, string> = {
   handicraft_projects: "/assets/habits/handicraft-projects.png?v=2",
 };
 
-export const APP_BUILD_VERSION = "0.2.3";
+declare const __APP_BUILD_VERSION__: string | undefined;
+export const APP_BUILD_VERSION = (typeof __APP_BUILD_VERSION__ !== "undefined" && __APP_BUILD_VERSION__) ? __APP_BUILD_VERSION__ : "0.2.4";
+
+export function parseSemVer(v: string): number[] {
+  return v.replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
+}
+
+export function compareVersions(v1: string, v2: string): number {
+  const a = parseSemVer(v1);
+  const b = parseSemVer(v2);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const p1 = a[i] || 0;
+    const p2 = b[i] || 0;
+    if (p1 > p2) return 1;
+    if (p1 < p2) return -1;
+  }
+  return 0;
+}
+
+export function isNewerVersion(remoteVer: string, currentVer: string): boolean {
+  if (!remoteVer || !currentVer) return false;
+  return compareVersions(remoteVer, currentVer) > 0;
+}
 
 export type PasswordCheck = {
   valid: boolean;
@@ -978,19 +1001,29 @@ function SettingsPage(props: {
   const t = useCopy();
   const [updatePending, setUpdatePending] = useState(() => {
     const pendingVer = localStorage.getItem("unplastica_update_available");
-    return Boolean(pendingVer && pendingVer !== APP_BUILD_VERSION);
+    if (!pendingVer) return false;
+    const installed = localStorage.getItem("unplastica_app_version");
+    if (installed && compareVersions(installed, pendingVer) >= 0) return false;
+    return isNewerVersion(pendingVer, APP_BUILD_VERSION);
   });
   const [targetVersion, setTargetVersion] = useState(() => {
-    return localStorage.getItem("unplastica_update_available") || APP_BUILD_VERSION;
+    const pendingVer = localStorage.getItem("unplastica_update_available");
+    return (pendingVer && isNewerVersion(pendingVer, APP_BUILD_VERSION)) ? pendingVer : APP_BUILD_VERSION;
   });
 
   useEffect(() => {
     const handleUpdateDetected = (event: Event) => {
       const detail = (event as CustomEvent)?.detail;
+      if (detail?.upToDate) {
+        setUpdatePending(false);
+        return;
+      }
       const newVer = detail?.version;
-      if (newVer && newVer !== APP_BUILD_VERSION) {
+      if (newVer && isNewerVersion(newVer, APP_BUILD_VERSION)) {
         setTargetVersion(newVer);
         setUpdatePending(true);
+      } else {
+        setUpdatePending(false);
       }
     };
     window.addEventListener("unplastica-update-detected", handleUpdateDetected);
@@ -1180,7 +1213,7 @@ function SettingsPage(props: {
             localStorage.setItem("unplastica_acknowledged_update_ver", targetVersion);
             localStorage.setItem("unplastica_app_version", targetVersion);
             setUpdatePending(false);
-            window.location.reload();
+            window.location.href = window.location.pathname + "?_ts=" + Date.now();
           }}
         >
           <Icon name="arrow" size={14} />
@@ -2339,11 +2372,29 @@ function InstallPrompt({ prompt, environment, onInstall }: { prompt: InstallProm
 function UpdateNotice() {
   const t = useCopy();
   const [updating, setUpdating] = useState(false);
-  const [availableVersion, setAvailableVersion] = useState<string | null>(null);
+  const [availableVersion, setAvailableVersion] = useState<string | null>(() => {
+    const pendingVer = localStorage.getItem("unplastica_update_available");
+    if (!pendingVer) return null;
+    const installed = localStorage.getItem("unplastica_app_version");
+    if (installed && compareVersions(installed, pendingVer) >= 0) {
+      localStorage.removeItem("unplastica_update_available");
+      return null;
+    }
+    if (isNewerVersion(pendingVer, APP_BUILD_VERSION)) {
+      return pendingVer;
+    }
+    localStorage.removeItem("unplastica_update_available");
+    return null;
+  });
 
   const performClearCacheAndUpdate = async () => {
     if (updating) return;
     setUpdating(true);
+    const targetVer = availableVersion || APP_BUILD_VERSION;
+    localStorage.removeItem("unplastica_update_available");
+    localStorage.setItem("unplastica_acknowledged_update_ver", targetVer);
+    localStorage.setItem("unplastica_app_version", targetVer);
+    setAvailableVersion(null);
     try {
       if ("serviceWorker" in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
@@ -2356,10 +2407,7 @@ function UpdateNotice() {
     } catch (e) {
       console.error(e);
     }
-    const targetVer = availableVersion || APP_BUILD_VERSION;
-    localStorage.setItem("unplastica_acknowledged_update_ver", targetVer);
-    localStorage.setItem("unplastica_app_version", targetVer);
-    window.location.reload();
+    window.location.href = window.location.pathname + "?_ts=" + Date.now();
   };
 
   useEffect(() => {
@@ -2394,10 +2442,10 @@ function UpdateNotice() {
         const title = "Unplastica Update Available";
         const options: any = {
           body: `Version ${newVer} is ready! Tap to update and clear cache.`,
-          icon: "/icons/icon-192.png",
-          badge: "/icons/icon-192.png",
+          icon: `/icons/icon-192.png?v=${newVer}`,
+          badge: `/icons/icon-192.png?v=${newVer}`,
           tag: `unplastica-update-${newVer}`,
-          renotify: true,
+          renotify: false,
           data: { url: "/settings" }
         };
 
@@ -2424,10 +2472,22 @@ function UpdateNotice() {
     };
 
     const notifyUpdate = (newVer: string) => {
+      if (!isNewerVersion(newVer, APP_BUILD_VERSION)) {
+        localStorage.removeItem("unplastica_update_available");
+        setAvailableVersion(null);
+        window.dispatchEvent(new CustomEvent("unplastica-update-detected", { detail: { version: APP_BUILD_VERSION, upToDate: true } }));
+        return;
+      }
       setAvailableVersion(newVer);
       localStorage.setItem("unplastica_update_available", newVer);
       window.dispatchEvent(new CustomEvent("unplastica-update-detected", { detail: { version: newVer } }));
-      void sendSystemUpdateNotification(newVer);
+
+      // Deduplicate notifications: only notify ONCE per version!
+      const lastNotified = localStorage.getItem("unplastica_last_notified_ver");
+      if (lastNotified !== newVer) {
+        localStorage.setItem("unplastica_last_notified_ver", newVer);
+        void sendSystemUpdateNotification(newVer);
+      }
     };
 
     const checkRemoteVersion = async () => {
@@ -2436,8 +2496,14 @@ function UpdateNotice() {
         const res = await fetch(`/version.json?_t=${Date.now()}`, { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
-          if (data?.version && data.version !== APP_BUILD_VERSION) {
-            notifyUpdate(data.version);
+          const remoteVer = data?.version;
+          if (remoteVer && isNewerVersion(remoteVer, APP_BUILD_VERSION)) {
+            notifyUpdate(remoteVer);
+          } else {
+            // Already up-to-date! Dismiss update banners and reset pending state
+            localStorage.removeItem("unplastica_update_available");
+            setAvailableVersion(null);
+            window.dispatchEvent(new CustomEvent("unplastica-update-detected", { detail: { version: APP_BUILD_VERSION, upToDate: true } }));
           }
         }
       } catch (_) {}
@@ -2449,7 +2515,7 @@ function UpdateNotice() {
         if (refreshing) return;
         refreshing = true;
         setUpdating(true);
-        window.location.reload();
+        window.location.href = window.location.pathname + "?_ts=" + Date.now();
       };
       navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
@@ -2457,27 +2523,27 @@ function UpdateNotice() {
         registerSW({
           immediate: true,
           onNeedRefresh() {
-            notifyUpdate(APP_BUILD_VERSION);
+            void checkRemoteVersion();
           },
           onRegisteredSW(_swUrl, registration) {
             if (!registration) return;
 
             if (registration.waiting) {
-              notifyUpdate(APP_BUILD_VERSION);
+              void checkRemoteVersion();
               return;
             }
 
             let lastCheck = 0;
             const checkForUpdates = () => {
               const now = Date.now();
-              if (now - lastCheck < 10_000 || !navigator.onLine) return;
+              if (now - lastCheck < 15_000 || !navigator.onLine) return;
               lastCheck = now;
               registration.update().catch(() => {});
               void checkRemoteVersion();
             };
 
             checkForUpdates();
-            pollTimer = window.setInterval(checkForUpdates, 20_000);
+            pollTimer = window.setInterval(checkForUpdates, 30_000);
 
             const onVisibleOrFocus = () => {
               if (document.visibilityState === "visible") checkForUpdates();
@@ -2494,7 +2560,7 @@ function UpdateNotice() {
               if (!installing) return;
               installing.addEventListener("statechange", () => {
                 if (installing.state === "installed" && navigator.serviceWorker.controller) {
-                  notifyUpdate(APP_BUILD_VERSION);
+                  void checkRemoteVersion();
                 }
               });
             });
@@ -2511,7 +2577,7 @@ function UpdateNotice() {
       });
     } else {
       void checkRemoteVersion();
-      pollTimer = window.setInterval(checkRemoteVersion, 20_000);
+      pollTimer = window.setInterval(checkRemoteVersion, 30_000);
       const onVisible = () => {
         if (document.visibilityState === "visible") void checkRemoteVersion();
       };
