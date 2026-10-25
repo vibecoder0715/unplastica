@@ -26,7 +26,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.models import MobileNet_V3_Small_Weights, mobilenet_v3_small
 
-USER_AGENT = "UnplasticaResearch/1.0 (contact: unplastica@gmail.com)"
+USER_AGENT = "UnplasticaResearch/1.0 (contact: security@unplastica.app)"
 
 CATEGORIES = [
     "beeswax_food_wraps",

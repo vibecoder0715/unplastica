@@ -57,6 +57,15 @@ Deno.serve(async (request: Request) => {
       if (error) throw error;
     }
 
+    function toBase64(buffer: Uint8Array): string {
+      let binary = "";
+      const len = buffer.byteLength;
+      for (let i = 0; i < len; i += 8192) {
+        binary += String.fromCharCode(...buffer.subarray(i, Math.min(i + 8192, len)));
+      }
+      return btoa(binary);
+    }
+
     const form = new FormData();
     form.set("file", new Blob([bytes], { type: submission.content_type }), "proof-image");
     form.set("habit_code", submission.habit_code);
@@ -68,10 +77,27 @@ Deno.serve(async (request: Request) => {
 
     const scorerUrl = Deno.env.get("ML_SCORER_URL") || "https://unplastica.vercel.app/api";
     const scorerKey = Deno.env.get("ML_SCORER_API_KEY") || "";
+    const isVercelProxy = scorerUrl.includes("unplastica.vercel.app") || scorerUrl.endsWith("/api");
+
+    const endpoint = scorerUrl.replace(/\/$/, "") + (scorerUrl.endsWith("/score") ? "" : "/score");
+    const headers: Record<string, string> = scorerKey ? { Authorization: `Bearer ${scorerKey}` } : {};
 
     try {
-      const modelResponse = await fetch(scorerUrl.replace(/\/$/, "") + "/score", {
-        method: "POST", headers: scorerKey ? { Authorization: `Bearer ${scorerKey}` } : {}, body: form,
+      let requestBody: BodyInit;
+      if (isVercelProxy) {
+        headers["Content-Type"] = "application/json";
+        requestBody = JSON.stringify({
+          image: toBase64(bytes),
+          habit_code: submission.habit_code,
+        });
+      } else {
+        requestBody = form;
+      }
+
+      const modelResponse = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: requestBody,
         signal: AbortSignal.timeout(10000),
       });
       if (!modelResponse.ok) {

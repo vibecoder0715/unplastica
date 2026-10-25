@@ -145,15 +145,13 @@ Deno.serve(async (request) => {
     }
 
     const db = admin();
-    const cutoff = new Date(Date.now() - 15_000).toISOString();
-    const { data: profile, error: claimError } = await db.from("profiles")
-      .update({ avatar_upload_at: new Date().toISOString() })
-      .eq("id", user.id)
-      .or(`avatar_upload_at.is.null,avatar_upload_at.lt.${cutoff}`)
-      .select("avatar_path")
-      .maybeSingle();
+    const { data: claimData, error: claimError } = await db.rpc("claim_avatar_upload_slot", {
+      p_user_id: user.id,
+      p_cooldown_seconds: 15,
+    });
     if (claimError) throw claimError;
-    if (!profile) return json({ error: "Please wait a few seconds before uploading another photo." }, 429);
+    const profile = Array.isArray(claimData) ? claimData[0] : claimData;
+    if (!profile) return json({ error: "Please wait a few seconds before uploading another photo." }, 429, request);
 
     const sanitized = await sanitize(bytes, width, height);
     if (!sanitized) return json({ error: "This image could not be safely processed under the 50 KB limit." }, 413);

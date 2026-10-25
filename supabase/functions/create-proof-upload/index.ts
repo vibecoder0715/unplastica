@@ -52,9 +52,21 @@ Deno.serve(async (request: Request) => {
 
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count, error: countError } = await db.from("habit_submissions")
-      .select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", since);
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .neq("status", "pending_upload")
+      .gte("created_at", since);
     if (countError) throw countError;
-    if ((count ?? 0) >= 10) return json({ error: "You have reached the hourly proof limit. Try again later." }, 429);
+    if ((count ?? 0) >= 10) return json({ error: "You have reached the hourly proof limit. Try again later." }, 429, request);
+
+    const pendingSince = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { count: pendingCount, error: pendingError } = await db.from("habit_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "pending_upload")
+      .gte("created_at", pendingSince);
+    if (pendingError) throw pendingError;
+    if ((pendingCount ?? 0) >= 5) return json({ error: "You have upload slots in progress. Please complete or cancel before creating more." }, 429, request);
 
     const submissionId = crypto.randomUUID();
     const extension = content_type === "image/jpeg" ? "jpg" : content_type === "image/png" ? "png" : "webp";

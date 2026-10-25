@@ -6,9 +6,8 @@ const rawKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_P
 // Clean strings by removing any BOM, non-ASCII or invisible control characters
 const cleanEnv = (val?: string) => (val ? val.replace(/[^\x20-\x7E]/g, "").trim() : "");
 
-// Fallback to project defaults
-export const supabaseUrl = cleanEnv(rawUrl) || "https://jkdepxzpqbridnkcnvyj.supabase.co";
-export const supabaseAnonKey = cleanEnv(rawKey) || "sb_publishable_qAHZXnF218HyVetooOjKFA_6OpsXnNd";
+export const supabaseUrl = cleanEnv(rawUrl);
+export const supabaseAnonKey = cleanEnv(rawKey);
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 

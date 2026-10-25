@@ -80,7 +80,7 @@ export type PasswordCheck = {
 };
 
 export function validatePasswordComplexity(pw: string): PasswordCheck {
-  const hasLength = pw.length >= 8 && pw.length <= 36;
+  const hasLength = pw.length >= 8 && pw.length <= 72;
   const hasLetter = /[a-zA-Z]/.test(pw);
   const hasNumber = /[0-9]/.test(pw);
   const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?`~]/.test(pw);
@@ -699,30 +699,25 @@ export default function App() {
     const cleanEmail = (updated.email ?? "").trim().toLowerCase();
     const cleanPhone = updated.phone.trim();
 
-    // Check duplicate phone if non-empty
+    // Check identifier uniqueness using RPC (works securely under RLS)
     if (cleanPhone) {
-      const { data: existingPhone } = await supabase
-        .from("profiles")
-        .select("id")
-        .neq("id", user.id)
-        .eq("phone", cleanPhone)
-        .maybeSingle();
-      if (existingPhone) {
+      const { data: phoneAvailable } = await supabase.rpc("check_identifier_available", {
+        p_type: "phone",
+        p_value: cleanPhone,
+      });
+      if (phoneAvailable === false) {
         const err = new Error("This phone number is already registered to another account. Please use a different phone number.");
         notify(err.message);
         throw err;
       }
     }
 
-    // Check duplicate email if non-empty
-    if (cleanEmail) {
-      const { data: existingEmail } = await supabase
-        .from("profiles")
-        .select("id")
-        .neq("id", user.id)
-        .ilike("email", cleanEmail)
-        .maybeSingle();
-      if (existingEmail) {
+    if (cleanEmail && cleanEmail !== user.email?.toLowerCase()) {
+      const { data: emailAvailable } = await supabase.rpc("check_identifier_available", {
+        p_type: "email",
+        p_value: cleanEmail,
+      });
+      if (emailAvailable === false) {
         const err = new Error("This email is already registered to another account. Please use a different email.");
         notify(err.message);
         throw err;
@@ -732,21 +727,10 @@ export default function App() {
     const payload: Record<string, string> = {
       display_name: cleanUsername,
       username: cleanUsername,
-      phone: cleanPhone,
       tagline: updated.tagline.trim(),
     };
-    if (cleanEmail) {
-      payload.email = cleanEmail;
-    }
 
     let { error: profileErr } = await supabase.from("profiles").update(payload).eq("id", user.id);
-
-    // If update with email failed due to column permissions, retry without email
-    if (profileErr && (profileErr.message.includes("column email") || profileErr.message.includes("permission denied"))) {
-      delete payload.email;
-      const retry = await supabase.from("profiles").update(payload).eq("id", user.id);
-      profileErr = retry.error;
-    }
 
     if (profileErr) {
       let friendlyMsg = "Failed to update profile. Please check your details and try again.";
@@ -1923,12 +1907,48 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
   const [notice, setNotice] = useState("");
   const [showResend, setShowResend] = useState(false);
   const [showOAuthHint, setShowOAuthHint] = useState(false);
-  const failedAttemptsRef = useRef<number[]>([]);
-  const [authLockoutSec, setAuthLockoutSec] = useState(0);
+  const getInitialLockout = () => {
+    try {
+      const until = Number(localStorage.getItem("unplastica_auth_lockout_until") || 0);
+      const remaining = Math.ceil((until - Date.now()) / 1000);
+      return remaining > 0 ? remaining : 0;
+    } catch (_) {
+      return 0;
+    }
+  };
+
+  const getStoredAttempts = (): number[] => {
+    try {
+      const raw = localStorage.getItem("unplastica_auth_failed_attempts");
+      if (!raw) return [];
+      const now = Date.now();
+      return (JSON.parse(raw) as number[]).filter((t) => now - t < 120000);
+    } catch (_) {
+      return [];
+    }
+  };
+
+  const failedAttemptsRef = useRef<number[]>(getStoredAttempts());
+  const [authLockoutSec, setAuthLockoutSec] = useState<number>(getInitialLockout);
 
   useEffect(() => {
-    if (authLockoutSec <= 0) return;
-    const timer = setInterval(() => setAuthLockoutSec((s) => (s > 1 ? s - 1 : 0)), 1000);
+    if (authLockoutSec <= 0) {
+      try {
+        localStorage.removeItem("unplastica_auth_lockout_until");
+      } catch (_) {}
+      return;
+    }
+    const timer = setInterval(() => {
+      setAuthLockoutSec((s) => {
+        if (s <= 1) {
+          try {
+            localStorage.removeItem("unplastica_auth_lockout_until");
+          } catch (_) {}
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
     return () => clearInterval(timer);
   }, [authLockoutSec]);
 
@@ -1987,6 +2007,14 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
         if (!authPwCheck.valid) {
           throw new Error("Password must be at least 8 characters long and include at least 1 alphabet letter, 1 number, and 1 special character (!@#$%^&* etc).");
         }
+        const usernameCheck = validateCustomUsername(username);
+        if (!usernameCheck.valid) {
+          throw new Error(usernameCheck.error || "Please choose a valid username.");
+        }
+        const emailCheck = validateEmailAddress(identifier);
+        if (!emailCheck.valid) {
+          throw new Error(emailCheck.error || "Only Gmail and Outlook email addresses are supported.");
+        }
         const cleanUsername = username.trim().toLowerCase().slice(0, 30);
         const result = await supabase.auth.signUp({
           email: identifier.trim().slice(0, 100),
@@ -2001,18 +2029,16 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
           onAuthenticated();
           return;
         }
-        // Auto-login since confirmations are disabled
-        const loginAttempt = await supabase.auth.signInWithPassword({ email: identifier.trim().slice(0, 100), password: password.slice(0, 72) });
-        if (loginAttempt.data?.session) {
-          onAuthenticated();
-          return;
-        }
-        setNotice(t("auth.accountCreatedNotice"));
+        setNotice(t("auth.checkEmailVerification") || "Account created! Please check your email inbox to verify your account before logging in.");
         setMode("login");
       } else if (mode === "signup") {
         const check = validatePasswordComplexity(password);
         if (!check.valid) {
           throw new Error("Password must be at least 8 characters long and include at least 1 alphabet letter, 1 number, and 1 special character (!@#$%^&* etc).");
+        }
+        const usernameCheck = validateCustomUsername(username);
+        if (!usernameCheck.valid) {
+          throw new Error(usernameCheck.error || "Please choose a valid username.");
         }
         const result = await supabase.auth.signUp({
           phone: normalizePhone(identifier).slice(0, 20),
@@ -2055,8 +2081,14 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
           const now = Date.now();
           failedAttemptsRef.current = failedAttemptsRef.current.filter((t) => now - t < 120000);
           failedAttemptsRef.current.push(now);
+          try {
+            localStorage.setItem("unplastica_auth_failed_attempts", JSON.stringify(failedAttemptsRef.current));
+          } catch (_) {}
           if (failedAttemptsRef.current.length >= 5) {
             setAuthLockoutSec(60);
+            try {
+              localStorage.setItem("unplastica_auth_lockout_until", (now + 60000).toString());
+            } catch (_) {}
           }
 
           const msg = authError.message || "";
@@ -2158,16 +2190,30 @@ function AuthPage({ user, onAuthenticated }: { user?: User | null; onAuthenticat
               onChange={(event) => {
                 const val = event.target.value.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 30);
                 setUsername(val);
-                if (usernameTouched && val.length > 0 && val.length < 3) {
-                  setUsernameError(t("auth.usernameRuleError"));
+                if (usernameTouched && val.length > 0) {
+                  const check = validateCustomUsername(val);
+                  if (!check.valid) {
+                    setUsernameError(check.error || t("auth.usernameRuleError"));
+                  } else if (val.length < 3) {
+                    setUsernameError(t("auth.usernameRuleError"));
+                  } else {
+                    setUsernameError("");
+                  }
                 } else {
                   setUsernameError("");
                 }
               }}
               onBlur={() => {
                 setUsernameTouched(true);
-                if (username.length > 0 && username.length < 3) {
-                  setUsernameError(t("auth.usernameRuleError"));
+                if (username.length > 0) {
+                  const check = validateCustomUsername(username);
+                  if (!check.valid) {
+                    setUsernameError(check.error || t("auth.usernameRuleError"));
+                  } else if (username.length < 3) {
+                    setUsernameError(t("auth.usernameRuleError"));
+                  } else {
+                    setUsernameError("");
+                  }
                 } else {
                   setUsernameError("");
                 }
@@ -2747,7 +2793,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
           <button className="secondary-button" disabled={lockoutSec > 0} onClick={() => fileInputRef.current?.click()}>
             <Icon name="camera" /> {t("camera.uploadPhoto")}
           </button>
-          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={onFileSelect} />
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" style={{ display: "none" }} onChange={onFileSelect} />
         </>
       )}
     </div>

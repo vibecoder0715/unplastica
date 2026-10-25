@@ -46,11 +46,47 @@ function getClientIp(request: VercelRequest): string {
   return "127.0.0.1";
 }
 
-function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number; remaining: number } {
+async function checkRateLimit(ip: string): Promise<{ allowed: boolean; retryAfter?: number; remaining: number }> {
+  // 1. Try persistent Supabase DB rate limiting if configured
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && serviceKey) {
+    try {
+      const res = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/check_auth_rate_limit`, {
+        method: "POST",
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          p_key: `score:${ip}`,
+          p_max_attempts: MAX_REQUESTS_PER_WINDOW,
+          p_window_seconds: RATE_LIMIT_WINDOW_MS / 1000,
+          p_lockout_seconds: LOCKOUT_DURATION_MS / 1000,
+        }),
+        signal: AbortSignal.timeout(2000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row && typeof row.allowed === "boolean") {
+          return {
+            allowed: row.allowed,
+            retryAfter: row.retry_after || (row.allowed ? undefined : 60),
+            remaining: row.remaining ?? 0,
+          };
+        }
+      }
+    } catch (_) {
+      // Fallback to memory rate limiter on network error or timeout
+    }
+  }
+
+  // 2. In-memory fallback
   const now = Date.now();
   const record = ipRateLimits.get(ip) || { timestamps: [], lockedUntil: 0 };
 
-  // Clean up entries older than window
   record.timestamps = record.timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
 
   if (record.lockedUntil > now) {
@@ -61,13 +97,12 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number; re
   if (record.timestamps.length >= MAX_REQUESTS_PER_WINDOW) {
     record.lockedUntil = now + LOCKOUT_DURATION_MS;
     ipRateLimits.set(ip, record);
-    return { allowed: false, retryAfter: Math.ceil(LOCKOUT_DURATION_MS / 1000), remaining: 0 };
+    return { allowed: false, retryAfter: LOCKOUT_DURATION_MS / 1000, remaining: 0 };
   }
 
   record.timestamps.push(now);
   ipRateLimits.set(ip, record);
 
-  // Periodically clean stale records from memory
   if (ipRateLimits.size > 1000) {
     for (const [key, val] of ipRateLimits.entries()) {
       if (val.lockedUntil < now && val.timestamps.length === 0) {
@@ -79,16 +114,49 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number; re
   return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - record.timestamps.length };
 }
 
+// 5 Active Habit Codes (beeswax_food_wraps & bulk_pantry_refill are disabled)
 const VALID_HABITS = new Set([
-  "beeswax_food_wraps",
   "box_cutlery",
-  "bulk_pantry_refill",
   "greenery_furniture",
   "handicraft_projects",
   "recycle_bags",
   "self_bottle_refill",
 ]);
 
+function parseMultipartBuffer(
+  bodyBuffer: any,
+  boundary: string
+): { file?: any; habit_code?: string; contentType?: string } {
+  const boundaryBuffer = Buffer.from(`--${boundary}`);
+  let file: any;
+  let habit_code: string | undefined;
+  let contentType = "image/jpeg";
+
+  let start = 0;
+  while (true) {
+    const idx = bodyBuffer.indexOf(boundaryBuffer, start);
+    if (idx === -1) break;
+    const nextIdx = bodyBuffer.indexOf(boundaryBuffer, idx + boundaryBuffer.length);
+    if (nextIdx === -1) break;
+
+    const part = bodyBuffer.subarray(idx + boundaryBuffer.length, nextIdx);
+    const headerEnd = part.indexOf(Buffer.from("\r\n\r\n"));
+    if (headerEnd !== -1) {
+      const headers = part.subarray(0, headerEnd).toString("latin1");
+      const content = part.subarray(headerEnd + 4, part.length - 2);
+
+      if (headers.includes('name="file"')) {
+        file = Buffer.from(content);
+        const match = headers.match(/Content-Type:\s*([^\r\n;]+)/i);
+        if (match) contentType = match[1].trim();
+      } else if (headers.includes('name="habit_code"')) {
+        habit_code = content.toString("utf8").trim();
+      }
+    }
+    start = nextIdx;
+  }
+  return { file, habit_code, contentType };
+}
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   // CORS & Security headers
@@ -96,7 +164,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
   response.setHeader("X-Frame-Options", "DENY");
 
   const clientIp = getClientIp(request);
-  const rateLimit = checkRateLimit(clientIp);
+  const rateLimit = await checkRateLimit(clientIp);
 
   response.setHeader("X-RateLimit-Limit", MAX_REQUESTS_PER_WINDOW.toString());
   response.setHeader("X-RateLimit-Remaining", rateLimit.remaining.toString());
@@ -109,12 +177,26 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
   }
 
+  const expectedKey = process.env.ML_SCORER_API_KEY;
+
   if (request.method === "GET") {
+    // Unauthenticated GET returns safe health check without leaking white-box model parameters
+    const authHeader = request.headers.authorization;
+    const authorization = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+    const isAuthorized =
+      expectedKey &&
+      authorization &&
+      authorization.startsWith("Bearer ") &&
+      authorization.slice(7) === expectedKey;
+
+    if (!isAuthorized) {
+      return response.status(200).json({ status: "ready" });
+    }
+
     return response.status(200).json({
       status: "ready",
       model: "mobilenet_v3_small",
       model_version: "mobilenet_v3_small-v0.2.0-edge-refined",
-      model_sha256: "b7d2939347cd352601d07257990044de93190aef57f8ec23cd3fdb7967315b96",
       classes: Array.from(VALID_HABITS).concat(["other"]).sort(),
       threshold: 0.85,
       rate_limit: {
@@ -129,7 +211,6 @@ export default async function handler(request: VercelRequest, response: VercelRe
   }
 
   // Authorization check for backend scoring invocations (fail-closed)
-  const expectedKey = process.env.ML_SCORER_API_KEY;
   if (!expectedKey) {
     return response.status(503).json({ error: "Scoring service API key is not configured." });
   }
@@ -147,13 +228,99 @@ export default async function handler(request: VercelRequest, response: VercelRe
     return response.status(401).json({ error: "Unauthorized scoring request." });
   }
 
-  // Parse and sanitize habit_code
-  const rawHabitCode =
-    request.body?.habit_code ||
-    request.headers["x-habit-code"] ||
-    (typeof request.body === "string" ? (() => { try { return JSON.parse(request.body)?.habit_code; } catch { return ""; } })() : "");
+  // Check payload length bounds to prevent large payload attacks
+  const contentLength = Number(request.headers["content-length"] || 0);
+  if (contentLength > 6 * 1024 * 1024) {
+    return response.status(413).json({
+      error: "Payload too large. Maximum proof size is 5MB.",
+      verified: false,
+    });
+  }
 
-  const habitCode = String(rawHabitCode || "").trim().slice(0, 40);
+  // Parse payload: support both multipart/form-data and JSON base64
+  let fileBuffer: any = null;
+  let mimeType = "image/jpeg";
+  let extractedHabitCode = "";
+
+  const contentTypeHeader = (
+    Array.isArray(request.headers["content-type"])
+      ? request.headers["content-type"][0]
+      : request.headers["content-type"] || ""
+  ).toLowerCase();
+
+  if (contentTypeHeader.includes("multipart/form-data")) {
+    const boundaryMatch = contentTypeHeader.match(/boundary=([^;]+)/i);
+    const boundary = boundaryMatch ? boundaryMatch[1].replace(/['"]/g, "").trim() : "";
+    if (boundary) {
+      let bodyBuffer = request.body;
+      if (typeof bodyBuffer === "string") bodyBuffer = Buffer.from(bodyBuffer, "latin1");
+      if (Buffer.isBuffer(bodyBuffer)) {
+        const parsed = parseMultipartBuffer(bodyBuffer, boundary);
+        fileBuffer = parsed.file;
+        extractedHabitCode = parsed.habit_code || "";
+        if (parsed.contentType) mimeType = parsed.contentType;
+      }
+    }
+  }
+
+  if (!fileBuffer) {
+    // Parse from JSON body
+    let parsedBody = request.body;
+    if (typeof parsedBody === "string") {
+      try {
+        parsedBody = JSON.parse(parsedBody);
+      } catch (_) {
+        parsedBody = null;
+      }
+    }
+
+    const imageBase64 = parsedBody?.image || parsedBody?.file;
+    if (imageBase64 && typeof imageBase64 === "string" && imageBase64.trim().length > 0) {
+      const isJpeg = imageBase64.startsWith("/9j/");
+      const isPng = imageBase64.startsWith("iVBORw0KGgo");
+      const isWebp = imageBase64.startsWith("UklGR");
+
+      if (!isJpeg && !isPng && !isWebp) {
+        return response.status(422).json({
+          error: "Invalid image format. Supported formats: JPEG, PNG, WebP.",
+          verified: false,
+          predicted_label: "other",
+          confidence: 0.1,
+        });
+      }
+
+      mimeType = isJpeg ? "image/jpeg" : isPng ? "image/png" : "image/webp";
+      fileBuffer = Buffer.from(imageBase64, "base64");
+    }
+
+    if (parsedBody?.habit_code) {
+      extractedHabitCode = parsedBody.habit_code;
+    }
+  }
+
+  if (!fileBuffer || fileBuffer.length === 0) {
+    return response.status(400).json({
+      error: "No image proof provided in request. An image is required for habit verification.",
+      verified: false,
+      predicted_label: "other",
+      confidence: 0.0,
+    });
+  }
+
+  if (fileBuffer.length > 5 * 1024 * 1024) {
+    return response.status(413).json({
+      error: "Payload too large. Maximum proof size is 5MB.",
+      verified: false,
+    });
+  }
+
+  const rawHabitCode =
+    extractedHabitCode ||
+    request.headers["x-habit-code"] ||
+    request.query?.habit_code ||
+    "";
+
+  const habitCode = String(rawHabitCode).trim().slice(0, 40);
 
   if (!habitCode || !VALID_HABITS.has(habitCode)) {
     return response.status(400).json({
@@ -164,41 +331,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
   }
 
-  // Check payload length bounds to prevent large payload attacks
-  const contentLength = Number(request.headers["content-length"] || 0);
-  if (contentLength > 6 * 1024 * 1024) {
-    return response.status(413).json({
-      error: "Payload too large. Maximum proof size is 5MB.",
-      verified: false,
-    });
-  }
-
-  // Strict validation: Require image payload
-  const imageBase64 = request.body?.image || request.body?.file;
-  if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.trim().length === 0) {
-    return response.status(400).json({
-      error: "No image proof provided in request. An image is required for habit verification.",
-      verified: false,
-      predicted_label: "other",
-      confidence: 0.0,
-    });
-  }
-
-  // Check magic bytes of base64
-  const isJpeg = imageBase64.startsWith("/9j/");
-  const isPng = imageBase64.startsWith("iVBORw0KGgo");
-  const isWebp = imageBase64.startsWith("UklGR");
-
-  if (!isJpeg && !isPng && !isWebp) {
-    return response.status(422).json({
-      error: "Invalid image format. Supported formats: JPEG, PNG, WebP.",
-      verified: false,
-      predicted_label: "other",
-      confidence: 0.1,
-    });
-  }
-
-  // Forward to ML scoring service (fail-closed: no hardcoded approval fallback)
+  // Forward to ML scoring service (fail-closed, loop-prevented)
   const mlScorerUrl = process.env.ML_SCORER_URL;
   if (!mlScorerUrl) {
     return response.status(503).json({
@@ -207,18 +340,22 @@ export default async function handler(request: VercelRequest, response: VercelRe
     });
   }
 
-  try {
-    const buffer = Buffer.from(imageBase64, "base64");
-    if (buffer.length > 5 * 1024 * 1024) {
-      return response.status(413).json({
-        error: "Payload too large. Maximum proof size is 5MB.",
-        verified: false,
-      });
-    }
+  // Prevent self-referential scoring loops
+  if (
+    mlScorerUrl.includes("unplastica.vercel.app") ||
+    mlScorerUrl.includes("localhost:3000/api/score")
+  ) {
+    return response.status(503).json({
+      error: "ML scoring backend loop detected: ML_SCORER_URL cannot point to /api/score itself.",
+      verified: false,
+    });
+  }
 
+  try {
     const formData = new FormData();
-    const blob = new Blob([buffer], { type: isJpeg ? "image/jpeg" : isPng ? "image/png" : "image/webp" });
+    const blob = new Blob([fileBuffer], { type: mimeType });
     formData.append("file", blob, "proof.jpg");
+    formData.append("habit_code", habitCode);
 
     const mlRes = await fetch(`${mlScorerUrl.replace(/\/$/, "")}/score`, {
       method: "POST",
@@ -235,7 +372,11 @@ export default async function handler(request: VercelRequest, response: VercelRe
     }
 
     const mlData = (await mlRes.json()) as { predicted_label: string; confidence: number; model_version?: string };
-    const verified = mlData.predicted_label === habitCode && mlData.confidence >= 0.85 && mlData.predicted_label !== "other";
+    const verified =
+      mlData.predicted_label === habitCode &&
+      mlData.confidence >= 0.85 &&
+      mlData.predicted_label !== "other";
+
     return response.status(200).json({
       status: verified ? "verified" : "rejected",
       predicted_label: mlData.predicted_label,
