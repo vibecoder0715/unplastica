@@ -1,5 +1,4 @@
-"""Robust Open-Set Training Script for Unplastica Habit Verification.
-
+"""Phase: finetune_4 (Robust Open-Set Training & ONNX Export)
 Enriches the training set with genuine anime/cosplay/digital art, disposable plastics,
 mason jars/pantry negatives, and everyday non-habit photos.
 Trains MobileNetV3 with realistic phone-camera augmentations, label smoothing, and

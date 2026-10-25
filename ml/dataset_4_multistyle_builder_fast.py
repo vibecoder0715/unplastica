@@ -1,3 +1,9 @@
+"""Phase: dataset_4 (Fast Multi-Threaded Multi-Style Dataset Builder)
+High-concurrency parallel edition of the multi-style dataset generator.
+Utilizes ThreadPoolExecutor with perceptual dHash deduplication to rapidly
+download and validate images across all habit categories.
+"""
+
 import os
 import io
 import json

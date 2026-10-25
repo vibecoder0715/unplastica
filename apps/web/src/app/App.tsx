@@ -206,7 +206,7 @@ export async function sendSystemNotification({
       icon,
       badge: "/icons/icon-192.png",
       tag,
-      renotify: true,
+      renotify: false, // Never re-alert repeatedly
       data: { url },
     };
 
@@ -241,16 +241,19 @@ export async function sendSystemNotification({
   return false;
 }
 
-export async function sendCompetitionNotification(lang: Language = "English", force = false): Promise<boolean> {
+export async function sendCompetitionNotification(lang: Language = "English"): Promise<boolean> {
   if (!isNotificationsEnabled()) return false;
   if (!("Notification" in window) || Notification.permission !== "granted") return false;
 
-  const now = Date.now();
-  const lastPushed = localStorage.getItem("unplastica_last_competition_pushed");
-  if (!force && lastPushed && now - Number(lastPushed) < 3 * 60 * 60 * 1000) {
+  // Send it ONE TIME IS ENOUGH!
+  if (
+    localStorage.getItem("unplastica_apu_warrior_notified") === "true" ||
+    localStorage.getItem("unplastica_notified_competition_apu") === "true"
+  ) {
     return false;
   }
-  localStorage.setItem("unplastica_last_competition_pushed", String(now));
+  localStorage.setItem("unplastica_apu_warrior_notified", "true");
+  localStorage.setItem("unplastica_notified_competition_apu", "true");
 
   const title = translate(lang, "notification.apuTitle");
   const body = translate(lang, "notification.apuBody");
@@ -261,6 +264,33 @@ export async function sendCompetitionNotification(lang: Language = "English", fo
     url: "/events",
     tag: "unplastica-competition-apu",
     icon: "/assets/events/apu-mark.png",
+  });
+}
+
+export async function sendVerificationSuccessNotification(
+  habitTitle: string,
+  points: number,
+  submissionId?: string,
+  lang: Language = "English"
+): Promise<boolean> {
+  if (!isNotificationsEnabled()) return false;
+  if (!("Notification" in window) || Notification.permission !== "granted") return false;
+
+  if (submissionId) {
+    const key = "unplastica_verified_notified_" + submissionId;
+    if (localStorage.getItem(key) === "true") return false;
+    localStorage.setItem(key, "true");
+  }
+
+  const title = translate(lang, "notification.verifiedTitle");
+  const body = translate(lang, "notification.verifiedBody", { points, habit: habitTitle });
+
+  return await sendSystemNotification({
+    title,
+    body,
+    url: "/earn",
+    tag: submissionId ? `unplastica-verify-${submissionId}` : "unplastica-verify",
+    icon: "/icons/icon-192.png",
   });
 }
 
@@ -566,19 +596,23 @@ export default function App() {
     await savePreference("notifications", value);
 
     if (value) {
-      // Immediate push notification when turned on
-      void sendSystemNotification({
-        title: translate(language, "notification.welcomeTitle"),
-        body: translate(language, "notification.welcomeBody"),
-        icon: "/icons/icon-192.png",
-        tag: "unplastica-welcome-alert",
-        url: "/settings",
-      });
-
-      // Also trigger the active competition notification
-      window.setTimeout(() => {
-        void sendCompetitionNotification(language, true);
-      }, 1000);
+      // Send one-time notification: APU competition if never notified, else welcome once
+      const apuSent = localStorage.getItem("unplastica_notified_competition_apu") === "true";
+      if (!apuSent) {
+        void sendCompetitionNotification(language);
+      } else {
+        const welcomeSent = localStorage.getItem("unplastica_welcome_notified") === "true";
+        if (!welcomeSent) {
+          localStorage.setItem("unplastica_welcome_notified", "true");
+          void sendSystemNotification({
+            title: translate(language, "notification.welcomeTitle"),
+            body: translate(language, "notification.welcomeBody"),
+            icon: "/icons/icon-192.png",
+            tag: "unplastica-welcome-alert",
+            url: "/settings",
+          });
+        }
+      }
     }
   }, [language, savePreference]);
 
@@ -587,23 +621,16 @@ export default function App() {
     if (!notifications || !isNotificationsEnabled()) return;
     if (!("Notification" in window) || Notification.permission !== "granted") return;
 
-    // Push active competition alert after warm-up when app is running
-    const initialTimer = window.setTimeout(() => {
-      if (isNotificationsEnabled() && Notification.permission === "granted") {
-        void sendCompetitionNotification(language, false);
-      }
-    }, 6000);
-
-    const intervalTimer = window.setInterval(() => {
-      if (isNotificationsEnabled() && Notification.permission === "granted") {
-        void sendCompetitionNotification(language, false);
-      }
-    }, 15 * 60 * 1000);
-
-    return () => {
-      window.clearTimeout(initialTimer);
-      window.clearInterval(intervalTimer);
-    };
+    // Send competition notification ONE TIME ONLY if user has never received it
+    const apuSent = localStorage.getItem("unplastica_notified_competition_apu") === "true";
+    if (!apuSent) {
+      const timer = window.setTimeout(() => {
+        if (isNotificationsEnabled() && Notification.permission === "granted") {
+          void sendCompetitionNotification(language);
+        }
+      }, 4000);
+      return () => window.clearTimeout(timer);
+    }
   }, [notifications, language]);
 
   if (!ready) return <div className="loading-shell"><BrandWordmark /></div>;
@@ -1056,52 +1083,59 @@ function EventsPage({ onSample }: { onSample: () => void }) {
           <section className="event-intro">
             <h1>{t("events.headline")}</h1>
             <article className="campus-feature">
-              <img className="campus-feature-logo" src="/assets/events/apu-mark.png" alt="APU logo" />
-              <h2>{t("events.campusName")}</h2>
-              <p>{t("events.campusFullName")}</p>
-            </article>
-            <div className="deadline-badge">
-              <strong>{t("events.deadline")}</strong>
-            </div>
-          </section>
-
-          <section className="prizes">
-            <div className="section-heading"><h2>{t("events.prizes")}</h2><span>{t("events.pool")}</span></div>
-            <article className="champion-prize">
-              <span className="prize-icon"><Icon name="trophy" /></span>
-              <strong>{t("events.champion")}</strong>
-              <b>RM<br />500</b>
-            </article>
-            <div className="runner-up-prizes">
-              <article>
-                <span><Icon name="medal" size={18} /> {t("events.runner")}</span>
-                <strong>{t("events.second")}</strong>
-                <b>RM 200</b>
-              </article>
-              <article>
-                <span><Icon name="medal" size={18} /> {t("events.tiers")}</span>
-                <strong>{t("events.third")}</strong>
-                <b>RM 100</b>
-              </article>
-            </div>
-          </section>
-
-          <section className="tournament">
-            <h2>{t("events.details")}</h2>
-            <div className="action-card">
-              <h3>{t("events.action")}</h3>
-              <p className="action-subheading"><strong>{t("events.actionReduce")}</strong></p>
-              <p><Icon name="check" />{t("events.proof")}</p>
-              <p><Icon name="check" />{t("events.actionCollab")}</p>
-              <div className="social-rule">
-                <strong className="supported-social-media-title">{t("events.socialRule")}</strong>
+              <div className="campus-feature-main">
+                <img className="campus-feature-logo" src="/assets/events/apu-mark.png" alt="APU logo" />
+                <div className="campus-feature-info">
+                  <h2>{t("events.campusName")}</h2>
+                  <p>{t("events.campusFullName")}</p>
+                </div>
               </div>
-              <img className="social-media-strip" src="/assets/brand/social-media.png" alt="Supported social media" />
-              <p className="hashtag-note">
-                {renderHashtags(t("events.tagRule"))}
-              </p>
-            </div>
+              <div className="deadline-badge">
+                <strong>{t("events.deadline")}</strong>
+              </div>
+            </article>
           </section>
+
+          <div className="challenge-columns-wrapper">
+            <section className="prizes">
+              <div className="section-heading"><h2>{t("events.prizes")}</h2><span>{t("events.pool")}</span></div>
+              <article className="champion-prize">
+                <span className="prize-icon"><Icon name="trophy" /></span>
+                <strong>{t("events.champion")}</strong>
+                <b>RM<br />500</b>
+              </article>
+              <div className="runner-up-prizes">
+                <article>
+                  <span><Icon name="medal" size={18} /> {t("events.runner")}</span>
+                  <strong>{t("events.second")}</strong>
+                  <b>RM 200</b>
+                </article>
+                <article>
+                  <span><Icon name="medal" size={18} /> {t("events.tiers")}</span>
+                  <strong>{t("events.third")}</strong>
+                  <b>RM 100</b>
+                </article>
+              </div>
+            </section>
+
+            <div className="challenge-divider" aria-hidden="true" />
+
+            <section className="tournament">
+              <h2>{t("events.details")}</h2>
+              <div className="action-card">
+                <h3>{t("events.action")}</h3>
+                <p><Icon name="check" />{t("events.proof")}</p>
+                <p><Icon name="check" />{t("events.actionCollab")}</p>
+                <div className="social-rule">
+                  <strong className="supported-social-media-title">{t("events.socialRule")}</strong>
+                </div>
+                <img className="social-media-strip" src="/assets/brand/social-media.png" alt="Supported social media" />
+                <p className="hashtag-note">
+                  {renderHashtags(t("events.tagRule"))}
+                </p>
+              </div>
+            </section>
+          </div>
 
           <section className="criteria">
             <h2>{t("events.judging")}</h2>
@@ -2358,6 +2392,10 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
         onComplete(result.data?.error || t("camera.failed"));
         return;
       }
+      if (result.data?.status === "approved") {
+        const pts = habit?.points ?? result.data?.points ?? 10;
+        void sendVerificationSuccessNotification(habit ? t("habit." + habit.code) : "Habit", pts, created.data?.submission_id, getLanguage());
+      }
       onComplete(result.data?.status === "approved" ? t("camera.success", { points: habit?.points ?? result.data.points }) : t("camera.failed"));
     } catch { onComplete(t("camera.failed")); }
     finally { setBusy(false); }
@@ -2617,13 +2655,17 @@ function UpdateNotice() {
         if (!("Notification" in window)) return;
         if (Notification.permission !== "granted") return;
 
+        const updateKey = "unplastica_update_notified_" + newVer;
+        if (localStorage.getItem(updateKey) === "true") return;
+        localStorage.setItem(updateKey, "true");
+
         const title = "Unplastica Update Available";
         const options: any = {
           body: `Version ${newVer} is ready! Tap to update and clear cache.`,
           icon: `/icons/icon-192.png?v=${newVer}`,
           badge: `/icons/icon-192.png?v=${newVer}`,
           tag: `unplastica-update-${newVer}`,
-          renotify: true,
+          renotify: false,
           data: { url: "/settings" }
         };
 
@@ -2662,13 +2704,14 @@ function UpdateNotice() {
       localStorage.setItem("unplastica_update_available", newVer);
       window.dispatchEvent(new CustomEvent("unplastica-update-detected", { detail: { version: newVer } }));
 
-      // Deduplicate notifications: only notify ONCE per version and ONLY IF user enabled notifications!
-      const lastNotified = localStorage.getItem("unplastica_last_notified_ver");
-      if (lastNotified !== newVer) {
-        localStorage.setItem("unplastica_last_notified_ver", newVer);
-        if (isNotificationsEnabled()) {
-          void sendSystemUpdateNotification(newVer);
-        }
+      // Strictly notify ONCE per version!
+      const updateKey = "unplastica_update_notified_" + newVer;
+      if (localStorage.getItem(updateKey) === "true") {
+        return;
+      }
+
+      if (isNotificationsEnabled()) {
+        void sendSystemUpdateNotification(newVer);
       }
     };
 

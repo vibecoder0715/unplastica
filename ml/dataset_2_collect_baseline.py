@@ -1,4 +1,5 @@
-"""Automated ethical dataset collector for Unplastica habit recognition.
+"""Phase: dataset_2 (Baseline Ethical Dataset Collector)
+Automated ethical dataset collector for Unplastica habit recognition.
 Collects public domain / CC-licensed photographs from Wikimedia Commons,
 integrates seed assets from design/, applies camera simulation variations,
 and cleanly partitions into train/, val/, and evals/ splits.

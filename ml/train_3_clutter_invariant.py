@@ -1,3 +1,8 @@
+"""Phase: train_3 (Clutter-Invariant Model Training)
+Trains MobileNetV3-Small with synthetic background blending and clutter injection
+to ensure recognition remains accurate even in messy, complex environments.
+"""
+
 import os
 import random
 import time

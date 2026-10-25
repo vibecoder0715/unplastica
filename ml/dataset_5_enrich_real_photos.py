@@ -1,3 +1,8 @@
+"""Phase: dataset_5 (Real-World Photography Enrichment)
+Fetches authentic real-world photos from Wikimedia Commons search queries
+for everyday Malaysian university habits (food containers, tumblers, eco-bags).
+"""
+
 import json
 import urllib.parse
 import urllib.request

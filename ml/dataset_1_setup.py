@@ -1,4 +1,7 @@
-"""Dataset structure setup and verification utility for Unplastica habit classifier."""
+"""Phase: dataset_1 (Dataset Hierarchy & Split Setup)
+Initializes, verifies, and standardizes local folder structures for the 8 Unplastica habit classes.
+Creates and validates train/, val/, and evals/ directory partitions.
+"""
 
 from __future__ import annotations
 

@@ -1,3 +1,8 @@
+"""Phase: dataset_6 (Multi-Style Clutter & Negative Collector)
+Parallel collector for background clutter, desk surfaces, and adversarial
+open-set negatives to train models against false positive habit triggers.
+"""
+
 import os
 import io
 import json

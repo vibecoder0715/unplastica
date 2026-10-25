@@ -1,3 +1,8 @@
+"""Phase: finetune_1 (Clutter Adaptation Fine-Tuning)
+Fine-tunes trained MobileNetV3 weights against high-clutter campus scenarios
+(messy cafeteria tables, backpacks, dorm desks) to prevent background confusion.
+"""
+
 import os
 import random
 import time

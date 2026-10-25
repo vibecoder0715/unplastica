@@ -1,3 +1,8 @@
+"""Phase: train_2 (Multi-Style Classifier Training)
+Trains MobileNetV3-Small on multi-style balanced dataset splits with
+cosine annealing learning rates and multi-class CrossEntropyLoss.
+"""
+
 import os
 import time
 import json

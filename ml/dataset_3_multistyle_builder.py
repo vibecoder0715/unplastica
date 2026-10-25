@@ -1,3 +1,9 @@
+"""Phase: dataset_3 (1,000-Image Multi-Style Dataset Builder)
+Constructs a balanced 1,000+ image dataset across all habit classes.
+Gathers real photos, digital artwork, and synthetic edge samples with
+perceptual dHash image deduplication to eliminate duplicate assets.
+"""
+
 import os
 import io
 import json

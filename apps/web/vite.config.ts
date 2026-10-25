@@ -50,8 +50,8 @@ export default defineConfig({
         background_color: "#fafaed",
         description: "Small plastic-free habits. A cleaner Malaysia, one choice at a time.",
         icons: [
-          { src: `/icons/icon-192.png?v=${appVersion}`, sizes: "192x192", type: "image/png" },
-          { src: `/icons/icon-512.png?v=${appVersion}`, sizes: "512x512", type: "image/png" },
+          { src: `/icons/icon-192.png?v=${appVersion}`, sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: `/icons/icon-512.png?v=${appVersion}`, sizes: "512x512", type: "image/png", purpose: "any" },
           {
             src: `/icons/icon-maskable-512.png?v=${appVersion}`,
             sizes: "512x512",

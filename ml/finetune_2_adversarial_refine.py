@@ -1,5 +1,6 @@
-"""Refine and retrain the Unplastica habit photo classifier to achieve high accuracy
-and eliminate false approvals on adversarial / mixed real-world camera images.
+"""Phase: finetune_2 (Adversarial Hard-Negative Refinement)
+Refines and retrains classifier against adversarial negatives (anime art, digital memes,
+single-use disposable plastics, styrofoam) to eliminate false approvals.
 """
 
 from __future__ import annotations

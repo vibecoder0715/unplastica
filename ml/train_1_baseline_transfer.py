@@ -1,4 +1,7 @@
-"""Train a lightweight Unplastica habit photo classifier with transfer learning."""
+"""Phase: train_1 (Baseline Transfer Learning)
+Trains lightweight baseline CNN architectures (MobileNetV3-Small, MobileNetV3-Large, EfficientNet-B0)
+using PyTorch transfer learning on the initial partitioned habit dataset.
+"""
 
 from __future__ import annotations
 

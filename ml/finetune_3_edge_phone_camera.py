@@ -1,9 +1,8 @@
-"""Refine and train MobileNetV3-Small habit classifier with edge cases:
-- Phone camera conditions: lighting changes, color shifts, rotation, sensor noise, cropping
-- Adversarial negative cases: anime / Hu Tao character art, single-use plastic bottles,
-  disposable bags, styrofoam containers, empty desks / floors
-- Clutter invariance and authentic habit recognition
-- Exports best checkpoint to ml/model/best.pt, ml/model/model.onnx, and apps/web/public/model/model.onnx
+"""Phase: finetune_3 (Edge-Case Phone Camera Fine-Tuning)
+Refines MobileNetV3-Small with phone camera condition simulations (sensor noise,
+glare, motion blur, angle tilt, color casts) and hard adversarial negatives (anime art,
+single-use plastics, empty desks/floors). Exports production checkpoints to
+ml/model/best.pt and apps/web/public/model/model.onnx.
 """
 
 import os
