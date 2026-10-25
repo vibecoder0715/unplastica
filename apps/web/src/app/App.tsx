@@ -163,6 +163,107 @@ function detectInstallEnvironment(): InstallEnvironment {
   };
 }
 
+export function isNotificationsEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem("unplastica-notifications");
+    if (raw !== null) {
+      return raw === "true";
+    }
+    const guestPref = localStorage.getItem("unplastica-guest-preferences");
+    if (guestPref) {
+      const parsed = JSON.parse(guestPref);
+      if (typeof parsed.notifications === "boolean") return parsed.notifications;
+    }
+  } catch (_) {}
+  return true;
+}
+
+export function getStoredNotificationPreference(): boolean {
+  return isNotificationsEnabled();
+}
+
+export async function sendSystemNotification({
+  title,
+  body,
+  url = "/",
+  tag = "unplastica-alert",
+  icon = "/icons/icon-192.png",
+}: {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+  icon?: string;
+}): Promise<boolean> {
+  try {
+    // Strict guard: do NOT send any notification if user turned off in Unplastica settings!
+    if (!isNotificationsEnabled()) return false;
+    if (!("Notification" in window)) return false;
+    if (Notification.permission !== "granted") return false;
+
+    const options: any = {
+      body,
+      icon,
+      badge: "/icons/icon-192.png",
+      tag,
+      renotify: true,
+      data: { url },
+    };
+
+    if ("serviceWorker" in navigator) {
+      try {
+        const regPromise = navigator.serviceWorker.ready;
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200));
+        const reg = await Promise.race([regPromise, timeoutPromise]);
+        if (reg && typeof reg.showNotification === "function") {
+          await reg.showNotification(title, options);
+          return true;
+        }
+      } catch (_) {}
+    }
+
+    try {
+      const notif = new Notification(title, options);
+      if (url) {
+        notif.onclick = () => {
+          window.focus();
+          if (url.startsWith("/")) {
+            history.pushState({}, "", url);
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          } else {
+            window.location.href = url;
+          }
+        };
+      }
+      return true;
+    } catch (_) {}
+  } catch (_) {}
+  return false;
+}
+
+export async function sendCompetitionNotification(lang: Language = "English", force = false): Promise<boolean> {
+  if (!isNotificationsEnabled()) return false;
+  if (!("Notification" in window) || Notification.permission !== "granted") return false;
+
+  const now = Date.now();
+  const lastPushed = localStorage.getItem("unplastica_last_competition_pushed");
+  if (!force && lastPushed && now - Number(lastPushed) < 3 * 60 * 60 * 1000) {
+    return false;
+  }
+  localStorage.setItem("unplastica_last_competition_pushed", String(now));
+
+  const title = translate(lang, "notification.apuTitle");
+  const body = translate(lang, "notification.apuBody");
+
+  return await sendSystemNotification({
+    title,
+    body,
+    url: "/events",
+    tag: "unplastica-competition-apu",
+    icon: "/assets/events/apu-mark.png",
+  });
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>(readPage);
   const [scrolled, setScrolled] = useState(() => window.scrollY > 32);
@@ -182,7 +283,7 @@ export default function App() {
   const [camera, setCamera] = useState(false);
   const [sample, setSample] = useState(false);
   const [toast, setToast] = useState("");
-  const [notifications, setNotifications] = useState(true);
+  const [notifications, setNotifications] = useState<boolean>(getStoredNotificationPreference);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installEnvironment, setInstallEnvironment] = useState<InstallEnvironment>(detectInstallEnvironment);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -395,10 +496,15 @@ export default function App() {
   }, [theme]);
   useEffect(() => {
     if (!profile) return;
-    setNotifications(profile.preferences.notifications ?? true);
-    const savedLanguage = profile.preferences.language;
-    setLanguage(savedLanguage === "Bahasa Melayu" || savedLanguage === "中文" ? savedLanguage : "English");
-    if (profile.preferences.theme) setTheme(profile.preferences.theme);
+    const dbNotif = profile.preferences?.notifications;
+    const notifVal = typeof dbNotif === "boolean" ? dbNotif : getStoredNotificationPreference();
+    setNotifications(notifVal);
+    localStorage.setItem("unplastica-notifications", String(notifVal));
+    const savedLanguage = profile.preferences?.language;
+    if (savedLanguage === "Bahasa Melayu" || savedLanguage === "中文" || savedLanguage === "English") {
+      setLanguage(savedLanguage);
+    }
+    if (profile.preferences?.theme) setTheme(profile.preferences.theme);
   }, [profile]);
 
   useEffect(() => {
@@ -435,16 +541,70 @@ export default function App() {
     }
   }, [ready, page, user]);
 
-  const savePreference = async (key: "theme" | "language" | "notifications", value: string | boolean) => {
+  const savePreference = useCallback(async (key: "theme" | "language" | "notifications", value: string | boolean) => {
+    if (key === "notifications") {
+      localStorage.setItem("unplastica-notifications", String(value));
+    }
     const next = { ...(profile?.preferences ?? {}), [key]: value };
     setProfile((current) => current ? { ...current, preferences: next } : current);
     if (supabase && user) {
       const { error } = await supabase.from("profiles").update({ preferences: next }).eq("id", user.id);
-      if (error) notify(t("settings.preferenceSaveError"));
+      if (error) {
+        notify(t("settings.preferenceSaveError"));
+        return false;
+      }
+      return true;
     } else {
       localStorage.setItem("unplastica-guest-preferences", JSON.stringify(next));
+      return true;
     }
-  };
+  }, [profile, user, notify, t]);
+
+  const handleNotificationToggle = useCallback(async (value: boolean) => {
+    setNotifications(value);
+    localStorage.setItem("unplastica-notifications", String(value));
+    await savePreference("notifications", value);
+
+    if (value) {
+      // Immediate push notification when turned on
+      void sendSystemNotification({
+        title: translate(language, "notification.welcomeTitle"),
+        body: translate(language, "notification.welcomeBody"),
+        icon: "/icons/icon-192.png",
+        tag: "unplastica-welcome-alert",
+        url: "/settings",
+      });
+
+      // Also trigger the active competition notification
+      window.setTimeout(() => {
+        void sendCompetitionNotification(language, true);
+      }, 1000);
+    }
+  }, [language, savePreference]);
+
+  useEffect(() => {
+    // Only push when notifications are active and allowed
+    if (!notifications || !isNotificationsEnabled()) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+    // Push active competition alert after warm-up when app is running
+    const initialTimer = window.setTimeout(() => {
+      if (isNotificationsEnabled() && Notification.permission === "granted") {
+        void sendCompetitionNotification(language, false);
+      }
+    }, 6000);
+
+    const intervalTimer = window.setInterval(() => {
+      if (isNotificationsEnabled() && Notification.permission === "granted") {
+        void sendCompetitionNotification(language, false);
+      }
+    }, 15 * 60 * 1000);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(intervalTimer);
+    };
+  }, [notifications, language]);
 
   if (!ready) return <div className="loading-shell"><BrandWordmark /></div>;
   const activeProfile = profile ?? { ...guestProfile, display_name: t("settings.guest"), preferences: { ...guestProfile.preferences, language } };
@@ -626,7 +786,7 @@ export default function App() {
           notifications={notifications}
           language={language}
           theme={theme}
-          onNotification={(value) => { setNotifications(value); void savePreference("notifications", value); }}
+          onNotification={handleNotificationToggle}
           onLanguage={(value) => { setLanguage(value); void savePreference("language", value); }}
           onTheme={(value) => { setTheme(value); void savePreference("theme", value); }}
           installAvailable={Boolean(installPrompt)}
@@ -638,6 +798,7 @@ export default function App() {
           onSignOut={async () => { await supabase?.auth.signOut(); navigate("home"); notify(t("common.logoutSuccess")); }}
           onUpdateProfile={updateProfile}
           onUpdatePassword={updatePassword}
+          notify={notify}
         />}
         {page === "login" && <AuthPage user={user} onAuthenticated={() => { const target = sessionStorage.getItem("unplastica-return-to") as Page | null; sessionStorage.removeItem("unplastica-return-to"); navigate(target && target !== "login" ? target : "settings"); }} />}
       </main>
@@ -993,12 +1154,14 @@ function SettingsPage(props: {
   profile: Profile; email: string; user: User | null; guest: boolean; notifications: boolean; language: Language; theme: Theme;
   installAvailable: boolean; installEnvironment: InstallEnvironment; onInstall: () => Promise<void>;
   avatarBusy: boolean; onUploadAvatar: (file: File) => void;
-  onNotification: (value: boolean) => void; onLanguage: (value: Language) => void; onTheme: (value: Theme) => void;
+  onNotification: (value: boolean) => Promise<void> | void; onLanguage: (value: Language) => void; onTheme: (value: Theme) => void;
   onAuth: () => void; onSignOut: () => void;
   onUpdateProfile?: (updated: { display_name: string; username: string; email?: string; phone: string; tagline: string }) => Promise<void>;
   onUpdatePassword?: (password: string) => Promise<void>;
+  notify: (message: string) => void;
 }) {
   const t = useCopy();
+  const [toggleBusy, setToggleBusy] = useState(false);
   const [updatePending, setUpdatePending] = useState(() => {
     const pendingVer = localStorage.getItem("unplastica_update_available");
     if (!pendingVer) return false;
@@ -1368,13 +1531,47 @@ function SettingsPage(props: {
     )}
 
     <section className="preferences"><h3>{t("settings.preferences")}</h3>
-      <div className="setting-card setting-toggle"><span className="setting-icon"><Icon name="bell" /></span><strong>{t("settings.notifications")}</strong><button className={"switch " + (props.notifications ? "on" : "")} role="switch" aria-checked={props.notifications} onClick={async () => {
+      <div className="setting-card setting-toggle"><span className="setting-icon"><Icon name="bell" /></span><strong>{t("settings.notifications")}</strong><button className={"switch " + (props.notifications ? "on" : "")} role="switch" aria-checked={props.notifications} aria-label={t("settings.notifications")} disabled={toggleBusy} onClick={async () => {
         const next = !props.notifications;
-        props.onNotification(next);
-        if (next && "Notification" in window && Notification.permission === "default") {
+        if (next) {
+          if (!("Notification" in window)) {
+            props.notify(t("settings.notificationsNotSupported"));
+            return;
+          }
+          let permission = Notification.permission;
+          if (permission === "denied") {
+            props.notify(t("settings.notificationsBlocked"));
+            return;
+          }
+          if (permission === "default") {
+            setToggleBusy(true);
+            try {
+              permission = await Notification.requestPermission();
+            } catch (err) {
+              console.error("Notification permission error:", err);
+            } finally {
+              setToggleBusy(false);
+            }
+          }
+          if (permission !== "granted") {
+            props.notify(t("settings.notificationsPermissionDenied"));
+            return;
+          }
+          setToggleBusy(true);
           try {
-            await Notification.requestPermission();
-          } catch (_) {}
+            await props.onNotification(true);
+            props.notify(t("settings.notificationsEnabled"));
+          } finally {
+            setToggleBusy(false);
+          }
+        } else {
+          setToggleBusy(true);
+          try {
+            await props.onNotification(false);
+            props.notify(t("settings.notificationsDisabled"));
+          } finally {
+            setToggleBusy(false);
+          }
         }
       }}><span /></button></div>
       <div className="setting-card setting-select"><div className="setting-title"><span className="setting-icon"><Icon name="globe" /></span><strong>{t("settings.language")}</strong></div><div className="segmented language-options">
@@ -2416,28 +2613,9 @@ function UpdateNotice() {
 
     const sendSystemUpdateNotification = async (newVer: string) => {
       try {
-        let notificationsAllowed = true;
-        try {
-          const guestPref = localStorage.getItem("unplastica-guest-preferences");
-          if (guestPref) {
-            const parsed = JSON.parse(guestPref);
-            if (parsed.notifications === false) notificationsAllowed = false;
-          }
-          const rawNotif = localStorage.getItem("unplastica-notifications");
-          if (rawNotif === "false") notificationsAllowed = false;
-        } catch (_) {}
-
-        if (!notificationsAllowed) return;
+        if (!isNotificationsEnabled()) return;
         if (!("Notification" in window)) return;
-
-        let permission = Notification.permission;
-        if (permission === "default") {
-          try {
-            permission = await Notification.requestPermission();
-          } catch (_) {}
-        }
-
-        if (permission !== "granted") return;
+        if (Notification.permission !== "granted") return;
 
         const title = "Unplastica Update Available";
         const options: any = {
@@ -2445,14 +2623,16 @@ function UpdateNotice() {
           icon: `/icons/icon-192.png?v=${newVer}`,
           badge: `/icons/icon-192.png?v=${newVer}`,
           tag: `unplastica-update-${newVer}`,
-          renotify: false,
+          renotify: true,
           data: { url: "/settings" }
         };
 
         // Phone / Mobile PWA (Android / iOS) & PC ServiceWorker showNotification
         if ("serviceWorker" in navigator) {
           try {
-            const reg = await navigator.serviceWorker.ready;
+            const regPromise = navigator.serviceWorker.ready;
+            const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200));
+            const reg = await Promise.race([regPromise, timeoutPromise]);
             if (reg && typeof reg.showNotification === "function") {
               await reg.showNotification(title, options);
               return;
@@ -2482,11 +2662,13 @@ function UpdateNotice() {
       localStorage.setItem("unplastica_update_available", newVer);
       window.dispatchEvent(new CustomEvent("unplastica-update-detected", { detail: { version: newVer } }));
 
-      // Deduplicate notifications: only notify ONCE per version!
+      // Deduplicate notifications: only notify ONCE per version and ONLY IF user enabled notifications!
       const lastNotified = localStorage.getItem("unplastica_last_notified_ver");
       if (lastNotified !== newVer) {
         localStorage.setItem("unplastica_last_notified_ver", newVer);
-        void sendSystemUpdateNotification(newVer);
+        if (isNotificationsEnabled()) {
+          void sendSystemUpdateNotification(newVer);
+        }
       }
     };
 

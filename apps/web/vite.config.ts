@@ -68,6 +68,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
+        importScripts: ["/sw-notifications.js"],
         runtimeCaching: [
           {
             urlPattern: ({ url }) =>
