@@ -350,15 +350,17 @@ img { max-width: 100%; }
 }
 .campus-feature-main {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 18px;
   width: 100%;
 }
 .campus-feature-logo {
-  width: 140px;
-  height: 140px;
-  border-radius: 16px;
+  flex: 0 0 84px;
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
   object-fit: contain;
   background: #fff;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
@@ -366,21 +368,23 @@ img { max-width: 100%; }
 .campus-feature-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
+  align-items: flex-start;
+  text-align: left;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 .campus-feature-info > h2 {
   margin: 0;
   color: var(--ink);
-  font: 700 calc((22px) * var(--desktop-type-scale, 1))/1.2 "Outfit", sans-serif;
+  font: 700 calc((21px) * var(--desktop-type-scale, 1))/1.2 "Outfit", sans-serif;
 }
 .campus-feature-info > p {
   max-width: 560px;
   margin: 0;
   color: var(--ink-soft);
-  font-size: calc((clamp(14px, 2vw, 16px)) * var(--desktop-type-scale, 1));
-  line-height: 1.45;
+  font-size: calc((clamp(13px, 2vw, 15px)) * var(--desktop-type-scale, 1));
+  line-height: 1.4;
 }
 .challenge-columns-wrapper {
   width: 100%;
@@ -698,7 +702,7 @@ img { max-width: 100%; }
   background-size: contain;
   background-repeat: no-repeat;
   background-position: right center;
-  opacity: 0.16;
+  opacity: 0.10;
 }
 .event-column-card:hover .event-column-bg {
   opacity: 0.25;
@@ -748,27 +752,29 @@ img { max-width: 100%; }
 .event-view-header {
   grid-column: 1 / -1;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  align-items: center;
   width: 100%;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 .event-quit-button {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--surface-mid);
-  color: var(--ink);
+  color: var(--forest);
   display: grid;
   place-items: center;
   cursor: pointer;
   transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 6px rgb(0 0 0 / 4%);
 }
 .event-quit-button:hover {
-  transform: scale(1.08);
+  transform: scale(1.06);
   border-color: var(--leaf);
   color: var(--leaf);
+  background: var(--surface);
 }
 .deadline-badge {
   display: inline-flex;

@@ -1076,8 +1076,8 @@ function EventsPage({ onSample }: { onSample: () => void }) {
       {activeTab === "challenge" && (
         <div className="event-column-view challenge-view">
           <div className="event-view-header">
-            <button className="event-quit-button" onClick={() => setActiveTab(null)} aria-label="Quit to events">
-              <Icon name="arrow" size={18} />
+            <button className="header-back event-quit-button" onClick={() => setActiveTab(null)} aria-label={t("common.back")}>
+              <Icon name="back" />
             </button>
           </div>
           <section className="event-intro">
@@ -1159,8 +1159,8 @@ function EventsPage({ onSample }: { onSample: () => void }) {
       {activeTab === "done" && (
         <div className="event-column-view done-view">
           <div className="event-view-header">
-            <button className="event-quit-button" onClick={() => setActiveTab(null)} aria-label="Quit to events">
-              <Icon name="arrow" size={18} />
+            <button className="header-back event-quit-button" onClick={() => setActiveTab(null)} aria-label={t("common.back")}>
+              <Icon name="back" />
             </button>
           </div>
           <section className="milestones">
