@@ -312,6 +312,7 @@ export default function App() {
   const [infoHabit, setInfoHabit] = useState<HabitCode | null>(null);
   const [camera, setCamera] = useState(false);
   const [sample, setSample] = useState(false);
+  const [eventSubpage, setEventSubpage] = useState<"challenge" | "done" | null>(null);
   const [toast, setToast] = useState("");
   const [notifications, setNotifications] = useState<boolean>(getStoredNotificationPreference);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
@@ -319,6 +320,12 @@ export default function App() {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const t = useCallback((key: string, values?: Record<string, string | number>) => translate(language, key, values), [language]);
   userRef.current = user;
+
+  useEffect(() => {
+    const langCode = language === "中文" ? "zh-CN" : language === "Bahasa Melayu" ? "ms" : "en";
+    document.documentElement.lang = langCode;
+    document.title = t("app.title");
+  }, [language, t]);
 
   const [dailyUsage, setDailyUsage] = useState<Record<string, number>>({});
   const [boxCutleryLastVerified, setBoxCutleryLastVerified] = useState<number>(() => {
@@ -334,6 +341,7 @@ export default function App() {
   const navigate = useCallback((next: Page) => {
     if (location.pathname !== pagePath(next)) history.pushState({}, "", pagePath(next));
     setPage(next);
+    if (next !== "events") setEventSubpage(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
   const loadAccount = useCallback(async (activeUser: User | null) => {
@@ -777,7 +785,16 @@ export default function App() {
   return (
     <LanguageContext.Provider value={language}>
     <div className="app-shell">
-      <Header page={page} balance={balance} scrolled={scrolled} avatarUrl={profile?.avatar_url ?? null} onProfile={openSettings} onHome={() => navigate("home")} />
+      <Header
+        page={page}
+        eventSubpage={eventSubpage}
+        onEventBack={() => setEventSubpage(null)}
+        balance={balance}
+        scrolled={scrolled}
+        avatarUrl={profile?.avatar_url ?? null}
+        onProfile={openSettings}
+        onHome={() => navigate("home")}
+      />
       <main className={"page page-" + page}>
         {page === "home" && <HomePage onEnter={() => requestLogin("earn")} />}
         {page === "earn" && <EarnPage
@@ -804,7 +821,13 @@ export default function App() {
             setCamera(true);
           }}
         />}
-        {page === "events" && <EventsPage onSample={() => setSample(true)} />}
+        {page === "events" && (
+          <EventsPage
+            activeTab={eventSubpage}
+            onSelectTab={setEventSubpage}
+            onSample={() => setSample(true)}
+          />
+        )}
         {page === "settings" && <SettingsPage
           profile={activeProfile}
           email={user?.email ?? ""}
@@ -875,7 +898,25 @@ export default function App() {
   );
 }
 
-function Header({ page, balance, scrolled, avatarUrl, onProfile, onHome }: { page: Page; balance: number; scrolled: boolean; avatarUrl: string | null; onProfile: () => void; onHome: () => void }) {
+function Header({
+  page,
+  eventSubpage,
+  onEventBack,
+  balance,
+  scrolled,
+  avatarUrl,
+  onProfile,
+  onHome,
+}: {
+  page: Page;
+  eventSubpage?: "challenge" | "done" | null;
+  onEventBack?: () => void;
+  balance: number;
+  scrolled: boolean;
+  avatarUrl: string | null;
+  onProfile: () => void;
+  onHome: () => void;
+}) {
   const t = useCopy();
   return (
     <header className={"topbar topbar-" + page}>
@@ -885,9 +926,15 @@ function Header({ page, balance, scrolled, avatarUrl, onProfile, onHome }: { pag
           <h1 className="settings-header-title">{t("settings.profile")}</h1>
           <span className="header-spacer" />
         </> : <>
-          <button className={"brand-button " + (scrolled ? "is-scrolled" : "")} onClick={onHome} aria-label={t("nav.home")}>
-            <BrandLogo scrolled={scrolled} />
-          </button>
+          {page === "events" && eventSubpage ? (
+            <button className="header-back" onClick={onEventBack} aria-label={t("common.back")}>
+              <Icon name="back" />
+            </button>
+          ) : (
+            <button className={"brand-button " + (scrolled ? "is-scrolled" : "")} onClick={onHome} aria-label={t("nav.home")}>
+              <BrandLogo scrolled={scrolled} />
+            </button>
+          )}
           {page !== "login" && <div className="balance-pill"><img src="/assets/brand/greenbits.png" alt="" /><strong>{formatPoints(balance)}</strong></div>}
           {page !== "login" && <button className="avatar-button" onClick={onProfile} aria-label={t("common.profile")}>{avatarUrl ? <img className="header-avatar-photo" src={avatarUrl} alt="" /> : <Icon name="user" />}</button>}
         </>}
@@ -923,7 +970,7 @@ function BottomNav({ page, onNavigate }: { page: Page; onNavigate: (page: Page) 
     { page: "earn", title: t("nav.earn"), icon: "earn" },
     { page: "events", title: t("nav.events"), icon: "events" },
   ];
-  return <nav className="bottom-nav" aria-label="Main navigation">
+  return <nav className="bottom-nav" aria-label={t("nav.mainNav")}>
     {items.map((item) => <button key={item.page} className={"nav-tab " + (page === item.page ? "active" : "")} onClick={() => onNavigate(item.page)} aria-current={page === item.page ? "page" : undefined}>
       {item.page === "earn" ? (
         <img src="/assets/brand/greenbits.png" alt="" className="nav-earn-icon" style={{ width: 23, height: 23, objectFit: "contain", display: "block", background: "transparent" }} />
@@ -1031,9 +1078,16 @@ function renderHashtags(text: string) {
   });
 }
 
-function EventsPage({ onSample }: { onSample: () => void }) {
+function EventsPage({
+  activeTab,
+  onSelectTab,
+  onSample,
+}: {
+  activeTab: "challenge" | "done" | null;
+  onSelectTab: (tab: "challenge" | "done" | null) => void;
+  onSample: () => void;
+}) {
   const t = useCopy();
-  const [activeTab, setActiveTab] = useState<"challenge" | "done" | null>(null);
 
   const milestones = [
     { title: t("events.items"), detail: t("events.itemsDetail"), image: habitImages.box_cutlery },
@@ -1048,7 +1102,7 @@ function EventsPage({ onSample }: { onSample: () => void }) {
         <section className="events-columns-selector">
           <button
             className="event-column-card"
-            onClick={() => setActiveTab("challenge")}
+            onClick={() => onSelectTab("challenge")}
           >
             <div className="event-column-bg" style={{ backgroundImage: "url(/assets/events/noplastic-challenge.png)" }} />
             <div className="event-column-overlay" />
@@ -1060,7 +1114,7 @@ function EventsPage({ onSample }: { onSample: () => void }) {
 
           <button
             className="event-column-card"
-            onClick={() => setActiveTab("done")}
+            onClick={() => onSelectTab("done")}
           >
             <div className="event-column-bg apu-logo-bg" style={{ backgroundImage: "url(/assets/events/apu-mark.png)" }} />
             <div className="event-column-overlay" />
@@ -1075,11 +1129,6 @@ function EventsPage({ onSample }: { onSample: () => void }) {
       {/* Column 1 Content: No-plastic Challenge */}
       {activeTab === "challenge" && (
         <div className="event-column-view challenge-view">
-          <div className="event-view-header">
-            <button className="header-back event-quit-button" onClick={() => setActiveTab(null)} aria-label={t("common.back")}>
-              <Icon name="back" />
-            </button>
-          </div>
           <section className="event-intro">
             <h1>{t("events.headline")}</h1>
             <article className="campus-feature">
@@ -1102,18 +1151,18 @@ function EventsPage({ onSample }: { onSample: () => void }) {
               <article className="champion-prize">
                 <span className="prize-icon"><Icon name="trophy" /></span>
                 <strong>{t("events.champion")}</strong>
-                <b>RM<br />500</b>
+                <b>{t("events.prizeChampion")}</b>
               </article>
               <div className="runner-up-prizes">
                 <article>
                   <span><Icon name="medal" size={18} /> {t("events.runner")}</span>
                   <strong>{t("events.second")}</strong>
-                  <b>RM 200</b>
+                  <b>{t("events.prizeSecond")}</b>
                 </article>
                 <article>
                   <span><Icon name="medal" size={18} /> {t("events.tiers")}</span>
                   <strong>{t("events.third")}</strong>
-                  <b>RM 100</b>
+                  <b>{t("events.prizeThird")}</b>
                 </article>
               </div>
             </section>
@@ -1158,11 +1207,6 @@ function EventsPage({ onSample }: { onSample: () => void }) {
       {/* Column 2 Content: What we had done in APU? */}
       {activeTab === "done" && (
         <div className="event-column-view done-view">
-          <div className="event-view-header">
-            <button className="header-back event-quit-button" onClick={() => setActiveTab(null)} aria-label={t("common.back")}>
-              <Icon name="back" />
-            </button>
-          </div>
           <section className="milestones">
             <div className="section-heading"><h2>{t("events.done")}</h2><span>{t("events.milestones")}</span></div>
             <div className="milestone-list">
@@ -1613,7 +1657,7 @@ function SettingsPage(props: {
       </div></div>
       <div className="setting-card setting-select"><div className="setting-title"><span className="setting-icon"><Icon name="sun" /></span><strong>{t("settings.theme")}</strong></div><div className="segmented theme-options">
         {([["light", "sun", t("theme.light")], ["dark", "moon", t("theme.dark")], ["system", "monitor", t("theme.system")]] as const).map(([value, icon, label]) =>
-          <button key={value} className={props.theme === value ? "active" : ""} aria-label={label + " theme"} aria-pressed={props.theme === value} onClick={() => props.onTheme(value)}><Icon name={icon} /><span>{label}</span></button>)}
+          <button key={value} className={props.theme === value ? "active" : ""} aria-label={t("theme.ariaLabel", { label })} aria-pressed={props.theme === value} onClick={() => props.onTheme(value)}><Icon name={icon} /><span>{label}</span></button>)}
       </div></div>
     </section>
     <button className="logout-button" onClick={props.guest ? props.onAuth : props.onSignOut}><Icon name={props.guest ? "mail" : "logout"} />{props.guest ? t("settings.login") : t("settings.logout")}</button>

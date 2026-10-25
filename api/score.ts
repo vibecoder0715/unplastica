@@ -80,7 +80,9 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number; re
 }
 
 const VALID_HABITS = new Set([
+  "beeswax_food_wraps",
   "box_cutlery",
+  "bulk_pantry_refill",
   "greenery_furniture",
   "handicraft_projects",
   "recycle_bags",
@@ -110,8 +112,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
   if (request.method === "GET") {
     return response.status(200).json({
       status: "ready",
-      model: "mobilenet_v3_large",
-      model_version: "mobilenet_v3_large-v1.0.0-verified",
+      model: "mobilenet_v3_small",
+      model_version: "mobilenet_v3_small-v0.2.0-edge-refined",
       model_sha256: "b7d2939347cd352601d07257990044de93190aef57f8ec23cd3fdb7967315b96",
       classes: Array.from(VALID_HABITS).concat(["other"]).sort(),
       threshold: 0.85,
@@ -238,7 +240,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       status: verified ? "verified" : "rejected",
       predicted_label: mlData.predicted_label,
       confidence: mlData.confidence,
-      model_version: mlData.model_version || "mobilenet_v3_large-v1.0.0-verified",
+      model_version: mlData.model_version || "mobilenet_v3_small-v0.2.0-edge-refined",
       verified,
     });
   } catch (err) {
