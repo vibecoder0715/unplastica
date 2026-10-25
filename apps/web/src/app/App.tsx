@@ -688,8 +688,8 @@ function Header({ page, balance, scrolled, avatarUrl, onProfile, onHome }: { pag
 function BrandWordmark({ className = "" }: { className?: string }) {
   return (
     <div className={"brand-wordmark-wrapper " + className} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <img className="brand-image-light" src="/assets/brand/brand-wordmark-light.png" alt="Unplastica" style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
-      <img className="brand-image-dark" src="/assets/brand/brand-wordmark-dark.png" alt="Unplastica" style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
+      <img className="brand-image-light" src="/assets/brand/brand-wordmark-light.png?v=0.2.4" alt="Unplastica" style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
+      <img className="brand-image-dark" src="/assets/brand/brand-wordmark-dark.png?v=0.2.4" alt="Unplastica" style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
     </div>
   );
 }
@@ -697,10 +697,10 @@ function BrandWordmark({ className = "" }: { className?: string }) {
 function BrandLogo({ scrolled = false }: { scrolled?: boolean } = {}) {
   return (
     <span className={"brand-crop " + (scrolled ? "wordmark-visible" : "mark-visible")} aria-hidden="true">
-      <img className="brand-mark brand-image-light" src="/assets/brand/brand-mark-light.png" alt="Unplastica" />
-      <img className="brand-mark brand-image-dark" src="/assets/brand/brand-mark-dark.png" alt="Unplastica" />
-      <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png" alt="Unplastica" />
-      <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png" alt="Unplastica" />
+      <img className="brand-mark brand-image-light" src="/assets/brand/brand-mark-light.png?v=0.2.4" alt="Unplastica" />
+      <img className="brand-mark brand-image-dark" src="/assets/brand/brand-mark-dark.png?v=0.2.4" alt="Unplastica" />
+      <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png?v=0.2.4" alt="Unplastica" />
+      <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png?v=0.2.4" alt="Unplastica" />
     </span>
   );
 }

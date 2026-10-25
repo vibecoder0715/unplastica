@@ -61,7 +61,34 @@
       ]
     },
     {
-      "source": "/assets/(.*)",
+      "source": "/assets/brand/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/icons/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(favicon\\.ico|apple-touch-icon\\.png)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.+)-[a-zA-Z0-9_-]{8,}\\.(js|css|wasm)",
       "headers": [
         {
           "key": "Cache-Control",
