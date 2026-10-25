@@ -386,15 +386,34 @@ img { max-width: 100%; }
   font-size: calc((clamp(13px, 2vw, 15px)) * var(--desktop-type-scale, 1));
   line-height: 1.4;
 }
+.event-intro {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid color-mix(in srgb, var(--forest) 18%, var(--line));
+}
 .challenge-columns-wrapper {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  margin-bottom: 34px;
+  gap: 22px;
+  margin-bottom: 24px;
 }
 .challenge-divider {
-  display: none;
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: color-mix(in srgb, var(--forest) 18%, var(--line));
+  margin: 4px 0;
+}
+.tournament {
+  margin-bottom: 22px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--forest) 18%, var(--line));
+}
+.criteria {
+  margin-bottom: 24px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--forest) 18%, var(--line));
 }
 .event-points {
   min-height: 80px;
@@ -480,7 +499,7 @@ img { max-width: 100%; }
 .profile-identity { display: flex; flex-direction: column; align-items: center; margin: 4px 0 28px; text-align: center; }
 .profile-avatar { position: relative; width: 112px; height: 112px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: white; background: var(--forest); font: 700 calc((26px) * var(--desktop-type-scale, 1))/1 "Outfit", sans-serif; }
 .profile-avatar > img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-.profile-avatar > span { position: absolute; right: -1px; bottom: 1px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #092100; background: var(--leaf-bright); }
+.profile-avatar > span { display: none !important; }
 .profile-identity h2 { margin: 0; color: var(--forest); font: 700 calc((27px) * var(--desktop-type-scale, 1))/1.2 "Outfit", sans-serif; }
 .profile-photo-upload { position: relative; min-height: 40px; margin-top: 12px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--forest); background: var(--surface); cursor: pointer; font: 700 calc((13px) * var(--desktop-type-scale, 1))/1 "Outfit", sans-serif; }
 .profile-photo-upload input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; clip-path: inset(50%); white-space: nowrap; }
@@ -987,6 +1006,11 @@ img { max-width: 100%; }
     border: 1px solid color-mix(in srgb, var(--leaf) 32%, var(--line));
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   }
+  .event-intro {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
   .challenge-columns-wrapper {
     grid-column: 1 / -1;
     width: 100%;
@@ -999,6 +1023,7 @@ img { max-width: 100%; }
   .challenge-divider {
     display: block;
     width: 1px;
+    height: auto;
     background: color-mix(in srgb, var(--forest) 20%, var(--line));
     align-self: stretch;
     margin: 4px 0;
@@ -1012,8 +1037,15 @@ img { max-width: 100%; }
     grid-column: 3;
     width: 100%;
     margin: 0;
+    border-bottom: none;
+    padding-bottom: 0;
   }
-  .criteria { grid-column: 1 / -1; margin: 0; }
+  .criteria {
+    grid-column: 1 / -1;
+    margin: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
   .sample-link { grid-column: 1 / -1; width: min(100%, 540px); min-height: 76px; justify-self: center; margin: 0 auto; padding: 16px 22px; }
   .milestones { margin-top: 0; }
   .prizes > .section-heading, .milestones > .section-heading { margin-bottom: 14px; }
@@ -1480,5 +1512,107 @@ img { max-width: 100%; }
     border-radius: 6px;
   }
 }
+
+/* Avatar Cropping Modal */
+.avatar-crop-dialog {
+  width: min(92vw, 380px);
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.avatar-crop-viewport {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #111;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.avatar-crop-viewport:active {
+  cursor: grabbing;
+}
+.avatar-crop-image {
+  max-width: none;
+  max-height: none;
+  pointer-events: none;
+}
+.avatar-crop-mask {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  border: 2px dashed rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+}
+.avatar-crop-controls {
+  width: 100%;
+}
+.avatar-crop-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font: 600 14px "Outfit", sans-serif;
+  color: var(--forest);
+}
+.avatar-crop-controls input[type="range"] {
+  flex: 1;
+  accent-color: var(--leaf);
+}
+
+/* Logout Confirmation Dialog */
+.logout-confirm-dialog {
+  width: min(90vw, 360px);
+  padding: 24px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.logout-dialog-brand {
+  margin-bottom: 2px;
+}
+.logout-dialog-logo {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+}
+.logout-dialog-title {
+  margin: 0;
+  font: 700 20px "Outfit", sans-serif;
+  color: var(--forest);
+}
+.logout-dialog-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+.logout-dialog-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
+}
+.logout-dialog-actions button {
+  flex: 1;
+}
+.logout-confirm-btn {
+  background: #c53030 !important;
+  color: #fff !important;
+  border-color: #c53030 !important;
+}
+.logout-confirm-btn:hover {
+  background: #9b2c2c !important;
+}
+
 
 

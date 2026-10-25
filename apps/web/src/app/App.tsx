@@ -138,6 +138,10 @@ function readPage(): Page {
   if (path === "/earn") return "earn";
   if (path === "/events") return "events";
   if (path === "/settings" || path === "/profile") return "settings";
+  const stored = localStorage.getItem("unplastica-current-page") as Page | null;
+  if (stored && ["home", "earn", "events", "settings"].includes(stored)) {
+    return stored;
+  }
   return "home";
 }
 function getTheme(): Theme {
@@ -342,6 +346,7 @@ export default function App() {
     if (location.pathname !== pagePath(next)) history.pushState({}, "", pagePath(next));
     setPage(next);
     if (next !== "events") setEventSubpage(null);
+    localStorage.setItem("unplastica-current-page", next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
   const loadAccount = useCallback(async (activeUser: User | null) => {
@@ -407,8 +412,16 @@ export default function App() {
   useEffect(() => {
     const pop = () => {
       const next = readPage();
-      if (next === "earn" && !userRef.current) { history.replaceState({}, "", "/"); pendingPage.current = "earn"; setPage("home"); setShowLoginGate(true); return; }
+      if (next === "earn" && !userRef.current) {
+        history.replaceState({}, "", "/");
+        pendingPage.current = "earn";
+        setPage("home");
+        localStorage.setItem("unplastica-current-page", "home");
+        setShowLoginGate(true);
+        return;
+      }
       setPage(next);
+      localStorage.setItem("unplastica-current-page", next);
     };
     window.addEventListener("popstate", pop);
     const authClient = supabase;
@@ -465,13 +478,14 @@ export default function App() {
           setUser(session.user);
           await loadAccount(session.user);
 
-          // If returning from OAuth or currently on login page, navigate to destination (defaulting to settings)
-          if (isOAuthCallback || location.pathname === "/login" || readPage() === "login") {
+          // If returning from OAuth or currently on login page, navigate to destination (defaulting to home)
+          if (isOAuthCallback || (location.pathname === "/login" && session)) {
             const target = sessionStorage.getItem("unplastica-return-to") as Page | null;
             sessionStorage.removeItem("unplastica-return-to");
-            const destination = target && target !== "login" ? target : "settings";
+            const destination = target && target !== "login" ? target : "home";
             history.replaceState({}, "", pagePath(destination));
             setPage(destination);
+            localStorage.setItem("unplastica-current-page", destination);
           }
         } else {
           setSession(null);
@@ -504,12 +518,14 @@ export default function App() {
           }
           const hasReturn = sessionStorage.getItem("unplastica-return-to");
           const isCallback = window.location.search.includes("code=") || window.location.hash.includes("access_token=");
-          if (event === "SIGNED_IN" || location.pathname === "/login" || readPage() === "login" || hasReturn || isCallback) {
+          // Only redirect when genuinely completing a login or return action
+          if ((event === "SIGNED_IN" && (hasReturn || location.pathname === "/login" || isCallback)) || isCallback) {
             const target = hasReturn as Page | null;
             sessionStorage.removeItem("unplastica-return-to");
-            const destination = target && target !== "login" ? target : "settings";
+            const destination = (target && target !== "login" ? target : "home") as Page;
             history.replaceState({}, "", pagePath(destination));
             setPage(destination);
+            localStorage.setItem("unplastica-current-page", destination);
           }
         }
       }, 0);
@@ -1228,6 +1244,179 @@ function Criterion({ icon, percent, title, detail }: { icon: IconName; percent: 
   return <article className="criterion"><div className="criterion-top"><span><Icon name={icon} /></span><b>{percent}</b></div><strong>{title}</strong><small>{detail}</small></article>;
 }
 
+function AvatarCropModal({
+  imageSrc,
+  onCrop,
+  onCancel,
+}: {
+  imageSrc: string;
+  onCrop: (file: File) => Promise<void> | void;
+  onCancel: () => void;
+}) {
+  const t = useCopy();
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [saving, setSaving] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setPan({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  const handleSave = async () => {
+    const img = imgRef.current;
+    if (!img) return;
+    setSaving(true);
+    try {
+      const OUTPUT_SIZE = 256;
+      const VIEWPORT_SIZE = 260;
+      const canvas = document.createElement("canvas");
+      canvas.width = OUTPUT_SIZE;
+      canvas.height = OUTPUT_SIZE;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas context unavailable");
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+
+      const ratio = OUTPUT_SIZE / VIEWPORT_SIZE;
+      ctx.save();
+      ctx.translate(OUTPUT_SIZE / 2, OUTPUT_SIZE / 2);
+      ctx.translate(pan.x * ratio, pan.y * ratio);
+      ctx.scale(zoom * ratio, zoom * ratio);
+
+      const naturalW = img.naturalWidth || img.width;
+      const naturalH = img.naturalHeight || img.height;
+      const fitScale = Math.max(VIEWPORT_SIZE / naturalW, VIEWPORT_SIZE / naturalH);
+      const renderW = naturalW * fitScale;
+      const renderH = naturalH * fitScale;
+      ctx.drawImage(img, -renderW / 2, -renderH / 2, renderW, renderH);
+      ctx.restore();
+
+      // Compress to guarantee size <= 50 KB
+      let quality = 0.85;
+      let blob: Blob | null = null;
+      for (let i = 0; i < 5; i++) {
+        blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+        if (blob && blob.size <= 50 * 1024) break;
+        quality -= 0.15;
+      }
+
+      if (!blob) throw new Error("Could not create cropped image");
+      const croppedFile = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      await onCrop(croppedFile);
+    } catch (err) {
+      console.error("Avatar crop error:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="dialog-backdrop" onClick={onCancel}>
+      <div className="dialog-sheet avatar-crop-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-header" style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ margin: 0, color: "var(--forest)", fontSize: "1.1rem" }}>{t("profile.cropTitle")}</h3>
+          <button type="button" className="dialog-close" onClick={onCancel} aria-label={t("common.close")}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <div
+          className="avatar-crop-viewport"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <img
+            ref={imgRef}
+            src={imageSrc}
+            alt="Crop preview"
+            className="avatar-crop-image"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transformOrigin: "center center",
+            }}
+            draggable={false}
+          />
+          <div className="avatar-crop-mask" />
+        </div>
+        <div className="avatar-crop-controls">
+          <label>
+            <span>{t("profile.zoom")}</span>
+            <input
+              type="range"
+              min="1"
+              max="3"
+              step="0.05"
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+            />
+          </label>
+        </div>
+        <div className="dialog-actions" style={{ width: "100%", display: "flex", gap: "10px" }}>
+          <button type="button" className="ghost-button" onClick={onCancel} disabled={saving} style={{ flex: 1 }}>
+            {t("common.cancel")}
+          </button>
+          <button type="button" className="primary-button" onClick={() => void handleSave()} disabled={saving} style={{ flex: 1 }}>
+            {saving ? t("profile.uploading") : t("profile.cropSave")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogoutConfirmDialog({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const t = useCopy();
+  return (
+    <div className="dialog-backdrop" onClick={onCancel}>
+      <div className="dialog-sheet logout-confirm-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="logout-dialog-brand">
+          <BrandLogo scrolled={false} />
+        </div>
+        <h3 className="logout-dialog-title">{t("auth.logoutConfirmTitle")}</h3>
+        <p className="logout-dialog-desc">{t("auth.logoutConfirmDesc")}</p>
+        <div className="logout-dialog-actions">
+          <button type="button" className="ghost-button" onClick={onCancel}>
+            {t("common.cancel")}
+          </button>
+          <button type="button" className="primary-button logout-confirm-btn" onClick={onConfirm}>
+            {t("settings.logoutAction")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsPage(props: {
   profile: Profile; email: string; user: User | null; guest: boolean; notifications: boolean; language: Language; theme: Theme;
   installAvailable: boolean; installEnvironment: InstallEnvironment; onInstall: () => Promise<void>;
@@ -1311,10 +1500,24 @@ function SettingsPage(props: {
     setEditTagline(props.profile.tagline);
   }, [props.profile, props.email]);
 
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
   const chooseAvatar = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
-    if (file) props.onUploadAvatar(file);
+    if (!file) return;
+    if (file.type !== "image/jpeg" && file.type !== "image/png" && file.type !== "image/webp") {
+      props.notify(t("profile.photoType"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setCropImageSrc(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveProfile = async (e: FormEvent) => {
@@ -1394,7 +1597,7 @@ function SettingsPage(props: {
       {showInstallHelp && <p className="download-app-help">{props.installEnvironment.insideApp ? t("install.browserHelp") : props.installEnvironment.iosSafari ? t("install.iosHelp") : t("install.manualHelp")}</p>}
     </section>}
     <div className="profile-identity">
-      <div className="profile-avatar">{props.profile.avatar_url ? <img src={props.profile.avatar_url} alt="" /> : initials}<span><Icon name="shield" size={16} /></span></div>
+      <div className="profile-avatar">{props.profile.avatar_url ? <img src={props.profile.avatar_url} alt="" /> : initials}</div>
       <h2>{props.profile.display_name}</h2>
       {isGoogleOAuth && (
         <div className="oauth-status-badge">
@@ -1660,8 +1863,41 @@ function SettingsPage(props: {
           <button key={value} className={props.theme === value ? "active" : ""} aria-label={t("theme.ariaLabel", { label })} aria-pressed={props.theme === value} onClick={() => props.onTheme(value)}><Icon name={icon} /><span>{label}</span></button>)}
       </div></div>
     </section>
-    <button className="logout-button" onClick={props.guest ? props.onAuth : props.onSignOut}><Icon name={props.guest ? "mail" : "logout"} />{props.guest ? t("settings.login") : t("settings.logout")}</button>
+    <button
+      className="logout-button"
+      onClick={() => {
+        if (props.guest) {
+          props.onAuth();
+        } else {
+          setShowLogoutConfirm(true);
+        }
+      }}
+    >
+      <Icon name={props.guest ? "mail" : "logout"} />
+      {props.guest ? t("settings.login") : t("settings.logout")}
+    </button>
     {props.guest && <p className="preview-note">{t("settings.guestNote")}</p>}
+
+    {cropImageSrc && (
+      <AvatarCropModal
+        imageSrc={cropImageSrc}
+        onCrop={async (croppedFile) => {
+          setCropImageSrc(null);
+          await props.onUploadAvatar(croppedFile);
+        }}
+        onCancel={() => setCropImageSrc(null)}
+      />
+    )}
+
+    {showLogoutConfirm && (
+      <LogoutConfirmDialog
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          props.onSignOut();
+        }}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
+    )}
   </div>;
 }
 

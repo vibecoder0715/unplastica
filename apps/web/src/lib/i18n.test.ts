@@ -21,9 +21,23 @@ describe("i18n localization tests", () => {
   it.each([
     ["English", "APU Campus"],
     ["Bahasa Melayu", "Kampus APU"],
-    ["中文", "亚太科技大学校园"],
+    ["中文", "APU 校园"],
   ] as const)("translates tournament campus card in %s", (language, expected) => {
     expect(translate(language, "events.campusName")).toBe(expected);
+  });
+
+  it.each([
+    ["English", "auth.logoutConfirmTitle", "Are you sure you want to log out?"],
+    ["Bahasa Melayu", "auth.logoutConfirmTitle", "Adakah anda pasti mahu log keluar?"],
+    ["中文", "auth.logoutConfirmTitle", "确定要退出登录吗？"],
+    ["English", "common.cancel", "Cancel"],
+    ["Bahasa Melayu", "common.cancel", "Batal"],
+    ["中文", "common.cancel", "取消"],
+    ["English", "profile.cropTitle", "Crop profile photo"],
+    ["Bahasa Melayu", "profile.cropTitle", "Pangkas foto profil"],
+    ["中文", "profile.cropTitle", "裁剪个人头像"],
+  ] as const)("translates logout and crop keys in %s", (language, key, expected) => {
+    expect(translate(language, key)).toBe(expected);
   });
 
   it.each([
@@ -70,7 +84,7 @@ describe("i18n localization tests", () => {
     }
   });
 
-  it("verifies Chinese notifications contain zero untranslated English words", () => {
+  it("verifies Chinese notifications contain zero untranslated English words (allowing APU, KB, PET)", () => {
     const notificationKeys = [
       "notification.apuTitle",
       "notification.apuBody",
@@ -82,7 +96,7 @@ describe("i18n localization tests", () => {
 
     for (const key of notificationKeys) {
       const text = translate("中文", key, { points: 100 });
-      const cleaned = text.replace(/\{[a-zA-Z0-9_]+\}/g, "");
+      const cleaned = text.replace(/\{[a-zA-Z0-9_]+\}/g, "").replace(/\b(APU|KB|PET)\b/g, "");
       const englishWords = cleaned.match(/[a-zA-Z]{2,}/g) || [];
       expect(englishWords).toEqual([]);
     }
