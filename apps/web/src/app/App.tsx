@@ -2425,7 +2425,7 @@ function getOrtSession(ort: any): Promise<any> {
   return ortSessionPromise!;
 }
 
-const ACTIVE_HABIT_SPECS: Record<string, { name: string; short: string }> = {
+export const ACTIVE_HABIT_SPECS: Record<string, { name: string; short: string }> = {
   self_bottle_refill: { name: "Refill Your Bottle", short: "Bottle" },
   box_cutlery: { name: "Bring Your Own Cutlery & Box", short: "Cutlery & Box" },
   recycle_bags: { name: "Reusable & Canvas Bags", short: "Reusable Bag" },
@@ -2728,11 +2728,6 @@ async function inferHabit(
   const otherIdx = CLASSES.indexOf("other");
   const otherProb = otherIdx >= 0 ? exps[otherIdx] / sumExp : 0;
 
-  const targetSpec = ACTIVE_HABIT_SPECS[targetHabit];
-  const detectedSpec = ACTIVE_HABIT_SPECS[detectedLabel];
-  const targetName = targetSpec ? targetSpec.name : targetHabit;
-  const detectedName = detectedSpec ? detectedSpec.name : detectedLabel;
-
   // Verification gate: strictly matches target habit and meets the unified 0.85 threshold
   const isHabitTarget = Boolean(targetHabit && targetHabit !== "other");
   const verified = Boolean(
@@ -2741,15 +2736,10 @@ async function inferHabit(
 
   const confidence = detectedLabel === targetHabit ? targetProb : Math.max(targetProb, bestProb);
 
+  const isAligned = Boolean(confidence >= 0.25 || otherProb < 0.85);
   let message = "Photo not recognized. Please align your item and retake.";
-  if (verified) {
-    message = `Verified: ${targetName} (${(targetProb * 100).toFixed(0)}%)`;
-  } else if (detectedSpec && bestProb >= 0.50) {
-    message = `Detected: ${detectedName} (${(bestProb * 100).toFixed(0)}%). Needed: ${targetName}`;
-  } else if (otherProb > 0.70) {
-    message = `Desk/Background detected. Please align your ${targetSpec?.short || "item"} closer.`;
-  } else if (targetProb > 0.35) {
-    message = `Likely ${targetName} (${(targetProb * 100).toFixed(0)}%), but below 85% threshold. Retake closer.`;
+  if (isAligned) {
+    message = verified ? "Verified" : "Not verified";
   }
 
   return {
@@ -3004,7 +2994,11 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
     {detecting && <div className="ai-detection-pill detecting">{t("camera.checkingPhoto")}</div>}
     {detection && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
-        {detection.message}
+        {detection.message === "Verified"
+          ? t("camera.verified")
+          : detection.message === "Not verified"
+          ? t("camera.notVerified")
+          : t("camera.notRecognized")}
       </div>
     )}
 
