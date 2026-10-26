@@ -1379,23 +1379,22 @@ function LogoutConfirmDialog({
 }) {
   const t = useCopy();
   return (
-    <div className="dialog-backdrop" onClick={onCancel}>
-      <div className="dialog-sheet logout-confirm-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="logout-dialog-brand">
-          <BrandLogo scrolled={false} />
-        </div>
-        <h3 className="logout-dialog-title">{t("auth.logoutConfirmTitle")}</h3>
-        <p className="logout-dialog-desc">{t("auth.logoutConfirmDesc")}</p>
-        <div className="logout-dialog-actions">
-          <button type="button" className="ghost-button" onClick={onCancel}>
-            {t("common.cancel")}
-          </button>
-          <button type="button" className="primary-button logout-confirm-btn" onClick={onConfirm}>
-            {t("settings.logoutAction")}
-          </button>
-        </div>
+    <Modal onClose={onCancel} labelledBy="logout-confirm-title">
+      <div className="dialog login-required-dialog logout-confirm-dialog">
+        <button className="dialog-close" onClick={onCancel} aria-label={t("common.close")}>
+          <Icon name="close" />
+        </button>
+        <BrandWordmark />
+        <h2 id="logout-confirm-title">{t("auth.logoutConfirmTitle")}</h2>
+        <p>{t("auth.logoutConfirmDesc")}</p>
+        <button type="button" className="primary-button logout-confirm-btn" onClick={onConfirm}>
+          {t("settings.logoutAction")}
+        </button>
+        <button type="button" className="text-button" onClick={onCancel}>
+          {t("common.cancel")}
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -2415,7 +2414,7 @@ function getOrtSession(ort: any): Promise<any> {
         ort.env.wasm.proxy = false;
       }
     } catch (_) {}
-    ortSessionPromise = ort.InferenceSession.create("/model/model.onnx", {
+    ortSessionPromise = ort.InferenceSession.create(`/model/model.onnx?v=${APP_BUILD_VERSION}`, {
       executionProviders: ["wasm"],
       graphOptimizationLevel: "all",
     }).catch((err: any) => {
@@ -2426,19 +2425,240 @@ function getOrtSession(ort: any): Promise<any> {
   return ortSessionPromise!;
 }
 
+const ACTIVE_HABIT_SPECS: Record<string, { name: string; short: string }> = {
+  self_bottle_refill: { name: "Refill Your Bottle", short: "Bottle" },
+  box_cutlery: { name: "Bring Your Own Cutlery & Box", short: "Cutlery & Box" },
+  recycle_bags: { name: "Reusable & Canvas Bags", short: "Reusable Bag" },
+  greenery_furniture: { name: "Greenery & Upcycled Furniture", short: "Plant/Upcycle" },
+  handicraft_projects: { name: "Plastic Upcycling & Handicrafts", short: "Handicrafts" },
+};
+
+let u2NetSessionPromise: Promise<any> | null = null;
+function getU2NetSession(ort: any): Promise<any> | null {
+  if (!u2NetSessionPromise) {
+    u2NetSessionPromise = ort.InferenceSession.create(`/model/u2netp.onnx?v=${APP_BUILD_VERSION}`, {
+      executionProviders: ["wasm"],
+      graphOptimizationLevel: "all",
+    }).catch(() => null);
+  }
+  return u2NetSessionPromise;
+}
+
 export function warmUpAiModel() {
   try {
     const ort = (window as unknown as { ort?: any }).ort;
-    if (ort && !ortSessionPromise) {
-      getOrtSession(ort).then(async (session) => {
-        try {
-          const dummy = new ort.Tensor("float32", new Float32Array(3 * 224 * 224), [1, 3, 224, 224]);
-          await session.run({ input: dummy });
-          console.log("AI Scanner Model active & preloaded in WASM memory.");
-        } catch {}
-      }).catch(() => {});
+    if (ort) {
+      if (!ortSessionPromise) {
+        getOrtSession(ort).then(async (session) => {
+          try {
+            const dummy = new ort.Tensor("float32", new Float32Array(3 * 224 * 224), [1, 3, 224, 224]);
+            await session.run({ input: dummy });
+            console.log("AI Classifier Model active & preloaded in WASM memory.");
+          } catch {}
+        }).catch(() => {});
+      }
+      if (!u2NetSessionPromise) {
+        getU2NetSession(ort)?.then(async (u2) => {
+          if (u2) {
+            try {
+              const dummyU2 = new ort.Tensor("float32", new Float32Array(3 * 320 * 320), [1, 3, 320, 320]);
+              await u2.run({ "input.1": dummyU2 });
+              console.log("Background Extraction Engine (U2-NetP) active & preloaded in WASM memory.");
+            } catch {}
+          }
+        }).catch(() => {});
+      }
     }
   } catch {}
+}
+
+interface ImageQualityAnalysis {
+  width: number;
+  height: number;
+  sharpness: number;
+  isLowRes: boolean;
+  isLowSharpness: boolean;
+  needsEnhancement: boolean;
+}
+
+function detectImageQuality(img: HTMLImageElement): ImageQualityAnalysis {
+  const width = img.naturalWidth || img.width;
+  const height = img.naturalHeight || img.height;
+  const isLowRes = width < 480 || height < 480;
+
+  const sampleW = Math.min(160, width);
+  const sampleH = Math.min(160, height);
+  const canvas = document.createElement("canvas");
+  canvas.width = sampleW;
+  canvas.height = sampleH;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    return { width, height, sharpness: 100, isLowRes, isLowSharpness: false, needsEnhancement: isLowRes };
+  }
+
+  ctx.drawImage(img, 0, 0, sampleW, sampleH);
+  const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data;
+  const gray = new Float32Array(sampleW * sampleH);
+  for (let i = 0; i < sampleW * sampleH; i++) {
+    gray[i] = 0.299 * imgData[i * 4] + 0.587 * imgData[i * 4 + 1] + 0.114 * imgData[i * 4 + 2];
+  }
+
+  let sum = 0;
+  let sumSq = 0;
+  let count = 0;
+  for (let y = 1; y < sampleH - 1; y++) {
+    for (let x = 1; x < sampleW - 1; x++) {
+      const idx = y * sampleW + x;
+      const lap = 4 * gray[idx] - gray[idx - 1] - gray[idx + 1] - gray[idx - sampleW] - gray[idx + sampleW];
+      sum += lap;
+      sumSq += lap * lap;
+      count++;
+    }
+  }
+  const mean = sum / Math.max(1, count);
+  const variance = (sumSq / Math.max(1, count)) - (mean * mean);
+  const isLowSharpness = variance < 55;
+
+  return {
+    width,
+    height,
+    sharpness: Math.round(variance),
+    isLowRes,
+    isLowSharpness,
+    needsEnhancement: isLowRes || isLowSharpness,
+  };
+}
+
+function enhanceImage(img: HTMLImageElement, quality: ImageQualityAnalysis): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  const scale = quality.isLowRes
+    ? Math.max(1.5, Math.min(2.5, 720 / Math.max(quality.width, quality.height)))
+    : 1;
+
+  const targetW = Math.round(quality.width * scale);
+  const targetH = Math.round(quality.height * scale);
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) {
+    canvas.width = quality.width;
+    canvas.height = quality.height;
+    canvas.getContext("2d")?.drawImage(img, 0, 0);
+    return canvas;
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, targetW, targetH);
+
+  if (quality.isLowSharpness) {
+    const imgData = ctx.getImageData(0, 0, targetW, targetH);
+    const data = imgData.data;
+    const copy = new Uint8ClampedArray(data);
+    for (let y = 1; y < targetH - 1; y++) {
+      for (let x = 1; x < targetW - 1; x++) {
+        const i = (y * targetW + x) * 4;
+        for (let c = 0; c < 3; c++) {
+          const center = copy[i + c];
+          const top = copy[((y - 1) * targetW + x) * 4 + c];
+          const btm = copy[((y + 1) * targetW + x) * 4 + c];
+          const lft = copy[(y * targetW + (x - 1)) * 4 + c];
+          const rgt = copy[(y * targetW + (x + 1)) * 4 + c];
+          const v = 3 * center - 0.5 * (top + btm + lft + rgt);
+          data[i + c] = Math.max(0, Math.min(255, v));
+        }
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  return canvas;
+}
+
+async function extractMainCharacter(
+  sourceCanvas: HTMLCanvasElement,
+  ort: any
+): Promise<HTMLCanvasElement> {
+  const w = sourceCanvas.width;
+  const h = sourceCanvas.height;
+
+  try {
+    const u2Session = await getU2NetSession(ort);
+    if (u2Session) {
+      const inputCanvas = document.createElement("canvas");
+      inputCanvas.width = 320;
+      inputCanvas.height = 320;
+      const inCtx = inputCanvas.getContext("2d");
+      if (inCtx) {
+        inCtx.drawImage(sourceCanvas, 0, 0, 320, 320);
+        const imgData = inCtx.getImageData(0, 0, 320, 320).data;
+        const floatData = new Float32Array(3 * 320 * 320);
+        const mean = [0.485, 0.456, 0.406];
+        const std = [0.229, 0.224, 0.225];
+        for (let i = 0; i < 320 * 320; i++) {
+          floatData[i] = ((imgData[i * 4] / 255.0) - mean[0]) / std[0];
+          floatData[320 * 320 + i] = ((imgData[i * 4 + 1] / 255.0) - mean[1]) / std[1];
+          floatData[2 * 320 * 320 + i] = ((imgData[i * 4 + 2] / 255.0) - mean[2]) / std[2];
+        }
+
+        const tensor = new ort.Tensor("float32", floatData, [1, 3, 320, 320]);
+        const results = await u2Session.run({ "input.1": tensor });
+        const maskData = results[Object.keys(results)[0]].data as Float32Array;
+
+        let minX = 320, minY = 320, maxX = 0, maxY = 0;
+        let count = 0;
+        for (let y = 0; y < 320; y++) {
+          for (let x = 0; x < 320; x++) {
+            const val = maskData[y * 320 + x];
+            if (val > 0.35) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              count++;
+            }
+          }
+        }
+
+        if (count > 150 && maxX > minX && maxY > minY) {
+          const cropX1 = Math.max(0, Math.round((minX / 320) * w));
+          const cropY1 = Math.max(0, Math.round((minY / 320) * h));
+          const cropW = Math.min(w - cropX1, Math.round(((maxX - minX) / 320) * w));
+          const cropH = Math.min(h - cropY1, Math.round(((maxY - minY) / 320) * h));
+
+          const cleanCanvas = document.createElement("canvas");
+          cleanCanvas.width = 224;
+          cleanCanvas.height = 224;
+          const cleanCtx = cleanCanvas.getContext("2d");
+          if (cleanCtx) {
+            cleanCtx.fillStyle = "#ffffff";
+            cleanCtx.fillRect(0, 0, 224, 224);
+            const scale = Math.min(200 / cropW, 200 / cropH);
+            const dw = Math.round(cropW * scale);
+            const dh = Math.round(cropH * scale);
+            const dx = Math.round((224 - dw) / 2);
+            const dy = Math.round((224 - dh) / 2);
+            cleanCtx.drawImage(sourceCanvas, cropX1, cropY1, cropW, cropH, dx, dy, dw, dh);
+            return cleanCanvas;
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  // Adaptive Center-Framing Fallback
+  const outCanvas = document.createElement("canvas");
+  outCanvas.width = 224;
+  outCanvas.height = 224;
+  const oCtx = outCanvas.getContext("2d");
+  if (!oCtx) return sourceCanvas;
+  const minDim = Math.min(w, h);
+  const cx = Math.max(0, (w - minDim) / 2);
+  const cy = Math.max(0, (h - minDim) / 2);
+  oCtx.fillStyle = "#ffffff";
+  oCtx.fillRect(0, 0, 224, 224);
+  oCtx.drawImage(sourceCanvas, cx, cy, minDim, minDim, 0, 0, 224, 224);
+  return outCanvas;
 }
 
 async function inferHabit(
@@ -2448,7 +2668,7 @@ async function inferHabit(
 
   const ort = (window as unknown as { ort?: any }).ort;
   if (!ort) {
-    return { label: "other", confidence: 0, verified: false, message: "Preparing camera…" };
+    return { label: "other", confidence: 0, verified: false, message: "Preparing AI engine…" };
   }
 
   const canvas = getSharedCanvas();
@@ -2508,7 +2728,12 @@ async function inferHabit(
   const otherIdx = CLASSES.indexOf("other");
   const otherProb = otherIdx >= 0 ? exps[otherIdx] / sumExp : 0;
 
-  // Verification gate: strictly matches target habit and meets the unified 0.85 threshold (FLAW-20, FLAW-25)
+  const targetSpec = ACTIVE_HABIT_SPECS[targetHabit];
+  const detectedSpec = ACTIVE_HABIT_SPECS[detectedLabel];
+  const targetName = targetSpec ? targetSpec.name : targetHabit;
+  const detectedName = detectedSpec ? detectedSpec.name : detectedLabel;
+
+  // Verification gate: strictly matches target habit and meets the unified 0.85 threshold
   const isHabitTarget = Boolean(targetHabit && targetHabit !== "other");
   const verified = Boolean(
     isHabitTarget && detectedLabel === targetHabit && targetProb >= ML_SCORE_THRESHOLD_DEFAULT
@@ -2516,12 +2741,15 @@ async function inferHabit(
 
   const confidence = detectedLabel === targetHabit ? targetProb : Math.max(targetProb, bestProb);
 
-  // If aligned: only two outcomes: Verified, Not verified
-  // If not aligned: remain Photo not recognized. Please align your item and retake.
-  const isAligned = Boolean(confidence >= 0.25 || otherProb < 0.85);
   let message = "Photo not recognized. Please align your item and retake.";
-  if (isAligned) {
-    message = verified ? "Verified" : "Not verified";
+  if (verified) {
+    message = `Verified: ${targetName} (${(targetProb * 100).toFixed(0)}%)`;
+  } else if (detectedSpec && bestProb >= 0.50) {
+    message = `Detected: ${detectedName} (${(bestProb * 100).toFixed(0)}%). Needed: ${targetName}`;
+  } else if (otherProb > 0.70) {
+    message = `Desk/Background detected. Please align your ${targetSpec?.short || "item"} closer.`;
+  } else if (targetProb > 0.35) {
+    message = `Likely ${targetName} (${(targetProb * 100).toFixed(0)}%), but below 85% threshold. Retake closer.`;
   }
 
   return {
@@ -2534,7 +2762,6 @@ async function inferHabit(
 
 async function runModelDetection(blob: Blob, targetHabit: string): Promise<ModelDetection> {
   try {
-    // FLAW-24: Guard against unbounded file size (max 10MB)
     if (blob.size > 10 * 1024 * 1024) {
       return {
         label: "other",
@@ -2547,7 +2774,7 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
     const url = URL.createObjectURL(blob);
     await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
     URL.revokeObjectURL(url);
-    // FLAW-24: Guard against unbounded pixel dimension (> 25 megapixels)
+
     if (img.width * img.height > 25_000_000 || img.width > 6000 || img.height > 6000) {
       return {
         label: "other",
@@ -2556,7 +2783,19 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
         message: "Image resolution is too high. Please take a standard photo.",
       };
     }
-    return await inferHabit(img, targetHabit);
+
+    // Step 1: Detect sharpness and resolution
+    const quality = detectImageQuality(img);
+
+    // Step 2: Increase resolution & enhance sharpness if lower than expected
+    const enhancedCanvas = enhanceImage(img, quality);
+
+    // Step 3: Remove background to extract main character
+    const ort = (window as unknown as { ort?: any }).ort;
+    const extractedCanvas = await extractMainCharacter(enhancedCanvas, ort);
+
+    // Step 4: Send to AI engine for verification & result specification
+    return await inferHabit(extractedCanvas, targetHabit);
   } catch (err) {
     console.warn("Client model detection:", err);
     return {
@@ -2765,15 +3004,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
     {detecting && <div className="ai-detection-pill detecting">{t("camera.checkingPhoto")}</div>}
     {detection && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
-        {detection.message === "Verified"
-          ? t("camera.verified")
-          : detection.message === "Not verified"
-          ? t("camera.notVerified")
-          : detection.message === "Photo not recognized. Please align your item and retake."
-          ? t("camera.notRecognized")
-          : detection.message.includes("Screenshot or mock")
-          ? t("camera.mockRejected")
-          : detection.message}
+        {detection.message}
       </div>
     )}
 
