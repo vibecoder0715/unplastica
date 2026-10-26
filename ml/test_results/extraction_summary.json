@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-10-26 12:29:31",
+  "total_images_tested": 500,
+  "successfully_extracted": 484,
+  "overall_success_rate": 96.8,
+  "avg_background_removed_pct": 61.81,
+  "avg_foreground_pct": 35.39,
+  "elapsed_seconds": 201.55,
+  "categories": {
+    "box_cutlery": {
+      "total": 100,
+      "successfully_extracted": 98,
+      "success_rate": 98.0,
+      "avg_bg_removed_pct": 49.86,
+      "avg_fg_ratio_pct": 49.14
+    },
+    "recycle_bags": {
+      "total": 100,
+      "successfully_extracted": 98,
+      "success_rate": 98.0,
+      "avg_bg_removed_pct": 56.94,
+      "avg_fg_ratio_pct": 41.06
+    },
+    "self_bottle_refill": {
+      "total": 100,
+      "successfully_extracted": 95,
+      "success_rate": 95.0,
+      "avg_bg_removed_pct": 60.95,
+      "avg_fg_ratio_pct": 35.05
+    },
+    "greenery_furniture": {
+      "total": 100,
+      "successfully_extracted": 96,
+      "success_rate": 96.0,
+      "avg_bg_removed_pct": 73.63,
+      "avg_fg_ratio_pct": 22.37
+    },
+    "handicraft_projects": {
+      "total": 100,
+      "successfully_extracted": 97,
+      "success_rate": 97.0,
+      "avg_bg_removed_pct": 67.66,
+      "avg_fg_ratio_pct": 29.34
+    }
+  }
+}

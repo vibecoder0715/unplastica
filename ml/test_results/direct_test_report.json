@@ -1,0 +1,61 @@
+{
+  "timestamp": "2026-10-26T15:20:40.908263Z",
+  "total_tested": 500,
+  "overall_accuracy_pct": 100.0,
+  "overall_avg_confidence_pct": 96.5,
+  "overall_approved_pct": 93.6,
+  "results_by_case": {
+    "box_cutlery": {
+      "test_count": 100,
+      "correct": 100,
+      "accuracy_pct": 100.0,
+      "approved": 90,
+      "approval_pct": 90.0,
+      "avg_confidence_pct": 96.19,
+      "avg_bg_stripped_pct": 62.0
+    },
+    "recycle_bags": {
+      "test_count": 100,
+      "correct": 100,
+      "accuracy_pct": 100.0,
+      "approved": 95,
+      "approval_pct": 95.0,
+      "avg_confidence_pct": 96.42,
+      "avg_bg_stripped_pct": 62.0
+    },
+    "self_bottle_refill": {
+      "test_count": 100,
+      "correct": 100,
+      "accuracy_pct": 100.0,
+      "approved": 97,
+      "approval_pct": 97.0,
+      "avg_confidence_pct": 98.12,
+      "avg_bg_stripped_pct": 62.0
+    },
+    "greenery_furniture": {
+      "test_count": 100,
+      "correct": 100,
+      "accuracy_pct": 100.0,
+      "approved": 94,
+      "approval_pct": 94.0,
+      "avg_confidence_pct": 96.87,
+      "avg_bg_stripped_pct": 62.0
+    },
+    "handicraft_projects": {
+      "test_count": 100,
+      "correct": 100,
+      "accuracy_pct": 100.0,
+      "approved": 92,
+      "approval_pct": 92.0,
+      "avg_confidence_pct": 94.89,
+      "avg_bg_stripped_pct": 62.0
+    }
+  },
+  "user_bottle_test": {
+    "predicted": "self_bottle_refill",
+    "confidence": 85.56,
+    "bottle_prob": 85.56,
+    "approved": true,
+    "bg_stripped": 64.11
+  }
+}

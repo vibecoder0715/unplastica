@@ -371,7 +371,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       });
     }
 
-    const mlData = (await mlRes.json()) as { predicted_label: string; confidence: number; model_version?: string };
+    const mlData = (await mlRes.json()) as { predicted_label: string; confidence: number; model_version?: string; extraction?: unknown };
     const verified =
       mlData.predicted_label === habitCode &&
       mlData.confidence >= 0.85 &&
@@ -381,8 +381,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
       status: verified ? "verified" : "rejected",
       predicted_label: mlData.predicted_label,
       confidence: mlData.confidence,
-      model_version: mlData.model_version || "mobilenet_v3_small-v0.2.0-edge-refined",
+      model_version: mlData.model_version || "mobilenet_v3_small-v0.3.0-extracted-habit",
       verified,
+      extraction: mlData.extraction,
     });
   } catch (err) {
     console.error("Backend ML scorer invocation failed:", err);
