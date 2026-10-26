@@ -1577,6 +1577,11 @@ img { max-width: 100%; }
 .logout-confirm-dialog .brand-wordmark-wrapper {
   margin: 0 auto 16px;
 }
+.logout-confirm-dialog .brand-wordmark-wrapper img {
+  width: 154px !important;
+  max-width: 55vw !important;
+  height: auto !important;
+}
 .logout-confirm-dialog > h2 {
   margin: 0 0 8px;
   text-align: center;

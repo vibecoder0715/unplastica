@@ -943,11 +943,11 @@ function Header({
   );
 }
 
-function BrandWordmark({ className = "" }: { className?: string }) {
+function BrandWordmark({ className = "", width = "220px" }: { className?: string; width?: string }) {
   return (
     <div className={"brand-wordmark-wrapper " + className} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <img className="brand-image-light" src="/assets/brand/brand-wordmark-light.png?v=0.2.4" alt="Unplastica" style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
-      <img className="brand-image-dark" src="/assets/brand/brand-wordmark-dark.png?v=0.2.4" alt="Unplastica" style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
+      <img className="brand-image-light" src="/assets/brand/brand-wordmark-light.png?v=0.2.4" alt="Unplastica" style={{ width, height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
+      <img className="brand-image-dark" src="/assets/brand/brand-wordmark-dark.png?v=0.2.4" alt="Unplastica" style={{ width, height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
     </div>
   );
 }
@@ -1384,7 +1384,7 @@ function LogoutConfirmDialog({
         <button className="dialog-close" onClick={onCancel} aria-label={t("common.close")}>
           <Icon name="close" />
         </button>
-        <BrandWordmark />
+        <BrandWordmark width="154px" />
         <h2 id="logout-confirm-title">{t("auth.logoutConfirmTitle")}</h2>
         <p>{t("auth.logoutConfirmDesc")}</p>
         <button type="button" className="primary-button logout-confirm-btn" onClick={onConfirm}>
