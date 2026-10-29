@@ -702,7 +702,6 @@ export default function App() {
     }
   }, [user, savePreference]);
 
-  if (!ready) return <div className="loading-shell"><BrandWordmark /></div>;
   const activeProfile = profile ?? { ...guestProfile, display_name: t("settings.guest"), preferences: { ...guestProfile.preferences, language } };
   const guest = !user;
   const openSettings = () => navigate("settings");
@@ -951,6 +950,14 @@ export default function App() {
     },
     [user],
   );
+
+  if (!ready) {
+    return (
+      <div className="loading-shell">
+        <BrandWordmark />
+      </div>
+    );
+  }
 
   return (
     <LanguageContext.Provider value={language}>
