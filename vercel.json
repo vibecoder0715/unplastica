@@ -52,7 +52,7 @@
       ]
     },
     {
-      "source": "/(|login|settings|profile|earn|events)",
+      "source": "/(|login|settings|profile|earn|events|game)",
       "headers": [
         {
           "key": "Cache-Control",

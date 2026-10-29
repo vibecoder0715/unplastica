@@ -1,0 +1,1141 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --surface: #fafaed;
+  --surface-low: #f4f5e4;
+  --surface-container: #eef0df;
+  --surface-high: #e8ead9;
+  --surface-highest: #e3e4d3;
+  --ink: #1a1c15;
+  --ink-muted: #414942;
+  --forest-dark: #002c17;
+  --forest: #15432a;
+  --leaf: #2e6c02;
+  --leaf-bright: #5fa038;
+  --leaf-glow: #aef682;
+  --love-pink: #db2777;
+  --love-pink-bg: #fce7f3;
+  --outline-soft: rgba(113, 121, 113, 0.24);
+  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--forest-dark);
+  color: var(--ink);
+  font-family: var(--font-body);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+  touch-action: none;
+}
+
+#root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Main World Canvas */
+#eco-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+#eco-canvas:active {
+  cursor: grabbing;
+}
+
+/* Top Floating HUD (Unplastica Minimalist Editorial Style) */
+.hud-top {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.hud-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.greenbits-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 6px 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--forest);
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(0, 44, 23, 0.14);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: var(--forest-dark);
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+
+.greenbits-pill:hover {
+  background: var(--surface-low);
+  transform: translateY(-1px);
+}
+
+.greenbits-coin-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+  .gb-inline-logo {
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    object-fit: contain;
+    vertical-align: middle;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .store-balance-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1.5px solid var(--forest);
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--forest-dark);
+  }
+
+  /* Action Buttons in HUD (No Emojis, Pure Unplastica Typography) */
+  .hud-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 18px;
+    min-height: 40px;
+    background: var(--surface);
+    border: 1.5px solid var(--forest);
+    border-radius: 999px;
+    color: var(--forest-dark);
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(0, 44, 23, 0.14);
+    transition: transform 0.12s ease, background-color 0.12s ease;
+  }
+
+  .hud-btn:hover {
+    background: var(--surface-container);
+    transform: translateY(-1px);
+  }
+
+  .hud-btn:active {
+    transform: translateY(1px);
+  }
+
+  .hud-btn.store-btn {
+    background: var(--forest);
+    border-color: var(--forest-dark);
+    color: var(--surface);
+  }
+
+  .hud-btn.store-btn:hover {
+    background: var(--forest-dark);
+  }
+
+  .hud-btn.map-btn {
+    background: var(--leaf-glow);
+    border-color: var(--forest);
+    color: var(--forest-dark);
+  }
+
+  .hud-btn.map-btn:hover {
+    background: #9ce66e;
+  }
+
+  /* Quit Postcard View Floating Button */
+  .postcard-quit-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 45;
+    appearance: none;
+    padding: 10px 20px;
+    background: var(--forest-dark);
+    color: var(--surface);
+    border: 1.5px solid var(--leaf-glow);
+    border-radius: 999px;
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(0, 44, 23, 0.28);
+    transition: transform 0.12s ease, background-color 0.12s ease;
+  }
+
+  .postcard-quit-btn:hover {
+    background: var(--forest);
+    transform: translateY(-1px);
+  }
+
+  .exit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff !important;
+    color: #b91c1c !important;
+    border: 1.5px solid rgba(185, 28, 28, 0.4) !important;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(185, 28, 28, 0.12);
+    transition: transform 0.12s ease, background 0.12s ease;
+  }
+
+  .exit-btn:hover {
+    background: #fee2e2 !important;
+    border-color: #b91c1c !important;
+    transform: translateY(-1px);
+  }
+
+  /* Simplified 4-Item Selected Animal Card */
+  .entity-card {
+    position: absolute;
+    top: 72px;
+    right: 16px;
+    width: 248px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1.5px solid var(--forest);
+    border-radius: 20px;
+    box-shadow: 0 14px 32px rgba(0, 44, 23, 0.18);
+    z-index: 19;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .entity-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .entity-label {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .entity-name-input {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    border: 1.5px solid var(--outline-soft);
+    background: var(--surface-low);
+    padding: 5px 10px;
+    border-radius: 10px;
+    width: 100%;
+    transition: border-color 0.12s ease, background-color 0.12s ease;
+  }
+
+  .entity-name-input:focus {
+    outline: none;
+    border-color: var(--leaf-bright);
+    background: #ffffff;
+  }
+
+    .love-standalone {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: var(--love-pink);
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .fullness-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .fullness-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-body);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .hunger-bar-track {
+      width: 100%;
+      height: 8px;
+      background: var(--surface-highest);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .hunger-bar-fill {
+      height: 100%;
+      background: var(--leaf-bright);
+      border-radius: 999px;
+      transition: width 0.2s ease;
+    }
+
+    .condition-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 4px;
+      border-top: 1px solid var(--outline-soft);
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--forest-dark);
+    }
+
+    /* Toast Banner */
+    .eco-toast {
+      position: absolute;
+      top: 76px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 20px;
+      background: var(--forest-dark);
+      color: var(--surface);
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 600;
+      border-radius: 999px;
+      border: 1.5px solid var(--leaf-glow);
+      box-shadow: 0 10px 24px rgba(0, 44, 23, 0.24);
+      pointer-events: none;
+      z-index: 35;
+      white-space: nowrap;
+      transition: opacity 0.2s ease;
+    }
+
+    /* Collapsible Bottom Dock:
+   - Expanded: panel with centered top tab button showing downward chevron (v)
+   - Hidden (.collapsed): covered line box across bottom with top tab button showing upward chevron (^) */
+    .bottom-dock {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 0;
+      background: var(--surface);
+      border: 2px solid var(--forest);
+      border-bottom: none;
+      border-radius: 22px 22px 0 0;
+      box-shadow: 0 -8px 28px rgba(0, 44, 23, 0.22);
+      padding: 6px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 25;
+      transition: height 0.22s ease, padding 0.2s ease;
+    }
+
+    .bottom-dock.collapsed {
+      height: 10px;
+      padding: 0;
+      border-radius: 10px 10px 0 0;
+      background: var(--surface);
+      border: 2px solid var(--forest);
+      border-bottom: none;
+    }
+
+    .bottom-dock.collapsed .dock-strip {
+      display: none;
+    }
+
+    .dock-collapse-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      height: 18px;
+    }
+
+    .dock-toggle-btn {
+      position: absolute;
+      top: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      appearance: none;
+      border: 2px solid var(--forest);
+      border-bottom: none;
+      background: var(--surface);
+      color: var(--forest-dark);
+      width: 56px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border-radius: 12px 12px 0 0;
+      cursor: pointer;
+      box-shadow: 0 -4px 12px rgba(0, 44, 23, 0.14);
+      transition: background-color 0.12s ease, color 0.12s ease;
+    }
+
+    .dock-toggle-btn:hover {
+      background: var(--leaf-glow);
+      color: var(--forest-dark);
+    }
+
+    .dock-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow-x: auto;
+      overflow-y: visible;
+      padding: 36px 6px 6px;
+      scrollbar-width: thin;
+      touch-action: pan-x;
+    }
+
+    .dock-empty-msg {
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink-muted);
+      padding: 14px 12px;
+    }
+
+    .dock-card {
+      position: relative;
+      flex: 0 0 auto;
+      width: 98px;
+      height: 104px;
+      background: var(--surface-low);
+      border: 1.5px solid var(--forest);
+      border-radius: 18px;
+      padding: 8px 8px 7px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      cursor: grab;
+      user-select: none;
+      transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .dock-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--forest-dark);
+      background: #ffffff;
+    }
+
+    /* Hover pop-out "Drag me!" speech / chat box with pointer tail */
+    .dock-card-drag-pop {
+      position: absolute;
+      top: -33px;
+      left: 50%;
+      transform: translateX(-50%) scale(0.9);
+      opacity: 0;
+      background: var(--forest-dark);
+      color: var(--leaf-glow);
+      border: 1.5px solid var(--leaf-glow);
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 9px;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 4px 10px rgba(0, 44, 23, 0.25);
+      transition: opacity 0.14s ease, transform 0.14s ease;
+      z-index: 10;
+    }
+
+    .dock-card-drag-pop::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 6px solid var(--forest-dark);
+    }
+
+    .dock-card:hover .dock-card-drag-pop {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+
+    .dock-card-count {
+      position: absolute;
+      top: 5px;
+      right: 6px;
+      font-family: var(--font-display);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: var(--surface-highest);
+      color: var(--forest-dark);
+    }
+
+    .dock-card-thumb {
+      width: 68px;
+      height: 56px;
+      object-fit: contain;
+      margin-top: 8px;
+      pointer-events: none;
+    }
+
+    .dock-card-title {
+      width: 100%;
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Drag Ghost Element */
+    .drag-ghost {
+      position: fixed;
+      width: 104px;
+      height: 104px;
+      margin-left: -52px;
+      margin-top: -52px;
+      pointer-events: none;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      filter: drop-shadow(0 12px 18px rgba(0, 44, 23, 0.28));
+    }
+
+    .drag-ghost img {
+      width: 86px;
+      height: 86px;
+      object-fit: contain;
+    }
+
+    .drag-ghost-label {
+      margin-top: -2px;
+      padding: 3px 10px;
+      background: var(--forest-dark);
+      color: var(--surface);
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    /* Modal / Drawer Backdrop */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 28, 14, 0.56);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 60;
+    }
+
+    .modal-sheet {
+      width: 100%;
+      max-width: 920px;
+      max-height: 86vh;
+      background: var(--surface);
+      border: 1.5px solid var(--forest);
+      border-radius: 26px;
+      box-shadow: 0 24px 48px rgba(0, 44, 23, 0.28);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 22px;
+      background: var(--surface-low);
+      border-bottom: 1px solid var(--outline-soft);
+    }
+
+    .modal-title {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--forest-dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal-close-btn {
+      appearance: none;
+      border: 1.5px solid var(--forest);
+      background: var(--surface);
+      color: var(--forest-dark);
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 7px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+
+    .modal-close-btn:hover {
+      background: var(--surface-container);
+    }
+
+    .modal-body {
+      padding: 18px 22px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Cute & Clean Store Tabs & Grid */
+    .store-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .store-tab-btn {
+      appearance: none;
+      padding: 9px 20px;
+      border-radius: 999px;
+      border: 1.5px solid var(--outline-soft);
+      background: var(--surface-low);
+      color: var(--ink-muted);
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+
+    .store-tab-btn[aria-pressed='true'] {
+      background: var(--forest);
+      border-color: var(--forest-dark);
+      color: var(--surface);
+    }
+
+    .store-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(186px, 1fr));
+      gap: 14px;
+    }
+
+    .store-item-card {
+      background: var(--surface-low);
+      border: 1.5px solid var(--outline-soft);
+      border-radius: 20px;
+      padding: 14px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      transition: transform 0.14s ease, border-color 0.14s ease;
+    }
+
+    .store-item-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--leaf-bright);
+    }
+
+    .store-item-thumb {
+      width: 112px;
+      height: 92px;
+      object-fit: contain;
+    }
+
+    .store-item-name-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .store-item-name {
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--ink);
+      text-align: center;
+      line-height: 1.25;
+    }
+
+    .info-svg-btn {
+      appearance: none;
+      border: none;
+      background: var(--surface-highest);
+      color: var(--forest);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      padding: 0;
+      cursor: pointer;
+      transition: background-color 0.12s ease, transform 0.12s ease;
+    }
+
+    .info-svg-btn:hover {
+      background: var(--leaf-glow);
+      color: var(--forest-dark);
+      transform: scale(1.08);
+    }
+
+    .buy-btn {
+      appearance: none;
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      border: none;
+      background: var(--forest);
+      color: var(--surface);
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+
+    .buy-btn:hover:not(:disabled) {
+      background: var(--leaf);
+    }
+
+    .buy-btn:disabled {
+      background: var(--surface-highest);
+      color: var(--ink-muted);
+      cursor: not-allowed;
+    }
+
+    /* Separate Pop-Out Species / Item Info Card */
+    .info-popup-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 28, 14, 0.48);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 80;
+    }
+
+    .info-popup-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--surface);
+      border: 2px solid var(--forest);
+      border-radius: 24px;
+      padding: 20px 22px;
+      box-shadow: 0 22px 44px rgba(0, 44, 23, 0.32);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .info-popup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .info-popup-title {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--forest-dark);
+    }
+
+    .info-popup-text {
+      margin: 0;
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+
+    .info-click-me-link {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 15px;
+      background: var(--leaf-glow);
+      color: var(--forest-dark);
+      border: 1.5px solid var(--forest);
+      border-radius: 999px;
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 800;
+      text-decoration: none;
+      transition: transform 0.12s ease, background-color 0.12s ease;
+    }
+
+    .info-click-me-link:hover {
+      background: #9ce66e;
+      transform: translateY(-1px);
+    }
+
+    /* PUBG / Genshin Square Tactical Teleport Map Modal */
+    .teleport-map-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 460px) 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .square-map-board {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #0a2218;
+      border: 2px solid var(--forest);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: inset 0 0 32px rgba(0, 0, 0, 0.45);
+    }
+
+    .square-map-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .tower-pin-btn {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      appearance: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--surface);
+      background: var(--leaf-bright);
+      color: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+      transition: transform 0.14s ease, background-color 0.14s ease;
+      padding: 0;
+    }
+
+    .tower-pin-btn:hover,
+    .tower-pin-btn.active {
+      transform: translate(-50%, -50%) scale(1.22);
+      background: var(--leaf-glow);
+      color: var(--forest-dark);
+      border-color: var(--forest-dark);
+      z-index: 4;
+    }
+
+    .tower-list-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 440px;
+      overflow-y: auto;
+    }
+
+    .tower-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface-low);
+      border: 1.5px solid var(--outline-soft);
+      border-radius: 16px;
+    }
+
+    .tower-list-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .tower-list-name {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--forest-dark);
+    }
+
+    .teleport-go-btn {
+      appearance: none;
+      padding: 7px 15px;
+      background: var(--forest);
+      color: var(--surface);
+      border: none;
+      border-radius: 999px;
+      font-family: var(--font-display);
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .teleport-go-btn:hover {
+      background: var(--leaf);
+    }
+
+    /* Teleport Turtle Loading Scene Overlay */
+    .teleport-loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--forest-dark);
+      z-index: 120;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      color: var(--surface);
+    }
+
+    .teleport-loading-canvas {
+      width: 340px;
+      height: 250px;
+      display: block;
+    }
+
+    .teleport-loading-title {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--leaf-glow);
+    }
+
+    .teleport-progress-track {
+      width: 240px;
+      height: 7px;
+      background: rgba(250, 250, 237, 0.16);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .teleport-progress-fill {
+      height: 100%;
+      background: var(--leaf-glow);
+      border-radius: 999px;
+      transition: width 0.08s linear;
+    }
+
+      /* Phone & Tablet UI Optimization */
+      @media (max-width: 768px) {
+        .teleport-map-layout {
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+
+        .hud-top {
+          top: 8px;
+          left: 8px;
+          right: 8px;
+          gap: 6px;
+        }
+
+        .greenbits-pill {
+          padding: 5px 12px 5px 6px;
+          font-size: 13.5px;
+        }
+
+        .greenbits-coin-img {
+          width: 24px;
+          height: 24px;
+        }
+
+        .hud-btn {
+          padding: 7px 12px;
+          font-size: 12px;
+          min-height: 36px;
+        }
+
+        .entity-card {
+          top: 58px;
+          right: 8px;
+          width: 210px;
+          padding: 11px 13px;
+          gap: 8px;
+        }
+
+        .bottom-dock {
+          left: 8px;
+          right: 8px;
+          padding: 4px 10px 10px;
+          border-radius: 18px 18px 0 0;
+        }
+
+        .bottom-dock.collapsed {
+          height: 8px;
+          padding: 0;
+          border-radius: 8px 8px 0 0;
+        }
+
+        .dock-toggle-btn {
+          width: 52px;
+          height: 24px;
+          top: -22px;
+        }
+
+        .dock-strip {
+          padding: 34px 4px 4px;
+          gap: 8px;
+        }
+
+        .dock-card {
+          width: 84px;
+          height: 92px;
+          padding: 6px;
+          border-radius: 14px;
+        }
+
+        .dock-card-thumb {
+          width: 56px;
+          height: 46px;
+          margin-top: 6px;
+        }
+
+        .dock-card-title {
+          font-size: 10px;
+        }
+
+        .modal-backdrop {
+          padding: 8px;
+        }
+
+        .modal-sheet {
+          max-height: 92vh;
+          border-radius: 20px;
+        }
+
+        .modal-header {
+          padding: 12px 16px;
+        }
+
+        .modal-title {
+          font-size: 17px;
+        }
+
+        .modal-body {
+          padding: 12px 14px;
+        }
+
+        .store-grid {
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+          gap: 10px;
+        }
+
+        .store-item-thumb {
+          width: 86px;
+          height: 72px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .hud-cluster {
+          gap: 5px;
+        }
+
+        .hud-btn {
+          padding: 6px 10px;
+          font-size: 11.5px;
+          min-height: 32px;
+        }
+
+        .entity-card {
+          width: 192px;
+        }
+
+        .store-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+        }
+      }

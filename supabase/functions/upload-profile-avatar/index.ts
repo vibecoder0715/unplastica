@@ -127,21 +127,21 @@ async function sanitize(bytes: Uint8Array, width: number, height: number): Promi
 Deno.serve(async (request) => {
   const preflight = options(request);
   if (preflight) return preflight;
-  if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+  if (request.method !== "POST") return json({ error: "Method not allowed." }, 405, request);
   try {
     const user = await requireVerifiedUser(request);
     if (isResponse(user)) return user;
     const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
-    if (!allowedTypes.has(contentType)) return json({ error: "Choose a JPEG or PNG image." }, 415);
+    if (!allowedTypes.has(contentType)) return json({ error: "Choose a JPEG or PNG image." }, 415, request);
     const declaredLength = Number(request.headers.get("content-length") ?? 0);
-    if (declaredLength > maxBytes) return json({ error: "Profile photos must be no larger than 50 KB." }, 413);
+    if (declaredLength > maxBytes) return json({ error: "Profile photos must be no larger than 50 KB." }, 413, request);
     const bytes = await readLimitedBody(request);
-    if (!bytes?.length) return json({ error: "Profile photos must be no larger than 50 KB." }, 413);
+    if (!bytes?.length) return json({ error: "Profile photos must be no larger than 50 KB." }, 413, request);
     const dimensions = inspectImage(bytes, contentType);
-    if (!dimensions) return json({ error: "This file is not a supported JPEG or PNG image." }, 415);
+    if (!dimensions) return json({ error: "This file is not a supported JPEG or PNG image." }, 415, request);
     const { width, height } = dimensions;
     if (width < 1 || height < 1 || width > maxDimension || height > maxDimension || width * height > maxPixels) {
-      return json({ error: "Image dimensions are too large. Choose an image up to 4096 pixels per side." }, 413);
+      return json({ error: "Image dimensions are too large. Choose an image up to 4096 pixels per side." }, 413, request);
     }
 
     const db = admin();
@@ -154,7 +154,7 @@ Deno.serve(async (request) => {
     if (!profile) return json({ error: "Please wait a few seconds before uploading another photo." }, 429, request);
 
     const sanitized = await sanitize(bytes, width, height);
-    if (!sanitized) return json({ error: "This image could not be safely processed under the 50 KB limit." }, 413);
+    if (!sanitized) return json({ error: "This image could not be safely processed under the 50 KB limit." }, 413, request);
 
     const path = `${user.id}/${crypto.randomUUID()}.jpg`;
     const { error: storageError } = await db.storage.from("profile-avatars").upload(path, sanitized, {
@@ -171,9 +171,9 @@ Deno.serve(async (request) => {
       const { error: removeError } = await db.storage.from("profile-avatars").remove([oldPath]);
       if (removeError) console.error("Could not remove previous profile avatar", removeError);
     }
-    return json({ avatar_path: path, size_bytes: sanitized.byteLength });
+    return json({ avatar_path: path, size_bytes: sanitized.byteLength }, 200, request);
   } catch (error) {
     console.error("upload-profile-avatar", error);
-    return json({ error: "Could not update profile photo." }, 500);
+    return json({ error: "Could not update profile photo." }, 500, request);
   }
 });

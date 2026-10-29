@@ -16,6 +16,11 @@ export default defineConfig({
   define: {
     __APP_BUILD_VERSION__: JSON.stringify(appVersion),
   },
+  resolve: {
+    alias: {
+      "@game": path.resolve(__dirname, "../../game/src"),
+    },
+  },
   plugins: [
     {
       name: "block-sensitive-files",

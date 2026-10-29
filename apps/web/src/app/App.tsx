@@ -6,8 +6,13 @@ import { Icon, type IconName } from "../components/Icon";
 import { isSupabaseConfigured, supabase, uploadProfileAvatar } from "../lib/supabase";
 import { formatPoints } from "../lib/format";
 import { getLanguage, translate, type Language } from "../lib/i18n";
+import { SanctuaryAnimalBackdrop } from "../components/SanctuaryAnimalBackdrop";
+import { GameLoadingOverlay } from "../components/GameLoadingOverlay";
+import { GamePage } from "../components/GamePage";
+import { MascotWidget } from "../components/MascotWidget";
+import { MascotManualTour } from "../components/MascotManualTour";
 
-type Page = "home" | "earn" | "events" | "settings" | "login";
+type Page = "home" | "earn" | "events" | "settings" | "login" | "game";
 type Theme = "light" | "dark" | "system";
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice?: Promise<{ outcome: string }> };
 type InstallEnvironment = { standalone: boolean; insideApp: boolean; iosSafari: boolean };
@@ -24,7 +29,7 @@ type Profile = {
   tagline: string;
   avatar_path: string | null;
   avatar_url: string | null;
-  preferences: { theme?: Theme; language?: string; notifications?: boolean };
+  preferences: { theme?: Theme; language?: string; notifications?: boolean; has_seen_manual?: boolean };
 };
 
 const guestProfile: Profile = {
@@ -134,12 +139,13 @@ export function validateEmailAddress(raw: string): { valid: boolean; error?: str
 
 function readPage(): Page {
   const path = location.pathname;
+  if (path === "/game") return "game";
   if (path === "/login") return "login";
   if (path === "/earn") return "earn";
   if (path === "/events") return "events";
   if (path === "/settings" || path === "/profile") return "settings";
   const stored = localStorage.getItem("unplastica-current-page") as Page | null;
-  if (stored && ["home", "earn", "events", "settings"].includes(stored)) {
+  if (stored && ["home", "earn", "events", "settings", "game"].includes(stored)) {
     return stored;
   }
   return "home";
@@ -308,6 +314,11 @@ export default function App() {
   const userRef = useRef<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [balance, setBalance] = useState(0);
+  const balanceRef = useRef(0);
+  const profileRef = useRef<Profile | null>(null);
+  const saveGameTimerRef = useRef<number>(0);
+  balanceRef.current = balance;
+  profileRef.current = profile;
   const [ready, setReady] = useState(!isSupabaseConfigured);
   const [showLoginGate, setShowLoginGate] = useState(false);
   const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
@@ -317,11 +328,13 @@ export default function App() {
   const [camera, setCamera] = useState(false);
   const [sample, setSample] = useState(false);
   const [eventSubpage, setEventSubpage] = useState<"challenge" | "done" | null>(null);
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState<ReactNode>("");
   const [notifications, setNotifications] = useState<boolean>(getStoredNotificationPreference);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [installEnvironment, setInstallEnvironment] = useState<InstallEnvironment>(detectInstallEnvironment);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [enteringGame, setEnteringGame] = useState(false);
+  const [showManualTour, setShowManualTour] = useState(false);
   const t = useCallback((key: string, values?: Record<string, string | number>) => translate(language, key, values), [language]);
   userRef.current = user;
 
@@ -338,7 +351,7 @@ export default function App() {
   });
   const boxCutleryCooldownMs = Math.max(0, 5 * 3600 * 1000 - (Date.now() - boxCutleryLastVerified));
 
-  const notify = useCallback((message: string) => {
+  const notify = useCallback((message: ReactNode) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 4000);
   }, []);
@@ -388,6 +401,7 @@ export default function App() {
     const displayName = username;
 
     const userEmail = (row?.email || metadata?.email || activeUser.email || "").trim();
+    const localCustomAvatar = localStorage.getItem("unplastica_avatar_" + activeUser.id);
 
     setProfile({
       display_name: displayName,
@@ -396,15 +410,29 @@ export default function App() {
       phone: row?.phone || metadata?.phone || activeUser.phone || "",
       tagline: row?.tagline || metadata?.tagline || "Refusing plastic, one meal at a time.",
       avatar_path: avatarPath,
-      avatar_url: signedAvatar?.signedUrl ?? metadata?.avatar_url ?? metadata?.picture ?? null,
+      avatar_url:
+        signedAvatar?.signedUrl ??
+        metadata?.custom_avatar_url ??
+        localCustomAvatar ??
+        metadata?.avatar_url ??
+        metadata?.picture ??
+        null,
       preferences: row?.preferences || {},
     });
-    setBalance(Number(balanceResult.data?.balance ?? 0));
+    const ledgerBalance = Number(balanceResult.data?.balance ?? 0);
+    const prefOffset = Number((row?.preferences as Record<string, unknown> | undefined)?.sanctuary_balance_offset ?? 0);
+    const effectiveBalance = Math.max(0, ledgerBalance + (Number.isFinite(prefOffset) ? prefOffset : 0));
+    balanceRef.current = effectiveBalance;
+    setBalance(effectiveBalance);
 
     if (activeUser) {
       const isDefault = (/^user\d+/i.test(username) || isSystemDefault) && !localStorage.getItem("unplastica_username_prompted_" + activeUser.id);
       if (isDefault) {
         setShowUsernamePrompt(true);
+      }
+      const hasSeen = Boolean(row?.preferences?.has_seen_manual || localStorage.getItem("unplastica_manual_seen_" + activeUser.id));
+      if (!hasSeen) {
+        setShowManualTour(true);
       }
     }
   }, []);
@@ -595,7 +623,7 @@ export default function App() {
     }
   }, [ready, page, user]);
 
-  const savePreference = useCallback(async (key: "theme" | "language" | "notifications", value: string | boolean) => {
+  const savePreference = useCallback(async (key: "theme" | "language" | "notifications" | "has_seen_manual", value: string | boolean) => {
     if (key === "notifications") {
       localStorage.setItem("unplastica-notifications", String(value));
     }
@@ -657,6 +685,23 @@ export default function App() {
     }
   }, [notifications, language]);
 
+  useEffect(() => {
+    const handleStartManual = () => {
+      setShowManualTour(true);
+    };
+    window.addEventListener("unplastica-start-manual", handleStartManual);
+    return () => window.removeEventListener("unplastica-start-manual", handleStartManual);
+  }, []);
+
+  const handleCompleteManualTour = useCallback(async () => {
+    setShowManualTour(false);
+    localStorage.setItem("unplastica_manual_seen_v1", "true");
+    if (user) {
+      localStorage.setItem("unplastica_manual_seen_" + user.id, "true");
+      void savePreference("has_seen_manual", true);
+    }
+  }, [user, savePreference]);
+
   if (!ready) return <div className="loading-shell"><BrandWordmark /></div>;
   const activeProfile = profile ?? { ...guestProfile, display_name: t("settings.guest"), preferences: { ...guestProfile.preferences, language } };
   const guest = !user;
@@ -678,12 +723,34 @@ export default function App() {
   };
   const uploadAvatar = async (file: File) => {
     if (file.size > 50 * 1024) { notify(t("profile.photoTooLarge")); return; }
-    if (file.type !== "image/jpeg" && file.type !== "image/png") { notify(t("profile.photoType")); return; }
+    if (file.type !== "image/jpeg" && file.type !== "image/png" && file.type !== "image/webp") { notify(t("profile.photoType")); return; }
     if (!user) { navigate("login"); return; }
     setAvatarBusy(true);
     try {
-      await uploadProfileAvatar(file);
-      await loadAccount(user);
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => (typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Read failed")));
+        reader.onerror = () => reject(new Error("Read failed"));
+        reader.readAsDataURL(file);
+      });
+
+      // Immediately update local & optimistic avatar state so the user sees the cropped picture right away
+      localStorage.setItem("unplastica_avatar_" + user.id, dataUrl);
+      setProfile((curr) => (curr ? { ...curr, avatar_url: dataUrl } : curr));
+
+      try {
+        await uploadProfileAvatar(file);
+        await loadAccount(user);
+      } catch (edgeErr) {
+        // Fallback: persist compressed avatar data URL to user_metadata if Edge Function / storage is unreachable
+        console.warn("Edge avatar upload fallback to auth metadata:", edgeErr);
+        await supabase?.auth.updateUser({
+          data: {
+            custom_avatar_url: dataUrl,
+            avatar_url: dataUrl,
+          },
+        });
+      }
       notify(t("profile.photoUploaded"));
     } catch (error) {
       console.error("Profile photo upload failed", error);
@@ -782,21 +849,140 @@ export default function App() {
     notify(t("auth.passwordSetSuccess"));
   };
 
+  useEffect(() => {
+    const client = supabase;
+    if (!client || !user) return;
+    const channel = client
+      .channel(`greenbits-sync-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "greenbit_ledger",
+          filter: `user_id=eq.${user.id}`,
+        },
+        async () => {
+          const { data } = await client
+            .from("greenbit_balances")
+            .select("balance")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (data && typeof data.balance === "number") {
+            const prefOffset = Number(
+              (profileRef.current?.preferences as Record<string, unknown> | undefined)?.sanctuary_balance_offset ?? 0,
+            );
+            const nextBal = Math.max(0, Number(data.balance) + (Number.isFinite(prefOffset) ? prefOffset : 0));
+            balanceRef.current = nextBal;
+            setBalance(nextBal);
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      void client.removeChannel(channel);
+    };
+  }, [user]);
+
+  const handleGameBalanceChange = useCallback(async (newBal: number) => {
+    const cleanNew = Math.max(0, Math.round(newBal));
+    const delta = cleanNew - balanceRef.current;
+    balanceRef.current = cleanNew;
+    setBalance(cleanNew);
+
+    if (user && supabase && delta !== 0) {
+      try {
+        const idempotencyKey = `game_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        const { data: serverBal, error } = await supabase.rpc("sync_sanctuary_balance", {
+          p_delta: delta,
+          p_reason: delta < 0 ? "Sanctuary store purchase" : "Sanctuary eco harvest",
+          p_idempotency_key: idempotencyKey,
+        });
+        if (!error && typeof serverBal === "number") {
+          const confirmed = Math.max(0, Number(serverBal));
+          balanceRef.current = confirmed;
+          setBalance(confirmed);
+          const currentPrefs = (profileRef.current?.preferences ?? {}) as Record<string, unknown>;
+          if (currentPrefs.sanctuary_balance_offset) {
+            const nextPrefs = { ...currentPrefs, sanctuary_balance_offset: 0 };
+            setProfile((curr) => (curr ? { ...curr, preferences: nextPrefs as Profile["preferences"] } : curr));
+            await supabase.from("profiles").update({ preferences: nextPrefs }).eq("id", user.id);
+          }
+        } else if (error) {
+          // Fallback: persist balance delta into profiles.preferences so user's earned/spent Greenbits persist in DB even before RPC migration is applied
+          const currentPrefs = (profileRef.current?.preferences ?? {}) as Record<string, unknown>;
+          const prevOffset = Number(currentPrefs.sanctuary_balance_offset ?? 0);
+          const nextOffset = (Number.isFinite(prevOffset) ? prevOffset : 0) + delta;
+          const nextPrefs = { ...currentPrefs, sanctuary_balance_offset: nextOffset };
+          setProfile((curr) => (curr ? { ...curr, preferences: nextPrefs as Profile["preferences"] } : curr));
+          await supabase.from("profiles").update({ preferences: nextPrefs }).eq("id", user.id);
+        }
+      } catch (err) {
+        console.warn("Sanctuary real-time database sync:", err);
+      }
+    }
+  }, [user]);
+
+  const handleGameSaveStateChange = useCallback(
+    (state: import("@game/game/types").SaveState) => {
+      if (!user || !supabase) return;
+      window.clearTimeout(saveGameTimerRef.current);
+      saveGameTimerRef.current = window.setTimeout(async () => {
+        try {
+          const currentPrefs = (profileRef.current?.preferences ?? {}) as Record<string, unknown>;
+          const compactSave = {
+            version: state.version,
+            harmonyXp: state.harmonyXp,
+            ownedAssets: state.ownedAssets,
+            foodInventory: state.foodInventory,
+            placedAnimals: state.placedAnimals,
+            placedPlants: state.placedPlants.filter((p) => !p.isDefaultScenery),
+            discoveredEcoDex: state.discoveredEcoDex,
+            discoveredFavoriteFoods: state.discoveredFavoriteFoods,
+            lastSavedTimestampMs: state.lastSavedTimestampMs,
+          };
+          const nextPrefs = { ...currentPrefs, sanctuary_save: compactSave };
+          setProfile((curr) => (curr ? { ...curr, preferences: nextPrefs as Profile["preferences"] } : curr));
+          await supabase?.from("profiles").update({ preferences: nextPrefs }).eq("id", user.id);
+        } catch (e) {
+          console.warn("Sanctuary state cloud sync notice:", e);
+        }
+      }, 1500);
+    },
+    [user],
+  );
+
   return (
     <LanguageContext.Provider value={language}>
     <div className="app-shell">
-      <Header
-        page={page}
-        eventSubpage={eventSubpage}
-        onEventBack={() => setEventSubpage(null)}
-        balance={balance}
-        scrolled={scrolled}
-        avatarUrl={profile?.avatar_url ?? null}
-        onProfile={openSettings}
-        onHome={() => navigate("home")}
-      />
+      {page !== "game" && (
+        <Header
+          page={page}
+          eventSubpage={eventSubpage}
+          onEventBack={() => setEventSubpage(null)}
+          balance={balance}
+          scrolled={scrolled}
+          avatarUrl={profile?.avatar_url ?? null}
+          onProfile={openSettings}
+          onHome={() => navigate("home")}
+        />
+      )}
       <main className={"page page-" + page}>
-        {page === "home" && <HomePage onEnter={() => requestLogin("earn")} />}
+        {page === "home" && <HomePage onEnter={() => setEnteringGame(true)} />}
+        {page === "game" && (
+          <GamePage
+            balance={balance}
+            user={user}
+            cloudSaveState={
+              ((profile?.preferences as Record<string, unknown> | undefined)?.sanctuary_save as
+                | Partial<import("@game/game/types").SaveState>
+                | undefined) ?? null
+            }
+            onExit={() => navigate("home")}
+            onBalanceChange={handleGameBalanceChange}
+            onSaveStateChange={handleGameSaveStateChange}
+          />
+        )}
         {page === "earn" && <EarnPage
           selected={selectedHabit}
           dailyUsage={dailyUsage}
@@ -848,11 +1034,33 @@ export default function App() {
           onSignOut={async () => { await supabase?.auth.signOut(); navigate("home"); notify(t("common.logoutSuccess")); }}
           onUpdateProfile={updateProfile}
           onUpdatePassword={updatePassword}
+          onShowManual={() => {
+            setShowManualTour(true);
+          }}
           notify={notify}
         />}
         {page === "login" && <AuthPage user={user} onAuthenticated={() => { const target = sessionStorage.getItem("unplastica-return-to") as Page | null; sessionStorage.removeItem("unplastica-return-to"); navigate(target && target !== "login" ? target : "settings"); }} />}
       </main>
-      {page !== "login" && <BottomNav page={page} onNavigate={(target) => target === "earn" ? requestLogin("earn") : navigate(target)} />}
+      {page !== "login" && page !== "game" && <BottomNav page={page} onNavigate={(target) => target === "earn" ? requestLogin("earn") : navigate(target)} />}
+      {enteringGame && (
+        <GameLoadingOverlay
+          onComplete={() => {
+            setEnteringGame(false);
+            navigate("game");
+          }}
+        />
+      )}
+      {page !== "game" && !enteringGame && <MascotWidget language={language} />}
+      {showManualTour && !showUsernamePrompt && page !== "login" && (
+        <MascotManualTour
+          language={language}
+          onNavigatePage={(p) => {
+            if (p === "events") setEventSubpage(null);
+            navigate(p === "profile" ? "settings" : p);
+          }}
+          onComplete={handleCompleteManualTour}
+        />
+      )}
       {page !== "login" && <InstallPrompt prompt={installPrompt} environment={installEnvironment} onInstall={installApp} />}
       <UpdateNotice />
       {toast && <div className="toast" role="status">{toast}</div>}
@@ -860,10 +1068,10 @@ export default function App() {
       {camera && <CameraDialog
         habitCode={selectedHabit}
         onClose={() => setCamera(false)}
-        onComplete={(message) => {
+        onComplete={(message, verifiedSuccess) => {
           setCamera(false);
           notify(message);
-          if (selectedHabit === "box_cutlery" && (message.includes("Verified!") || message.includes("Disahkan!") || message.includes("已验证！"))) {
+          if (selectedHabit === "box_cutlery" && verifiedSuccess) {
             const now = Date.now();
             setBoxCutleryLastVerified(now);
             localStorage.setItem("unplastica_box_cutlery_last_verified", String(now));
@@ -982,8 +1190,58 @@ function BottomNav({ page, onNavigate }: { page: Page; onNavigate: (page: Page) 
   </nav>;
 }
 
+function GreenbitLogo({ size = 16 }: { size?: number }) {
+  return (
+    <img
+      src="/assets/brand/greenbits.png"
+      alt=""
+      className="inline-greenbit-logo"
+      style={{
+        width: size,
+        height: size,
+        objectFit: "contain",
+        verticalAlign: "-3px",
+        margin: "0 3px",
+        display: "inline-block",
+        background: "transparent",
+      }}
+    />
+  );
+}
+
 function HomePage({ onEnter }: { onEnter: () => void }) {
   const t = useCopy();
+  const ringRotorRef = useRef<HTMLSpanElement | null>(null);
+  const glowRotorRef = useRef<HTMLSpanElement | null>(null);
+  const animsRef = useRef<Animation[]>([]);
+
+  useEffect(() => {
+    const elements = [ringRotorRef.current, glowRotorRef.current].filter(
+      (el): el is HTMLSpanElement => Boolean(el && typeof el.animate === "function"),
+    );
+    const created = elements.map((el) =>
+      el.animate(
+        [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }],
+        { duration: 3200, iterations: Infinity, easing: "linear" },
+      ),
+    );
+    animsRef.current = created;
+    return () => {
+      for (const anim of created) anim.cancel();
+      animsRef.current = [];
+    };
+  }, []);
+
+  const setRingSpeed = (rate: number) => {
+    for (const anim of animsRef.current) {
+      try {
+        anim.updatePlaybackRate(rate);
+      } catch {
+        anim.playbackRate = rate;
+      }
+    }
+  };
+
   return <div className="content home-content">
     <section className="home-hero">
       <video className="hero-video" autoPlay muted loop playsInline aria-label="Polluted river with plastic waste">
@@ -992,9 +1250,29 @@ function HomePage({ onEnter }: { onEnter: () => void }) {
       <div className="hero-tint" />
       <h1>{t("home.title1")}<br /><span>{t("home.title2")}</span></h1>
     </section>
-    <section className="sanctuary">
+    <section className="sanctuary" id="sanctuary-section">
+      <SanctuaryAnimalBackdrop />
       <h2>{t("home.sanctuary")}</h2>
-      <button className="primary-button" onClick={onEnter}>{t("home.enter")} <Icon name="arrow" size={20} /></button>
+      <button
+        className="sanctuary-enter-button"
+        onClick={onEnter}
+        onPointerEnter={() => setRingSpeed(3.4)}
+        onPointerLeave={() => setRingSpeed(1)}
+        onFocus={() => setRingSpeed(3.4)}
+        onBlur={() => setRingSpeed(1)}
+      >
+        <span className="sanctuary-enter-glow" aria-hidden="true">
+          <span ref={glowRotorRef} className="sanctuary-enter-rotor" />
+        </span>
+        <span className="sanctuary-enter-ring" aria-hidden="true">
+          <span ref={ringRotorRef} className="sanctuary-enter-rotor" />
+        </span>
+        <span className="sanctuary-enter-fill" aria-hidden="true" />
+        <span className="sanctuary-enter-content">
+          <span>{t("home.enter")}</span>
+          <Icon name="arrow" size={20} />
+        </span>
+      </button>
       <p className="speech-card">{t("home.speech")}</p>
     </section>
   </div>;
@@ -1017,13 +1295,13 @@ function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo
   const isBlocked = isSelectedCapped || isBoxCooldown;
 
   return <div className="content earn-content">
-    <section className="earn-heading"><h1><span>{t("earn.titleStart")}</span><img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ background: "transparent" }} /><span>{t("earn.titleEnd")}</span></h1><p>{t("earn.subtitle")}</p></section>
+    <section className="earn-heading" id="earn-heading"><h1><span>{t("earn.titleStart")}</span><img src="/assets/brand/greenbits.png" alt="" style={{ background: "transparent" }} /><span>{t("earn.titleEnd")}</span></h1><p>{t("earn.subtitle")}</p></section>
     <section className="camera-section">
       <div className="section-heading"><h2>{t("earn.checker")}</h2></div>
       <button className={"camera-frame " + (isBlocked ? "is-capped" : "")} onClick={onCamera}>
         <i className="frame-corner corner-top-left" /><i className="frame-corner corner-top-right" />
         <i className="frame-corner corner-bottom-left" /><i className="frame-corner corner-bottom-right" />
-        <span className="camera-helper"><img src="/assets/brand/greenbits.png" alt="Greenbits" style={{ width: 28, height: 28, objectFit: "contain", background: "transparent" }} /></span>
+        <span className="camera-helper"><img src="/assets/brand/greenbits.png" alt="" style={{ width: 28, height: 28, objectFit: "contain", background: "transparent" }} /></span>
         <span className="camera-copy">
           <strong>{habit ? t("habit." + habit.code) : t("camera.title")}</strong>
           <span>
@@ -1032,7 +1310,7 @@ function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo
               : isSelectedCapped
               ? t("earn.dailyLimitReachedToday")
               : habit
-              ? t("earn.reward", { points: habit.points })
+              ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{t("earn.reward", { points: habit.points })}<GreenbitLogo size={16} /></span>
               : t("earn.hold")}
           </span>
         </span>
@@ -1041,7 +1319,7 @@ function EarnPage({ selected, dailyUsage, boxCutleryCooldownMs, onSelect, onInfo
     </section>
     <section className="habit-section">
       <div className="section-heading"><h2>{t("earn.habits")}</h2></div>
-      <div className="habit-list">{HABITS.map((item) => {
+      <div className="habit-list" id="habit-list">{HABITS.map((item) => {
         const limit = item.code === "box_cutlery" ? 3 : 1;
         const used = dailyUsage[item.code] || 0;
         const capped = used >= limit;
@@ -1099,9 +1377,10 @@ function EventsPage({
     <div className="content events-content">
       {/* Horizontal Rectangle Event Cards Overview: only shown before clicking */}
       {!activeTab && (
-        <section className="events-columns-selector">
+        <section className="events-columns-selector" id="events-heading">
           <button
             className="event-column-card"
+            id="challenge-card"
             onClick={() => onSelectTab("challenge")}
           >
             <div className="event-column-bg" style={{ backgroundImage: "url(/assets/events/noplastic-challenge.png)" }} />
@@ -1236,12 +1515,47 @@ function AvatarCropModal({
   onCancel: () => void;
 }) {
   const t = useCopy();
+  const VIEWPORT_SIZE = 260;
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number }>({ w: 260, h: 260 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [saving, setSaving] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
+
+  const fitScale = Math.max(
+    VIEWPORT_SIZE / Math.max(1, naturalSize.w),
+    VIEWPORT_SIZE / Math.max(1, naturalSize.h),
+  );
+  const displayW = naturalSize.w * fitScale;
+  const displayH = naturalSize.h * fitScale;
+
+  const clampPan = useCallback(
+    (rawX: number, rawY: number, currentZoom: number) => {
+      const maxX = Math.max(0, (displayW * currentZoom - VIEWPORT_SIZE) / 2);
+      const maxY = Math.max(0, (displayH * currentZoom - VIEWPORT_SIZE) / 2);
+      return {
+        x: Math.max(-maxX, Math.min(maxX, rawX)),
+        y: Math.max(-maxY, Math.min(maxY, rawY)),
+      };
+    },
+    [displayW, displayH],
+  );
+
+  const applyZoom = (nextZoomRaw: number) => {
+    const nextZoom = Math.max(1, Math.min(3, Math.round(nextZoomRaw * 100) / 100));
+    setZoom(nextZoom);
+    setPan((prev) => clampPan(prev.x, prev.y, nextZoom));
+  };
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const w = img.naturalWidth || img.width || 260;
+    const h = img.naturalHeight || img.height || 260;
+    setNaturalSize({ w, h });
+    setPan({ x: 0, y: 0 });
+  };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     setIsDragging(true);
@@ -1253,10 +1567,7 @@ function AvatarCropModal({
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
+    setPan(clampPan(e.clientX - dragStart.x, e.clientY - dragStart.y, zoom));
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1266,43 +1577,49 @@ function AvatarCropModal({
     } catch (_) {}
   };
 
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.12 : -0.12;
+    applyZoom(zoom + delta);
+  };
+
   const handleSave = async () => {
     const img = imgRef.current;
     if (!img) return;
     setSaving(true);
     try {
-      const OUTPUT_SIZE = 256;
-      const VIEWPORT_SIZE = 260;
-      const canvas = document.createElement("canvas");
-      canvas.width = OUTPUT_SIZE;
-      canvas.height = OUTPUT_SIZE;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Canvas context unavailable");
+      const naturalW = img.naturalWidth || img.width || 260;
+      const naturalH = img.naturalHeight || img.height || 260;
+      const baseFitScale = Math.max(VIEWPORT_SIZE / naturalW, VIEWPORT_SIZE / naturalH);
+      const renderW = naturalW * baseFitScale;
+      const renderH = naturalH * baseFitScale;
 
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-
-      const ratio = OUTPUT_SIZE / VIEWPORT_SIZE;
-      ctx.save();
-      ctx.translate(OUTPUT_SIZE / 2, OUTPUT_SIZE / 2);
-      ctx.translate(pan.x * ratio, pan.y * ratio);
-      ctx.scale(zoom * ratio, zoom * ratio);
-
-      const naturalW = img.naturalWidth || img.width;
-      const naturalH = img.naturalHeight || img.height;
-      const fitScale = Math.max(VIEWPORT_SIZE / naturalW, VIEWPORT_SIZE / naturalH);
-      const renderW = naturalW * fitScale;
-      const renderH = naturalH * fitScale;
-      ctx.drawImage(img, -renderW / 2, -renderH / 2, renderW, renderH);
-      ctx.restore();
-
-      // Compress to guarantee size <= 50 KB
-      let quality = 0.85;
       let blob: Blob | null = null;
-      for (let i = 0; i < 5; i++) {
-        blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-        if (blob && blob.size <= 50 * 1024) break;
-        quality -= 0.15;
+      for (const outputSize of [256, 224, 192]) {
+        const canvas = document.createElement("canvas");
+        canvas.width = outputSize;
+        canvas.height = outputSize;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas context unavailable");
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, outputSize, outputSize);
+
+        const ratio = outputSize / VIEWPORT_SIZE;
+        ctx.save();
+        ctx.translate(outputSize / 2, outputSize / 2);
+        ctx.translate(pan.x * ratio, pan.y * ratio);
+        ctx.scale(zoom * ratio, zoom * ratio);
+        ctx.drawImage(img, -renderW / 2, -renderH / 2, renderW, renderH);
+        ctx.restore();
+
+        for (const quality of [0.86, 0.76, 0.66, 0.56, 0.45]) {
+          blob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob(resolve, "image/jpeg", quality),
+          );
+          if (blob && blob.size <= 48 * 1024) break;
+        }
+        if (blob && blob.size <= 48 * 1024) break;
       }
 
       if (!blob) throw new Error("Could not create cropped image");
@@ -1316,10 +1633,10 @@ function AvatarCropModal({
   };
 
   return (
-    <div className="dialog-backdrop" onClick={onCancel}>
-      <div className="dialog-sheet avatar-crop-dialog" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onCancel} labelledBy="avatar-crop-title">
+      <div className="dialog avatar-crop-dialog">
         <div className="dialog-header" style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ margin: 0, color: "var(--forest)", fontSize: "1.1rem" }}>{t("profile.cropTitle")}</h3>
+          <h2 id="avatar-crop-title" style={{ margin: 0, color: "var(--forest)", fontSize: "1.2rem" }}>{t("profile.cropTitle")}</h2>
           <button type="button" className="dialog-close" onClick={onCancel} aria-label={t("common.close")}>
             <Icon name="close" />
           </button>
@@ -1330,13 +1647,17 @@ function AvatarCropModal({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
+          onWheel={handleWheel}
         >
           <img
             ref={imgRef}
             src={imageSrc}
             alt="Crop preview"
             className="avatar-crop-image"
+            onLoad={handleImageLoad}
             style={{
+              width: `${displayW}px`,
+              height: `${displayH}px`,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: "center center",
             }}
@@ -1347,18 +1668,36 @@ function AvatarCropModal({
         <div className="avatar-crop-controls">
           <label>
             <span>{t("profile.zoom")}</span>
+            <button
+              type="button"
+              className="avatar-zoom-step-btn"
+              aria-label="Zoom out"
+              onClick={() => applyZoom(zoom - 0.15)}
+              disabled={zoom <= 1}
+            >
+              −
+            </button>
             <input
               type="range"
               min="1"
               max="3"
               step="0.05"
               value={zoom}
-              onChange={(e) => setZoom(Number(e.target.value))}
+              onChange={(e) => applyZoom(Number(e.target.value))}
             />
+            <button
+              type="button"
+              className="avatar-zoom-step-btn"
+              aria-label="Zoom in"
+              onClick={() => applyZoom(zoom + 0.15)}
+              disabled={zoom >= 3}
+            >
+              +
+            </button>
           </label>
         </div>
-        <div className="dialog-actions" style={{ width: "100%", display: "flex", gap: "10px" }}>
-          <button type="button" className="ghost-button" onClick={onCancel} disabled={saving} style={{ flex: 1 }}>
+        <div className="dialog-actions" style={{ width: "100%", display: "flex", gap: "10px", marginTop: "12px" }}>
+          <button type="button" className="secondary-button" onClick={onCancel} disabled={saving} style={{ flex: 1 }}>
             {t("common.cancel")}
           </button>
           <button type="button" className="primary-button" onClick={() => void handleSave()} disabled={saving} style={{ flex: 1 }}>
@@ -1366,7 +1705,7 @@ function AvatarCropModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1386,7 +1725,7 @@ function LogoutConfirmDialog({
         </button>
         <BrandWordmark width="154px" />
         <h2 id="logout-confirm-title">{t("auth.logoutConfirmTitle")}</h2>
-        <p>{t("auth.logoutConfirmDesc")}</p>
+        <p><GreenbitLogo size={16} />{t("auth.logoutConfirmDesc")}</p>
         <button type="button" className="primary-button logout-confirm-btn" onClick={onConfirm}>
           {t("settings.logoutAction")}
         </button>
@@ -1406,6 +1745,7 @@ function SettingsPage(props: {
   onAuth: () => void; onSignOut: () => void;
   onUpdateProfile?: (updated: { display_name: string; username: string; email?: string; phone: string; tagline: string }) => Promise<void>;
   onUpdatePassword?: (password: string) => Promise<void>;
+  onShowManual?: () => void;
   notify: (message: string) => void;
 }) {
   const t = useCopy();
@@ -1457,22 +1797,6 @@ function SettingsPage(props: {
   const initials = props.profile.display_name.trim().split(/\s+/).map((word) => word[0]).join("").slice(0, 2).toUpperCase();
 
   const displayEmail = (props.profile.email || props.email || "").trim();
-
-  const isGoogleOAuth = Boolean(
-    props.user?.app_metadata?.providers?.includes("google") ||
-    props.user?.app_metadata?.provider === "google" ||
-    props.user?.identities?.some((id) => id.provider === "google") ||
-    displayEmail.toLowerCase().endsWith("@gmail.com")
-  );
-
-  const isMicrosoftOAuth = Boolean(
-    props.user?.app_metadata?.providers?.includes("azure") ||
-    props.user?.app_metadata?.provider === "azure" ||
-    props.user?.identities?.some((id) => id.provider === "azure") ||
-    displayEmail.toLowerCase().endsWith("@outlook.com") ||
-    displayEmail.toLowerCase().endsWith("@hotmail.com") ||
-    displayEmail.toLowerCase().endsWith("@live.com")
-  );
 
   useEffect(() => {
     setEditUsername(props.profile.username);
@@ -1577,25 +1901,13 @@ function SettingsPage(props: {
       <button className="download-app-button" onClick={() => props.installAvailable ? void props.onInstall() : setShowInstallHelp((value) => !value)}>{t("settings.downloadApp")}</button>
       {showInstallHelp && <p className="download-app-help">{props.installEnvironment.insideApp ? t("install.browserHelp") : props.installEnvironment.iosSafari ? t("install.iosHelp") : t("install.manualHelp")}</p>}
     </section>}
-    <div className="profile-identity">
+    <div className="profile-identity" id="profile-details">
       <div className="profile-avatar">{props.profile.avatar_url ? <img src={props.profile.avatar_url} alt="" /> : initials}</div>
       <h2>{props.profile.display_name}</h2>
-      {isGoogleOAuth && (
-        <div className="oauth-status-badge">
-          <GoogleMark />
-          <span>Google Connected{displayEmail ? `: ${displayEmail}` : ""}</span>
-        </div>
-      )}
-      {isMicrosoftOAuth && (
-        <div className="oauth-status-badge" style={{ borderColor: "#00a4ef" }}>
-          <MicrosoftMark />
-          <span>Microsoft Connected{displayEmail ? `: ${displayEmail}` : ""}</span>
-        </div>
-      )}
       {props.guest ? <button className="profile-photo-upload" onClick={props.onAuth}><Icon name="camera" size={18} />{t("profile.loginToUpload")}</button> :
         <label className={"profile-photo-upload " + (props.avatarBusy ? "is-busy" : "")}>
           <Icon name="camera" size={18} /><span>{props.avatarBusy ? t("profile.uploading") : props.profile.avatar_url ? t("profile.changePhoto") : t("profile.uploadPhoto")}</span>
-          <input type="file" accept="image/jpeg,image/png" onChange={chooseAvatar} disabled={props.avatarBusy} />
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseAvatar} disabled={props.avatarBusy} />
         </label>}
       <p className="profile-photo-note">{t("profile.photoLimit")}</p>
     </div>
@@ -1650,14 +1962,14 @@ function SettingsPage(props: {
     <div className="profile-details">
       <DetailRow label={t("settings.username")} value={props.guest ? t("settings.guest") : "@" + props.profile.username} icon="users" />
       <DetailRow
-        label={isMicrosoftOAuth ? t("settings.outlookAccountLabel") : isGoogleOAuth || displayEmail.toLowerCase().endsWith("@gmail.com") ? t("settings.googleAccountLabel") : t("settings.email")}
+        label={t("settings.email")}
         value={displayEmail ? displayEmail : props.guest ? t("settings.guestConnectHint") : t("settings.notLinkedHint")}
         icon="mail"
       />
       <DetailRow
         label={t("settings.phone")}
         value={props.profile.phone ? props.profile.phone : props.guest ? t("settings.guestPhoneHint") : t("settings.notLinkedHint")}
-        icon="user"
+        icon="phone"
       />
       {!props.guest && props.profile.tagline && <DetailRow label={t("settings.tagline")} value={props.profile.tagline} icon="bulb" />}
     </div>
@@ -1734,11 +2046,7 @@ function SettingsPage(props: {
     {showSetPassword && (
       <section className="settings-edit-card">
         <h4>{t("auth.setAccountPasswordTitle")}</h4>
-        <p>
-          {isGoogleOAuth
-            ? t("auth.setPasswordGoogleDesc")
-            : t("auth.setPasswordDeviceDesc")}
-        </p>
+        <p>{t("auth.setPasswordDeviceDesc")}</p>
         <form onSubmit={(e) => void handleSavePassword(e)}>
           <label>{t("auth.newPasswordLabel")}
             <input
@@ -1792,7 +2100,23 @@ function SettingsPage(props: {
       </section>
     )}
 
-    <section className="preferences"><h3>{t("settings.preferences")}</h3>
+    <section className="preferences" id="preferences-section"><h3>{t("settings.preferences")}</h3>
+      <div className="setting-card manual-trigger-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span className="setting-icon"><Icon name="play" /></span>
+          <strong>{t("settings.showManual")}</strong>
+        </div>
+        <button
+          type="button"
+          className="primary-button show-manual-btn"
+          style={{ minHeight: 36, padding: "0 18px", fontSize: 14 }}
+          onClick={() => {
+            props.onShowManual?.();
+          }}
+        >
+          {t("settings.showManualAction")}
+        </button>
+      </div>
       <div className="setting-card setting-toggle"><span className="setting-icon"><Icon name="bell" /></span><strong>{t("settings.notifications")}</strong><button className={"switch " + (props.notifications ? "on" : "")} role="switch" aria-checked={props.notifications} aria-label={t("settings.notifications")} disabled={toggleBusy} onClick={async () => {
         const next = !props.notifications;
         if (next) {
@@ -2797,7 +3121,7 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
   }
 }
 
-function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode | null; onClose: () => void; onComplete: (message: string) => void }) {
+function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode | null; onClose: () => void; onComplete: (message: ReactNode, verifiedSuccess?: boolean) => void }) {
   const t = useCopy();
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -2942,15 +3266,28 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
         throw result.error;
       }
       if (result.data?.status === "rejected") {
+        window.dispatchEvent(new CustomEvent("unplastica-mascot-event", { detail: { type: "verification-fail" } }));
         onComplete(result.data?.error || t("camera.failed"));
         return;
       }
       if (result.data?.status === "approved") {
         const pts = habit?.points ?? result.data?.points ?? 10;
         void sendVerificationSuccessNotification(habit ? t("habit." + habit.code) : "Habit", pts, created.data?.submission_id, getLanguage());
+        window.dispatchEvent(new CustomEvent("unplastica-mascot-event", { detail: { type: "verification-success", points: pts } }));
+        onComplete(
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            {t("camera.success", { points: pts })}
+            <GreenbitLogo size={16} />
+          </span>,
+          true,
+        );
+        return;
       }
-      onComplete(result.data?.status === "approved" ? t("camera.success", { points: habit?.points ?? result.data.points }) : t("camera.failed"));
-    } catch { onComplete(t("camera.failed")); }
+      onComplete(t("camera.failed"), false);
+    } catch {
+      window.dispatchEvent(new CustomEvent("unplastica-mascot-event", { detail: { type: "verification-fail" } }));
+      onComplete(t("camera.failed"));
+    }
     finally { setBusy(false); }
   };
 
@@ -3050,7 +3387,11 @@ function HabitInfoDialog({ code, onClose }: { code: HabitCode; onClose: () => vo
   if (!habit) return null;
   return <Modal onClose={onClose} labelledBy="habit-info-title"><div className="dialog habit-info-dialog">
     <button className="dialog-close" onClick={onClose} aria-label={t("common.close")}><Icon name="close" /></button><img src={habitImages[code]} alt="" />
-    <h2 id="habit-info-title">{t("habit." + code)}</h2><p>{t("habitDescription." + code)}</p><strong>+{habit.points} Greenbits</strong>
+    <h2 id="habit-info-title">{t("habit." + code)}</h2><p>{t("habitDescription." + code)}</p>
+    <strong style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      +{habit.points}
+      <GreenbitLogo size={18} />
+    </strong>
   </div></Modal>;
 }
 

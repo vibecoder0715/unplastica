@@ -4,9 +4,22 @@ const ALLOWED_ORIGINS = new Set([
   ...(Deno.env.get("ALLOWED_ORIGIN") ? [Deno.env.get("ALLOWED_ORIGIN")!] : []),
 ]);
 
+function isAllowedOrigin(origin: string): boolean {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    const url = new URL(origin);
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return true;
+    if (url.protocol === "https:" && url.hostname.endsWith(".vercel.app")) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 export function getCorsHeaders(request?: Request): Record<string, string> {
   const origin = request?.headers.get("origin") ?? "";
-  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : PRODUCTION_ORIGIN;
+  const allowOrigin = isAllowedOrigin(origin) ? origin : PRODUCTION_ORIGIN;
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-retention-secret",
