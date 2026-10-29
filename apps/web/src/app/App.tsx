@@ -3633,8 +3633,9 @@ function UpdateNotice() {
 
     if ("serviceWorker" in navigator) {
       let refreshing = false;
+      const hadController = Boolean(navigator.serviceWorker.controller);
       const onControllerChange = () => {
-        if (refreshing) return;
+        if (!hadController || refreshing) return;
         refreshing = true;
         setUpdating(true);
         window.location.href = window.location.pathname + "?_ts=" + Date.now();
