@@ -1006,67 +1006,7 @@ export function MascotWidget({ language }: MascotWidgetProps) {
         </div>
       )}
 
-      {/* Comic speech bubble for the small turtle icon (authentic comic balloon with tail) */}
-      {!isOpen && (
-        <div
-          onClick={toggleOpen}
-          aria-hidden="true"
-          style={{
-            position: "fixed",
-            bottom: "max(154px, env(safe-area-inset-bottom) + 142px)",
-            right: 18,
-            zIndex: 9991,
-            pointerEvents: "auto",
-            cursor: "pointer",
-            background: "#ffffff",
-            border: "2.5px solid #111827",
-            borderRadius: 22,
-            padding: "8px 14px",
-            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.35)",
-            fontSize: 12.5,
-            fontWeight: 700,
-            color: "#111827",
-            transform: dragOffset.x || dragOffset.y
-              ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)`
-              : "none",
-            transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease",
-            animation: "mascotPopOut 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
-            whiteSpace: "nowrap",
-            userSelect: "none",
-          }}
-        >
-          {langKey === "bm"
-            ? "Ketik penyu untuk sembang!"
-            : langKey === "zh"
-              ? "点击海龟跟我互动！"
-              : "Tap turtle to talk!"}
-          {/* Curved comic pointer tail pointing down toward the turtle head */}
-          <svg
-            width="22"
-            height="16"
-            viewBox="0 0 22 16"
-            style={{
-              position: "absolute",
-              bottom: -15,
-              right: 22,
-              overflow: "visible",
-              pointerEvents: "none",
-            }}
-          >
-            <path
-              d="M 2 0 C 3 6, 10 12, 18 16 C 14 10, 16 5, 20 0"
-              fill="#ffffff"
-              stroke="#111827"
-              strokeWidth="2.5"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-            <rect x="3" y="-2" width="16" height="4" fill="#ffffff" />
-          </svg>
-        </div>
-      )}
-
-      {/* Super Cute Front-Facing Sea Turtle Head Button - diminishes when dialog is open */}
+      {/* Super Cute Front-Facing Sea Turtle Head Button - permanently pinned to bottom right corner */}
       <button
         type="button"
         className="mascot-launcher-button"
@@ -1090,11 +1030,7 @@ export function MascotWidget({ language }: MascotWidgetProps) {
           overflow: "visible",
           filter:
             "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))",
-          transform: isOpen
-            ? "scale(0) translateY(24px)"
-            : dragOffset.x || dragOffset.y
-              ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) scale(1)`
-              : "scale(1) translateY(0)",
+          transform: isOpen ? "scale(0) translateY(24px)" : "scale(1) translateY(0)",
           opacity: isOpen ? 0 : 1,
           pointerEvents: isOpen ? "none" : "auto",
           transition: "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, filter 0.2s ease",
@@ -1102,16 +1038,14 @@ export function MascotWidget({ language }: MascotWidgetProps) {
         }}
         onMouseEnter={(e) => {
           if (!isOpen) {
-            const baseT = dragOffset.x || dragOffset.y ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) ` : "";
-            e.currentTarget.style.transform = `${baseT}scale(1.14) translateY(-3px)`;
+            e.currentTarget.style.transform = "scale(1.14) translateY(-3px)";
             e.currentTarget.style.filter =
               "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 24px rgba(174, 246, 130, 0.9))";
           }
         }}
         onMouseLeave={(e) => {
           if (!isOpen) {
-            const baseT = dragOffset.x || dragOffset.y ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) ` : "";
-            e.currentTarget.style.transform = `${baseT}scale(1)`;
+            e.currentTarget.style.transform = "scale(1)";
             e.currentTarget.style.filter =
               "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))";
           }
