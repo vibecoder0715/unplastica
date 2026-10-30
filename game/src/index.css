@@ -24,6 +24,105 @@
   --font-body: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* Force Game and all Game UI / Modals to ALWAYS use Bright UI default (No dark theme in game) */
+#sanctuary-game-root,
+#sanctuary-game-root *,
+.modal-backdrop,
+.modal-sheet,
+.info-popup-card,
+.store-item-card,
+.store-search-row {
+  color-scheme: light !important;
+}
+
+#sanctuary-game-root {
+  --surface: #fafaed !important;
+  --surface-low: #f4f5e4 !important;
+  --surface-container: #eef0df !important;
+  --surface-high: #e8ead9 !important;
+  --surface-highest: #e3e4d3 !important;
+  --ink: #1a1c15 !important;
+  --ink-soft: #414942 !important;
+  --ink-muted: #5b655c !important;
+  --forest-dark: #002c17 !important;
+  --forest: #15432a !important;
+  --leaf: #2e6c02 !important;
+  --leaf-bright: #5fa038 !important;
+  --leaf-glow: #aef682 !important;
+}
+
+/* Force game modals & sheets to strictly stay in bright editorial theme */
+.modal-backdrop .modal-sheet,
+.modal-backdrop .dialog,
+.info-popup-backdrop .info-popup-card,
+.entity-card {
+  background: #fafaed !important;
+  color: #1a1c15 !important;
+  border-color: #15432a !important;
+}
+
+.modal-backdrop .modal-sheet h2,
+.modal-backdrop .modal-sheet h3,
+.modal-backdrop .dialog h2,
+.modal-backdrop .dialog h3,
+.info-popup-backdrop .info-popup-card h3 {
+  color: #002c17 !important;
+}
+
+.modal-backdrop .modal-sheet p,
+.modal-backdrop .dialog p,
+.info-popup-backdrop .info-popup-card p {
+  color: #2b332c !important;
+}
+
+.modal-backdrop .store-tab-btn {
+  background: rgba(0, 44, 23, 0.06) !important;
+  color: #15432a !important;
+  border-color: rgba(0, 44, 23, 0.2) !important;
+}
+
+.modal-backdrop .store-tab-btn[aria-pressed="true"] {
+  background: #15432a !important;
+  color: #ffffff !important;
+  border-color: #002c17 !important;
+}
+
+.modal-backdrop .store-search-row {
+  background: #f0f3e6 !important;
+  border-color: rgba(0, 44, 23, 0.22) !important;
+  color: #1a1c15 !important;
+}
+
+.modal-backdrop .store-search-input {
+  color: #1a1c15 !important;
+}
+
+.modal-backdrop .store-item-card {
+  background: #ffffff !important;
+  border-color: rgba(0, 44, 23, 0.18) !important;
+  color: #1a1c15 !important;
+}
+
+.modal-backdrop .store-item-name {
+  color: #002c17 !important;
+}
+
+.modal-backdrop .modal-close-btn,
+.modal-backdrop .dialog-close {
+  background: rgba(0, 44, 23, 0.08) !important;
+  color: #002c17 !important;
+  border-color: rgba(0, 44, 23, 0.2) !important;
+}
+
+.modal-backdrop .primary-button {
+  background: #166534 !important;
+  color: #ffffff !important;
+}
+
+.modal-backdrop .text-button {
+  color: #4b5563 !important;
+}
+
 .sanctuary-game-page,
 #sanctuary-game-root {
   width: 100%;
@@ -139,7 +238,150 @@
   color: var(--forest-dark);
 }
 
-/* Action Buttons in HUD (No Emojis, Pure Unplastica Typography) */
+/* Circular Rounded Action Buttons in HUD (Pure SVG Icon Only) */
+.hud-circle-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface, #ffffff);
+  border: 1.5px solid var(--forest, #1b4d3e);
+  color: var(--forest-dark, #062211);
+  box-shadow: 0 6px 18px rgba(0, 44, 23, 0.16);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+}
+
+.hud-circle-btn:hover {
+  transform: translateY(-2px) scale(1.06);
+  box-shadow: 0 8px 22px rgba(0, 44, 23, 0.22);
+}
+
+.hud-circle-btn:active {
+  transform: translateY(1px) scale(0.96);
+}
+
+.hud-circle-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+/* Exit button has RED color */
+.hud-circle-btn.exit-btn {
+  background: #dc2626 !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 18px rgba(220, 38, 38, 0.35) !important;
+}
+
+.hud-circle-btn.exit-btn:hover {
+  background: #b91c1c !important;
+  box-shadow: 0 8px 22px rgba(220, 38, 38, 0.45) !important;
+  transform: translateY(-2px) scale(1.06);
+}
+
+/* Postcard View Close "✕" Circular Button */
+.postcard-close-x-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.postcard-close-x-btn:hover {
+  background: rgba(0, 0, 0, 0.85);
+  transform: scale(1.08);
+}
+
+/* Postcard View Camera Shutter Button */
+.postcard-capture-btn {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #e2e8f0 100%);
+  border: 3.5px solid #0f172a;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(255, 255, 255, 0.6);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.postcard-capture-btn:hover {
+  transform: translateX(-50%) scale(1.08);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 5px rgba(255, 255, 255, 0.8);
+}
+
+.postcard-capture-btn:active {
+  transform: translateX(-50%) scale(0.92);
+}
+
+.postcard-capture-btn svg {
+  width: 30px;
+  height: 30px;
+}
+
+/* Standalone Buy Confirmation Card (Styled like logout confirm card) */
+.buy-confirm-backdrop {
+  z-index: 10050 !important;
+  background: rgba(0, 44, 23, 0.6) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+/* Modal and store buttons expansion based on word length horizontally */
+.modal-close-btn,
+.store-tab-btn,
+.buy-btn,
+.primary-button,
+.text-button {
+  min-width: max-content;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.store-tab-btn {
+  padding: 8px clamp(14px, 4vw, 24px) !important;
+}
+
+.buy-btn {
+  padding: 8px clamp(12px, 3.5vw, 20px) !important;
+  gap: 6px;
+}
+
+/* Legacy HUD button rules */
 .hud-btn {
   appearance: none;
   display: inline-flex;
@@ -159,6 +401,8 @@
   cursor: pointer;
   box-shadow: 0 8px 20px rgba(0, 44, 23, 0.14);
   transition: transform 0.12s ease, background-color 0.12s ease;
+  white-space: nowrap;
+  min-width: max-content;
 }
 
 .hud-btn:hover {

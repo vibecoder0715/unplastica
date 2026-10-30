@@ -376,19 +376,17 @@ export function MascotManualTour({
             />
           </div>
 
-          {/* Organic Floating Speech Bubble */}
+          {/* Authentic Comic Chat Bubble (rounded balloon with curved pointer tail as in screenshot) */}
           <div
-            className="mascot-speech-bubble"
+            className="comic-speech-bubble"
             style={{
               flex: 1,
-              background: "rgba(10, 32, 20, 0.96)",
-              backdropFilter: "blur(24px)",
-              WebkitBackdropFilter: "blur(24px)",
-              border: "1.5px solid rgba(174, 246, 130, 0.42)",
-              borderRadius: 22,
-              padding: "16px 18px",
+              background: "#ffffff",
+              border: "2.5px solid #111827",
+              borderRadius: 30,
+              padding: "18px 22px 20px",
               boxShadow:
-                "0 18px 44px rgba(0, 0, 0, 0.6), 0 0 28px rgba(86, 217, 133, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.15)",
+                "0 20px 48px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.15)",
               display: "flex",
               flexDirection: "column",
               gap: 12,
@@ -396,15 +394,47 @@ export function MascotManualTour({
               animation: "mascotSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
-            {/* Header row with step counter & Quit button */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {/* Curved Comic Speech Tail pointing directly toward turtle */}
+            <svg
+              width="32"
+              height="24"
+              viewBox="0 0 32 24"
+              style={{
+                position: "absolute",
+                bottom: -22,
+                left: step.direction === "left" ? "auto" : 42,
+                right: step.direction === "left" ? 42 : "auto",
+                transform: step.direction === "left" ? "none" : "scaleX(-1)",
+                overflow: "visible",
+                pointerEvents: "none",
+              }}
+            >
+              <path
+                d="M 2 0 C 4 10, 16 18, 28 24 C 23 16, 25 7, 30 0"
+                fill="#ffffff"
+                stroke="#111827"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              <rect x="3" y="-2" width="26" height="4" fill="#ffffff" />
+            </svg>
+
+            {/* Header row with step counter & Quit button (expands naturally without squeezing) */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span
                 style={{
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: 700,
-                  color: "#aef682",
+                  color: "#15803d",
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
+                  background: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  padding: "4px 12px",
+                  borderRadius: 999,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 Step {currentStepIdx + 1} of {TOUR_STEPS.length}
@@ -413,14 +443,17 @@ export function MascotManualTour({
                 type="button"
                 onClick={onComplete}
                 style={{
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "1px solid rgba(255, 255, 255, 0.18)",
+                  background: "#f3f4f6",
+                  border: "1px solid #d1d5db",
                   borderRadius: 999,
-                  color: "#c8ded0",
+                  color: "#4b5563",
                   fontSize: 12,
                   fontWeight: 600,
-                  padding: "4px 12px",
+                  padding: "5px clamp(12px, 3vw, 18px)",
                   cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  minWidth: "max-content",
                   transition: "all 0.2s ease",
                 }}
               >
@@ -431,30 +464,44 @@ export function MascotManualTour({
             {/* Speech message text */}
             <div
               style={{
-                color: "#fcfdfa",
-                fontSize: 15,
-                lineHeight: 1.5,
-                fontWeight: 500,
+                color: "#111827",
+                fontSize: 15.5,
+                lineHeight: 1.48,
+                fontWeight: 600,
               }}
             >
               {step.text[langKey](GREENBIT_COIN)}
             </div>
 
-            {/* Action buttons row */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 2 }}>
+            {/* Action buttons row (dynamically adjusts to text length without squeezing) */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "flex-end",
+                alignItems: "center",
+                gap: 10,
+                marginTop: 4,
+                width: "100%",
+              }}
+            >
               {currentStepIdx > 0 && (
                 <button
                   type="button"
                   onClick={handleBack}
                   style={{
-                    background: "rgba(255, 255, 255, 0.08)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    borderRadius: 12,
-                    color: "#d4ede0",
+                    background: "#f3f4f6",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 999,
+                    color: "#374151",
                     fontSize: 13,
                     fontWeight: 600,
-                    padding: "7px 16px",
+                    padding: "8px clamp(16px, 4vw, 24px)",
                     cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                    minWidth: "max-content",
+                    boxSizing: "border-box",
                   }}
                 >
                   {backLabel}
@@ -464,15 +511,20 @@ export function MascotManualTour({
                 type="button"
                 onClick={handleNext}
                 style={{
-                  background: "linear-gradient(135deg, #aef682 0%, #34d399 100%)",
+                  background: "#166534",
                   border: "none",
-                  borderRadius: 12,
-                  color: "#032311",
+                  borderRadius: 999,
+                  color: "#ffffff",
                   fontSize: 13,
                   fontWeight: 700,
-                  padding: "7px 20px",
+                  padding: "8px clamp(18px, 5vw, 28px)",
                   cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(174, 246, 130, 0.35)",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  minWidth: "max-content",
+                  boxShadow: "0 4px 14px rgba(22, 101, 52, 0.35)",
+                  transition: "transform 0.15s ease",
+                  boxSizing: "border-box",
                 }}
               >
                 {nextLabel}

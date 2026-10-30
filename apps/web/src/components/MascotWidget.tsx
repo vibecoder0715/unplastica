@@ -744,7 +744,13 @@ export function MascotWidget({ language }: MascotWidgetProps) {
     }
   }, [langKey, dialogueIndex, dialogueMode, verifiedPoints, isOpen, buildVerifySuccessNode, buildVerifyFailNode]);
 
-  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>(() => {
+    try {
+      const saved = localStorage.getItem("unplastica_mascot_drag_pos");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { x: 0, y: 0 };
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [tiltAngle, setTiltAngle] = useState(0);
   const [isPatted, setIsPatted] = useState(false);
@@ -760,12 +766,10 @@ export function MascotWidget({ language }: MascotWidgetProps) {
   const toggleOpen = () => {
     if (!isOpen) {
       setIsOpen(true);
-      setDragOffset({ x: 0, y: 0 });
       setTiltAngle(0);
       triggerRandomMascotTalk();
     } else {
       setIsOpen(false);
-      setDragOffset({ x: 0, y: 0 });
       setTiltAngle(0);
     }
   };
@@ -797,7 +801,11 @@ export function MascotWidget({ language }: MascotWidgetProps) {
     const newY = dragStartRef.current.startY + dy;
     const clampedX = Math.max(-window.innerWidth + 200, Math.min(40, newX));
     const clampedY = Math.max(-window.innerHeight + 240, Math.min(40, newY));
-    setDragOffset({ x: clampedX, y: clampedY });
+    const pos = { x: clampedX, y: clampedY };
+    setDragOffset(pos);
+    try {
+      localStorage.setItem("unplastica_mascot_drag_pos", JSON.stringify(pos));
+    } catch {}
     setTiltAngle(Math.max(-18, Math.min(18, dx * 0.14)));
     if (emotion !== "wondered" && emotion !== "waving") {
       setEmotion("wondered");
@@ -819,9 +827,7 @@ export function MascotWidget({ language }: MascotWidgetProps) {
     } else {
       setTiltAngle(0);
       setEmotion("laugh");
-      setTimeout(() => {
-        setDragOffset({ x: 0, y: 0 });
-      }, 150);
+      // Persistently stay at the dragged place without returning
     }
   };
 
@@ -842,26 +848,50 @@ export function MascotWidget({ language }: MascotWidgetProps) {
             display: "flex",
             flexDirection: "column",
             alignItems: "flex-end",
-            gap: 6,
+            gap: 12,
+            transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)`,
+            transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
             animation: "mascotSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
-          {/* Organic Floating Speech Bubble */}
+          {/* Authentic Comic Chat Bubble (rounded balloon with curved pointer tail as in user screenshot) */}
           <div
+            className="comic-chat-bubble"
             style={{
               position: "relative",
               pointerEvents: "auto",
-              background: "rgba(6, 25, 16, 0.94)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              border: "1.5px solid rgba(174, 246, 130, 0.38)",
-              borderRadius: 20,
-              padding: "14px 18px",
-              paddingTop: "16px",
-              boxShadow: "0 18px 45px rgba(0, 0, 0, 0.65), 0 0 28px rgba(86, 217, 133, 0.25)",
+              background: "#ffffff",
+              border: "2.5px solid #111827",
+              borderRadius: 28,
+              padding: "16px 20px 18px",
+              boxShadow: "0 18px 45px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.15)",
               width: "100%",
             }}
           >
+            {/* Curved Comic Speech Tail pointing directly down-right toward turtle head */}
+            <svg
+              width="32"
+              height="24"
+              viewBox="0 0 32 24"
+              style={{
+                position: "absolute",
+                bottom: -22,
+                right: 50,
+                overflow: "visible",
+                pointerEvents: "none",
+              }}
+            >
+              <path
+                d="M 2 0 C 4 10, 16 18, 28 24 C 23 16, 25 7, 30 0"
+                fill="#ffffff"
+                stroke="#111827"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              <rect x="3" y="-2" width="26" height="4" fill="#ffffff" />
+            </svg>
+
             {/* Close mini button */}
             <button
               type="button"
@@ -870,22 +900,23 @@ export function MascotWidget({ language }: MascotWidgetProps) {
               style={{
                 position: "absolute",
                 top: 8,
-                right: 10,
-                background: "rgba(255, 255, 255, 0.08)",
+                right: 12,
+                background: "rgba(0, 0, 0, 0.06)",
                 border: "none",
                 borderRadius: "50%",
                 width: 24,
                 height: 24,
-                color: "#c8ded0",
+                color: "#374151",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 13,
+                fontWeight: 700,
                 transition: "background 0.2s ease",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.18)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0, 0, 0, 0.14)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(0, 0, 0, 0.06)")}
             >
               ✕
             </button>
@@ -894,11 +925,11 @@ export function MascotWidget({ language }: MascotWidgetProps) {
               onClick={triggerRandomMascotTalk}
               style={{
                 cursor: "pointer",
-                color: "#fcfdfa",
-                fontSize: 13.5,
-                lineHeight: 1.45,
-                fontWeight: 500,
-                paddingRight: 22,
+                color: "#111827",
+                fontSize: 14,
+                lineHeight: 1.48,
+                fontWeight: 600,
+                paddingRight: 20,
               }}
             >
               {activeText}
@@ -908,8 +939,9 @@ export function MascotWidget({ language }: MascotWidgetProps) {
               style={{
                 marginTop: 8,
                 fontSize: 11,
-                color: "#8eb399",
-                opacity: 0.85,
+                fontWeight: 600,
+                color: "#15803d",
+                opacity: 0.9,
               }}
             >
               {langKey === "bm"
@@ -935,8 +967,8 @@ export function MascotWidget({ language }: MascotWidgetProps) {
               padding: "2px",
               filter:
                 "drop-shadow(0 14px 28px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 20px rgba(174, 246, 130, 0.5))",
-              transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) rotate(${tiltAngle}deg) scale(${isDragging ? 1.08 : isPatted ? 0.94 : 1})`,
-              transition: isDragging ? "none" : "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              transform: `rotate(${tiltAngle}deg) scale(${isDragging ? 1.08 : isPatted ? 0.94 : 1})`,
+              transition: isDragging ? "none" : "transform 0.25s ease",
               marginRight: 6,
               userSelect: "none",
               WebkitUserSelect: "none",
@@ -974,6 +1006,66 @@ export function MascotWidget({ language }: MascotWidgetProps) {
         </div>
       )}
 
+      {/* Comic speech bubble for the small turtle icon (authentic comic balloon with tail) */}
+      {!isOpen && (
+        <div
+          onClick={toggleOpen}
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            bottom: "max(154px, env(safe-area-inset-bottom) + 142px)",
+            right: 18,
+            zIndex: 9991,
+            pointerEvents: "auto",
+            cursor: "pointer",
+            background: "#ffffff",
+            border: "2.5px solid #111827",
+            borderRadius: 22,
+            padding: "8px 14px",
+            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.35)",
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: "#111827",
+            transform: dragOffset.x || dragOffset.y
+              ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)`
+              : "none",
+            transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease",
+            animation: "mascotPopOut 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            whiteSpace: "nowrap",
+            userSelect: "none",
+          }}
+        >
+          {langKey === "bm"
+            ? "Ketik penyu untuk sembang!"
+            : langKey === "zh"
+              ? "点击海龟跟我互动！"
+              : "Tap turtle to talk!"}
+          {/* Curved comic pointer tail pointing down toward the turtle head */}
+          <svg
+            width="22"
+            height="16"
+            viewBox="0 0 22 16"
+            style={{
+              position: "absolute",
+              bottom: -15,
+              right: 22,
+              overflow: "visible",
+              pointerEvents: "none",
+            }}
+          >
+            <path
+              d="M 2 0 C 3 6, 10 12, 18 16 C 14 10, 16 5, 20 0"
+              fill="#ffffff"
+              stroke="#111827"
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            <rect x="3" y="-2" width="16" height="4" fill="#ffffff" />
+          </svg>
+        </div>
+      )}
+
       {/* Super Cute Front-Facing Sea Turtle Head Button - diminishes when dialog is open */}
       <button
         type="button"
@@ -998,7 +1090,11 @@ export function MascotWidget({ language }: MascotWidgetProps) {
           overflow: "visible",
           filter:
             "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))",
-          transform: isOpen ? "scale(0) translateY(24px)" : "scale(1) translateY(0)",
+          transform: isOpen
+            ? "scale(0) translateY(24px)"
+            : dragOffset.x || dragOffset.y
+              ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) scale(1)`
+              : "scale(1) translateY(0)",
           opacity: isOpen ? 0 : 1,
           pointerEvents: isOpen ? "none" : "auto",
           transition: "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, filter 0.2s ease",
@@ -1006,14 +1102,16 @@ export function MascotWidget({ language }: MascotWidgetProps) {
         }}
         onMouseEnter={(e) => {
           if (!isOpen) {
-            e.currentTarget.style.transform = "scale(1.14) translateY(-3px)";
+            const baseT = dragOffset.x || dragOffset.y ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) ` : "";
+            e.currentTarget.style.transform = `${baseT}scale(1.14) translateY(-3px)`;
             e.currentTarget.style.filter =
               "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 24px rgba(174, 246, 130, 0.9))";
           }
         }}
         onMouseLeave={(e) => {
           if (!isOpen) {
-            e.currentTarget.style.transform = "scale(1) translateY(0)";
+            const baseT = dragOffset.x || dragOffset.y ? `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) ` : "";
+            e.currentTarget.style.transform = `${baseT}scale(1)`;
             e.currentTarget.style.filter =
               "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))";
           }

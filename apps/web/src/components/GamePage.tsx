@@ -2,11 +2,13 @@ import { useEffect, useRef } from "react";
 import type { User } from "@supabase/supabase-js";
 import { initApp } from "@game/index";
 import type { SaveState } from "@game/game/types";
+import type { Language } from "../lib/i18n";
 import "@game/index.css";
 
 interface GamePageProps {
   balance: number;
   user: User | null;
+  language?: Language;
   cloudSaveState?: Partial<SaveState> | null;
   onExit: () => void;
   onBalanceChange?: (newBalance: number) => void;
@@ -16,6 +18,7 @@ interface GamePageProps {
 export function GamePage({
   balance,
   user,
+  language = "English",
   cloudSaveState,
   onExit,
   onBalanceChange,
@@ -41,6 +44,7 @@ export function GamePage({
       rootElement: container,
       balance: initialBalanceRef.current,
       userId: user?.id,
+      language,
       initialSaveState: initialCloudSaveRef.current,
       onExit: () => onExitRef.current(),
       onBalanceChange: (nextBal) => onBalanceChangeRef.current?.(nextBal),
@@ -50,7 +54,7 @@ export function GamePage({
     return () => {
       cleanup();
     };
-  }, [user?.id]);
+  }, [user?.id, language]);
 
   useEffect(() => {
     window.dispatchEvent(
@@ -59,6 +63,14 @@ export function GamePage({
       }),
     );
   }, [balance]);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("unplastica-sync-game-language", {
+        detail: { language },
+      }),
+    );
+  }, [language]);
 
   return (
     <div className="sanctuary-game-page" style={{ position: "fixed", inset: 0, zIndex: 100, background: "#002c17" }}>

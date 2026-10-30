@@ -32,6 +32,14 @@ import {
 } from './game/persistence';
 import { soundEngine } from './game/sound';
 import {
+  getGameString,
+  getLocalizedAssetName,
+  getLocalizedZoneName,
+  getLocalizedFoodName,
+  getShortDescriptionWithBold,
+  type GameLanguage,
+} from './game/i18n';
+import {
   renderEcosystemWorld,
   bindAssetThumbnailImage,
   getAssetThumbnailDataUrl,
@@ -65,6 +73,16 @@ const CHEVRON_UP_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" heigh
 const INFO_SVG_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
 
 const TOWER_SVG_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 19 9 12 22 5 9 12 2"/><circle cx="12" cy="9" r="2.5"/></svg>`;
+
+const WORLD_MAP_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+
+const CART_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1.5"/><circle cx="20" cy="21" r="1.5"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`;
+
+const POSTCARD_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+
+const EXIT_DOOR_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
+
+const CAMERA_CAPTURE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -143,6 +161,7 @@ export interface SanctuaryGameOptions {
   rootElement?: HTMLElement | null;
   balance?: number;
   userId?: string;
+  language?: GameLanguage;
   initialSaveState?: Partial<import('./game/types').SaveState> | null;
   onExit?: () => void;
   onBalanceChange?: (newBalance: number) => void;
@@ -216,85 +235,123 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   worldCanvas.setAttribute('aria-label', 'Wild Malaysia Interactive Ecosystem World');
   root.appendChild(worldCanvas);
 
-  // 2. Minimalist Top HUD (Removed Harmony, Call Pets, Close-Up Studio, Night/Day toggle, Weather cycle, Sound toggle)
+  let currentLang: GameLanguage = options?.language ?? 'English';
+  const handleLangSync = (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    if (detail && (detail === 'English' || detail === 'Bahasa Melayu' || detail === '中文')) {
+      currentLang = detail;
+      renderEntityCard();
+      renderDockCards();
+    }
+  };
+  window.addEventListener('unplastica-sync-game-language', handleLangSync);
+
+  // 2. Minimalist Top HUD with 4 Circular Buttons (World Map, Store, Postcard View, Red Exit)
+  // Greenbit coin count is intentionally removed from the game HUD (only shown inside Store modal).
   const hudTop = document.createElement('header');
   hudTop.className = 'hud-top';
+  hudTop.style.justifyContent = 'flex-end';
 
-  const leftCluster = document.createElement('div');
-  leftCluster.className = 'hud-cluster';
-
-  const greenbitsPill = document.createElement('button');
-  greenbitsPill.type = 'button';
-  greenbitsPill.className = 'greenbits-pill';
-  greenbitsPill.setAttribute('aria-label', 'Balance');
-  const gbImg = document.createElement('img');
-  gbImg.src = '/assets/aistudio/image_3961e3ca.png';
-  gbImg.alt = '';
-  gbImg.setAttribute('referrerpolicy', 'no-referrer');
-  gbImg.className = 'greenbits-coin-img';
-  const gbCountSpan = document.createElement('span');
-  gbCountSpan.id = 'greenbits-count';
-  gbCountSpan.textContent = String(saveState.greenbits);
-  greenbitsPill.append(gbImg, gbCountSpan);
-  greenbitsPill.addEventListener('click', () => openStoreModal('animals'));
-
-  leftCluster.append(greenbitsPill);
-
-  const rightCluster = document.createElement('div');
-  rightCluster.className = 'hud-cluster';
+  const buttonCluster = document.createElement('div');
+  buttonCluster.className = 'hud-cluster';
 
   const mapBtn = document.createElement('button');
   mapBtn.type = 'button';
-  mapBtn.className = 'hud-btn map-btn';
-  mapBtn.textContent = 'World Map';
-  mapBtn.setAttribute('aria-label', 'Open Teleport World Map');
+  mapBtn.className = 'hud-circle-btn map-btn';
+  mapBtn.innerHTML = WORLD_MAP_ROUND_SVG;
+  mapBtn.setAttribute('aria-label', getGameString('worldMap', currentLang));
+  mapBtn.title = getGameString('worldMap', currentLang);
   mapBtn.addEventListener('click', () => openTeleportMapModal());
 
   const storeBtn = document.createElement('button');
   storeBtn.type = 'button';
-  storeBtn.className = 'hud-btn store-btn';
-  storeBtn.innerHTML = `${CART_SVG_ICON}<span>Store</span>`;
-  storeBtn.setAttribute('aria-label', 'Open Sanctuary Store');
+  storeBtn.className = 'hud-circle-btn store-btn';
+  storeBtn.innerHTML = CART_ROUND_SVG;
+  storeBtn.setAttribute('aria-label', getGameString('store', currentLang));
+  storeBtn.title = getGameString('store', currentLang);
   storeBtn.addEventListener('click', () => openStoreModal('animals'));
 
   const postcardBtn = document.createElement('button');
   postcardBtn.type = 'button';
-  postcardBtn.className = 'hud-btn';
-  postcardBtn.textContent = 'Postcard View';
-  postcardBtn.setAttribute('aria-label', 'Enter Postcard View');
+  postcardBtn.className = 'hud-circle-btn postcard-btn';
+  postcardBtn.innerHTML = POSTCARD_ROUND_SVG;
+  postcardBtn.setAttribute('aria-label', getGameString('postcardView', currentLang));
+  postcardBtn.title = getGameString('postcardView', currentLang);
   postcardBtn.addEventListener('click', () => setPostcardView(true));
 
-  rightCluster.append(mapBtn, storeBtn, postcardBtn);
+  buttonCluster.append(mapBtn, storeBtn, postcardBtn);
 
   if (options?.onExit) {
     const exitBtn = document.createElement('button');
     exitBtn.type = 'button';
-    exitBtn.className = 'hud-btn exit-btn';
-    exitBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>Exit</span>`;
-    exitBtn.setAttribute('aria-label', 'Exit Sanctuary');
+    exitBtn.className = 'hud-circle-btn exit-btn';
+    exitBtn.innerHTML = EXIT_DOOR_ROUND_SVG;
+    exitBtn.setAttribute('aria-label', getGameString('exit', currentLang));
+    exitBtn.title = getGameString('exit', currentLang);
     exitBtn.addEventListener('click', () => {
       options.onExit?.();
     });
-    rightCluster.append(exitBtn);
+    buttonCluster.append(exitBtn);
   }
 
-  hudTop.append(leftCluster, rightCluster);
+  hudTop.append(buttonCluster);
   root.appendChild(hudTop);
 
-  // Floating Quit Postcard View Button (Visible whenever in Postcard View so user can always quit)
+  // Floating Quit Postcard View Button (Clean circular "✕" in corner)
   const quitPostcardBtn = document.createElement('button');
   quitPostcardBtn.type = 'button';
-  quitPostcardBtn.className = 'postcard-quit-btn';
-  quitPostcardBtn.textContent = 'Quit Postcard View';
+  quitPostcardBtn.className = 'postcard-close-x-btn';
+  quitPostcardBtn.innerHTML = '✕';
+  quitPostcardBtn.setAttribute('aria-label', getGameString('quitPostcard', currentLang));
+  quitPostcardBtn.title = getGameString('quitPostcard', currentLang);
   quitPostcardBtn.style.display = 'none';
   quitPostcardBtn.addEventListener('click', () => setPostcardView(false));
   root.appendChild(quitPostcardBtn);
+
+  // Floating Camera Capture Button at bottom center of Postcard View
+  const capturePostcardBtn = document.createElement('button');
+  capturePostcardBtn.type = 'button';
+  capturePostcardBtn.className = 'postcard-capture-btn';
+  capturePostcardBtn.innerHTML = CAMERA_CAPTURE_SVG;
+  capturePostcardBtn.setAttribute('aria-label', getGameString('capturePhoto', currentLang));
+  capturePostcardBtn.title = getGameString('capturePhoto', currentLang);
+  capturePostcardBtn.style.display = 'none';
+  capturePostcardBtn.addEventListener('click', () => {
+    // Capture screenshot strictly for the scene canvas without external phone UI
+    const dataUrl = worldCanvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.download = `Unplastica_Sanctuary_${Date.now()}.png`;
+    a.href = dataUrl;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    // Camera flash overlay animation
+    const flash = document.createElement('div');
+    flash.style.position = 'fixed';
+    flash.style.inset = '0';
+    flash.style.background = '#ffffff';
+    flash.style.opacity = '0.9';
+    flash.style.zIndex = '99999';
+    flash.style.pointerEvents = 'none';
+    flash.style.transition = 'opacity 0.35s ease-out';
+    document.body.appendChild(flash);
+    requestAnimationFrame(() => {
+      flash.style.opacity = '0';
+      setTimeout(() => flash.remove(), 360);
+    });
+
+    soundEngine.playCoinChime();
+    showToast(getGameString('savedPostcard', currentLang));
+  });
+  root.appendChild(capturePostcardBtn);
 
   function setPostcardView(active: boolean): void {
     isHudHidden = active;
     hudTop.style.display = isHudHidden ? 'none' : 'flex';
     bottomDock.style.display = isHudHidden ? 'none' : 'flex';
     quitPostcardBtn.style.display = isHudHidden ? 'inline-flex' : 'none';
+    capturePostcardBtn.style.display = isHudHidden ? 'inline-flex' : 'none';
     renderEntityCard();
   }
 
@@ -695,7 +752,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     renderEntityCard();
     syncHudDOM();
     const displayName = animal.customName || ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
-    showToast(`Moved ${displayName} to ${getZoneSpec(zoneId).name}`);
+    showToast(`Moved ${displayName} to ${getLocalizedZoneName(zoneId, currentLang)}`);
   }
 
   function handleDropAssetOnWorld(
@@ -812,7 +869,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     renderDockCards();
     renderEntityCard();
     syncHudDOM();
-    showToast(`Placed ${asset.name} in ${getZoneSpec(zoneId).name}`);
+    showToast(`Placed ${asset.name} in ${getLocalizedZoneName(zoneId, currentLang)}`);
   }
 
   function handleDropFoodOnWorld(
@@ -1320,7 +1377,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   }
 
   function syncHudDOM(): void {
-    gbCountSpan.textContent = String(saveState.greenbits);
+    const storeBal = document.getElementById('store-gb-balance');
+    if (storeBal) storeBal.textContent = String(saveState.greenbits);
     const centerZoneId = getZoneAtWorldX(cameraX + viewportWidth * 0.5);
     const isNight = isNightTime(saveState.timeOfDayHours);
 
@@ -1333,9 +1391,90 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   }
 
   // ============================================================================
+  // STANDALONE "ARE YOU SURE YOU WANT TO BUY?" CARD (Styled like logout confirm)
+  // ============================================================================
+  function openBuyConfirmationDialog({
+    itemName,
+    price,
+    thumbSrc,
+    onConfirm,
+  }: {
+    itemName: string;
+    price: number;
+    thumbSrc: string;
+    onConfirm: () => void;
+  }): void {
+    const existing = document.getElementById('buy-confirm-modal');
+    if (existing) existing.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop buy-confirm-backdrop';
+    backdrop.id = 'buy-confirm-modal';
+    backdrop.setAttribute('role', 'dialog');
+
+    const card = document.createElement('div');
+    card.className = 'dialog login-required-dialog logout-confirm-dialog';
+    card.style.maxWidth = '380px';
+    card.style.padding = '24px 20px';
+    card.style.position = 'relative';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'dialog-close';
+    closeBtn.innerHTML = '✕';
+    closeBtn.setAttribute('aria-label', getGameString('cancel', currentLang));
+    closeBtn.addEventListener('click', () => backdrop.remove());
+
+    const itemImg = document.createElement('img');
+    itemImg.src = thumbSrc;
+    itemImg.alt = itemName;
+    itemImg.style.width = '76px';
+    itemImg.style.height = '76px';
+    itemImg.style.objectFit = 'contain';
+    itemImg.style.margin = '0 auto 12px';
+
+    const heading = document.createElement('h2');
+    heading.textContent = getGameString('buyConfirmTitle', currentLang);
+    heading.style.margin = '0 0 8px';
+    heading.style.textAlign = 'center';
+
+    const prompt = document.createElement('p');
+    prompt.innerHTML = `${getGameString('buyConfirmPrompt', currentLang)} <strong>${itemName}</strong> for <span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">${GB_LOGO_HTML} ${price}</span>?`;
+    prompt.style.margin = '0 0 20px';
+    prompt.style.textAlign = 'center';
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'primary-button';
+    confirmBtn.style.width = '100%';
+    confirmBtn.style.minHeight = '48px';
+    confirmBtn.style.marginBottom = '10px';
+    confirmBtn.textContent = getGameString('confirmBuy', currentLang);
+    confirmBtn.addEventListener('click', () => {
+      backdrop.remove();
+      onConfirm();
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'text-button';
+    cancelBtn.style.width = '100%';
+    cancelBtn.textContent = getGameString('cancel', currentLang);
+    cancelBtn.addEventListener('click', () => backdrop.remove());
+
+    card.append(closeBtn, itemImg, heading, prompt, confirmBtn, cancelBtn);
+    backdrop.appendChild(card);
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) backdrop.remove();
+    });
+    root!.appendChild(backdrop);
+  }
+
+  // ============================================================================
   // SEPARATE POPUP CARD FOR (i) CHARACTERISTICS & GOOGLE SEARCH REDIRECT
+  // Shorter descriptions with bolded keywords, localized per language
   // ============================================================================
   function openCharacteristicsPopupCard(
+    itemId: string,
     itemName: string,
     sentences: [string, string],
     searchQuery: string,
@@ -1362,14 +1501,14 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'modal-close-btn';
-    closeBtn.textContent = 'Close';
+    closeBtn.textContent = getGameString('close', currentLang);
     closeBtn.addEventListener('click', () => backdrop.remove());
 
     header.append(title, closeBtn);
 
     const text = document.createElement('p');
     text.className = 'info-popup-text';
-    text.textContent = `${sentences[0]} ${sentences[1]}`;
+    text.innerHTML = getShortDescriptionWithBold(itemId, sentences, currentLang);
 
     const link = document.createElement('a');
     link.className = 'info-click-me-link';
@@ -1399,7 +1538,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     backdrop.className = 'modal-backdrop';
     backdrop.id = 'store-modal';
     backdrop.setAttribute('role', 'dialog');
-    backdrop.setAttribute('aria-label', 'Sanctuary Store');
+    backdrop.setAttribute('aria-label', getGameString('storeTitle', currentLang));
 
     const sheet = document.createElement('div');
     sheet.className = 'modal-sheet';
@@ -1409,12 +1548,12 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     const title = document.createElement('h2');
     title.className = 'modal-title';
-    title.innerHTML = `${CART_SVG_ICON}<span>Store</span> <span class="store-balance-badge">${GB_LOGO_HTML}<span id="store-gb-balance">${saveState.greenbits}</span></span>`;
+    title.innerHTML = `${CART_SVG_ICON}<span>${getGameString('storeTitle', currentLang)}</span> <span class="store-balance-badge">${GB_LOGO_HTML}<span id="store-gb-balance">${saveState.greenbits}</span></span>`;
 
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'modal-close-btn';
-    closeBtn.textContent = 'Close';
+    closeBtn.textContent = getGameString('close', currentLang);
     closeBtn.addEventListener('click', () => backdrop.remove());
 
     header.append(title, closeBtn);
@@ -1426,10 +1565,44 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     tabsRow.className = 'store-tabs';
 
     const tabSpecs: Array<{ id: StoreTab; label: string }> = [
-      { id: 'animals', label: 'Animals' },
-      { id: 'plants', label: 'Plants' },
-      { id: 'food', label: 'Food' },
+      { id: 'animals', label: getGameString('animalsTab', currentLang) },
+      { id: 'plants', label: getGameString('plantsTab', currentLang) },
+      { id: 'food', label: getGameString('foodTab', currentLang) },
     ];
+
+    let storeSearchQuery = '';
+
+    const searchRow = document.createElement('div');
+    searchRow.className = 'store-search-row';
+    searchRow.style.display = 'flex';
+    searchRow.style.alignItems = 'center';
+    searchRow.style.gap = '10px';
+    searchRow.style.padding = '8px 16px';
+    searchRow.style.margin = '4px 0 14px';
+    searchRow.style.background = 'var(--surface-container, rgba(0, 44, 23, 0.05))';
+    searchRow.style.borderRadius = '999px';
+    searchRow.style.border = '1.5px solid rgba(0, 44, 23, 0.18)';
+
+    const searchIcon = document.createElement('span');
+    searchIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;display:block;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'search';
+    searchInput.className = 'store-search-input';
+    searchInput.placeholder = getGameString('searchPlaceholder', currentLang);
+    searchInput.style.border = 'none';
+    searchInput.style.background = 'transparent';
+    searchInput.style.outline = 'none';
+    searchInput.style.width = '100%';
+    searchInput.style.fontSize = '14px';
+    searchInput.style.fontFamily = 'inherit';
+    searchInput.style.color = 'inherit';
+    searchInput.addEventListener('input', () => {
+      storeSearchQuery = searchInput.value.trim().toLowerCase();
+      renderStoreContent();
+    });
+
+    searchRow.append(searchIcon, searchInput);
 
     const grid = document.createElement('div');
     grid.className = 'store-grid';
@@ -1453,13 +1626,31 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
       grid.innerHTML = '';
       if (activeStoreTab === 'food') {
-        for (const food of foodList) {
+        const filteredFood = foodList.filter((food) => {
+          if (!storeSearchQuery) return true;
+          const loc = getLocalizedFoodName(food.id, food.name, currentLang).toLowerCase();
+          return loc.includes(storeSearchQuery) || food.name.toLowerCase().includes(storeSearchQuery);
+        });
+
+        if (filteredFood.length === 0) {
+          const empty = document.createElement('div');
+          empty.style.gridColumn = '1 / -1';
+          empty.style.textAlign = 'center';
+          empty.style.padding = '36px 16px';
+          empty.style.color = 'var(--ink-soft, #6b7280)';
+          empty.style.fontSize = '14px';
+          empty.textContent = getGameString('noStoreResults', currentLang);
+          grid.appendChild(empty);
+        }
+
+        for (const food of filteredFood) {
           const card = document.createElement('div');
           card.className = 'store-item-card';
 
           const thumb = document.createElement('img');
           thumb.className = 'store-item-thumb';
-          thumb.src = getFoodThumbnailDataUrl(food.id);
+          const foodThumbUrl = getFoodThumbnailDataUrl(food.id);
+          thumb.src = foodThumbUrl;
           thumb.alt = food.name;
 
           const nameRow = document.createElement('div');
@@ -1467,16 +1658,17 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
           const name = document.createElement('div');
           name.className = 'store-item-name';
-          name.textContent = food.name;
+          const localizedFoodTitle = getLocalizedFoodName(food.id, food.name, currentLang);
+          name.textContent = localizedFoodTitle;
 
           const infoBtn = document.createElement('button');
           infoBtn.type = 'button';
           infoBtn.className = 'info-svg-btn';
-          infoBtn.setAttribute('aria-label', `About ${food.name}`);
+          infoBtn.setAttribute('aria-label', `About ${localizedFoodTitle}`);
           infoBtn.innerHTML = INFO_SVG_ICON;
           infoBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openCharacteristicsPopupCard(food.name, food.infoSentences, food.searchQuery);
+            openCharacteristicsPopupCard(food.id, localizedFoodTitle, food.infoSentences, food.searchQuery);
           });
 
           nameRow.append(name, infoBtn);
@@ -1487,16 +1679,27 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           buyBtn.disabled = saveState.greenbits < food.price;
           buyBtn.innerHTML = `<span>Buy (</span>${GB_LOGO_HTML}<span>${food.price})</span>`;
           buyBtn.addEventListener('click', () => {
-            if (saveState.greenbits < food.price) return;
-            saveState.greenbits -= food.price;
-            options?.onBalanceChange?.(saveState.greenbits);
-            saveState.foodInventory[food.id] = (saveState.foodInventory[food.id] ?? 0) + 1;
-            soundEngine.playCoinChime();
-            persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
-            renderDockCards();
-            syncHudDOM();
-            renderStoreContent();
-            showToast(`Bought ${food.name}`);
+            if (saveState.greenbits < food.price) {
+              showToast(getGameString('notEnoughGreenbits', currentLang));
+              return;
+            }
+            openBuyConfirmationDialog({
+              itemName: localizedFoodTitle,
+              price: food.price,
+              thumbSrc: foodThumbUrl,
+              onConfirm: () => {
+                if (saveState.greenbits < food.price) return;
+                saveState.greenbits -= food.price;
+                options?.onBalanceChange?.(saveState.greenbits);
+                saveState.foodInventory[food.id] = (saveState.foodInventory[food.id] ?? 0) + 1;
+                soundEngine.playCoinChime();
+                persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+                renderDockCards();
+                syncHudDOM();
+                renderStoreContent();
+                showToast(`${getGameString('bought', currentLang)} ${localizedFoodTitle}`);
+              },
+            });
           });
 
           card.append(thumb, nameRow, buyBtn);
@@ -1505,7 +1708,24 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       } else {
         const isAnimTab = activeStoreTab === 'animals';
         const items = ROSTER_ASSETS.filter((a) => a.isAnimal === isAnimTab);
-        for (const asset of items) {
+        const filteredItems = items.filter((asset) => {
+          if (!storeSearchQuery) return true;
+          const loc = getLocalizedAssetName(asset.id, asset.name, currentLang).toLowerCase();
+          return loc.includes(storeSearchQuery) || asset.name.toLowerCase().includes(storeSearchQuery);
+        });
+
+        if (filteredItems.length === 0) {
+          const empty = document.createElement('div');
+          empty.style.gridColumn = '1 / -1';
+          empty.style.textAlign = 'center';
+          empty.style.padding = '36px 16px';
+          empty.style.color = 'var(--ink-soft, #6b7280)';
+          empty.style.fontSize = '14px';
+          empty.textContent = getGameString('noStoreResults', currentLang);
+          grid.appendChild(empty);
+        }
+
+        for (const asset of filteredItems) {
           const eco = ASSET_ECO_CONFIG[asset.id];
           const price = eco?.price ?? (isAnimTab ? 220 : 110);
 
@@ -1522,12 +1742,13 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
           const name = document.createElement('div');
           name.className = 'store-item-name';
-          name.textContent = asset.name;
+          const localizedAssetTitle = getLocalizedAssetName(asset.id, asset.name, currentLang);
+          name.textContent = localizedAssetTitle;
 
           const infoBtn = document.createElement('button');
           infoBtn.type = 'button';
           infoBtn.className = 'info-svg-btn';
-          infoBtn.setAttribute('aria-label', `About ${asset.name}`);
+          infoBtn.setAttribute('aria-label', `About ${localizedAssetTitle}`);
           infoBtn.innerHTML = INFO_SVG_ICON;
           infoBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1536,7 +1757,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
               `It thrives in the ${getZoneSpec(eco?.allowedZones[0] ?? 'forest').name}.`,
             ];
             const query = eco?.searchQuery ?? `${asset.name} Malaysia characteristics`;
-            openCharacteristicsPopupCard(asset.name, sentences, query);
+            openCharacteristicsPopupCard(asset.id, localizedAssetTitle, sentences, query);
           });
 
           nameRow.append(name, infoBtn);
@@ -1547,19 +1768,30 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           buyBtn.disabled = saveState.greenbits < price;
           buyBtn.innerHTML = `<span>Buy (</span>${GB_LOGO_HTML}<span>${price})</span>`;
           buyBtn.addEventListener('click', () => {
-            if (saveState.greenbits < price) return;
-            saveState.greenbits -= price;
-            options?.onBalanceChange?.(saveState.greenbits);
-            saveState.ownedAssets[asset.id] = (saveState.ownedAssets[asset.id] ?? 0) + 1;
-            if (!saveState.discoveredEcoDex.includes(asset.id)) {
-              saveState.discoveredEcoDex.push(asset.id);
+            if (saveState.greenbits < price) {
+              showToast(getGameString('notEnoughGreenbits', currentLang));
+              return;
             }
-            soundEngine.playCoinChime();
-            persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
-            renderDockCards();
-            syncHudDOM();
-            renderStoreContent();
-            showToast(`Bought ${asset.name}`);
+            openBuyConfirmationDialog({
+              itemName: localizedAssetTitle,
+              price,
+              thumbSrc: getAssetThumbnailDataUrl(asset.id) || thumb.src,
+              onConfirm: () => {
+                if (saveState.greenbits < price) return;
+                saveState.greenbits -= price;
+                options?.onBalanceChange?.(saveState.greenbits);
+                saveState.ownedAssets[asset.id] = (saveState.ownedAssets[asset.id] ?? 0) + 1;
+                if (!saveState.discoveredEcoDex.includes(asset.id)) {
+                  saveState.discoveredEcoDex.push(asset.id);
+                }
+                soundEngine.playCoinChime();
+                persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+                renderDockCards();
+                syncHudDOM();
+                renderStoreContent();
+                showToast(`${getGameString('bought', currentLang)} ${localizedAssetTitle}`);
+              },
+            });
           });
 
           card.append(thumb, nameRow, buyBtn);
@@ -1569,7 +1801,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     };
 
     renderStoreContent();
-    body.append(tabsRow, grid);
+    body.append(tabsRow, searchRow, grid);
     sheet.append(header, body);
     backdrop.appendChild(sheet);
     root!.appendChild(backdrop);
@@ -2161,6 +2393,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     window.removeEventListener('pointerup', onWindowPointerUp);
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('unplastica-sync-game-balance', handleExternalBalanceSync);
+    window.removeEventListener('unplastica-sync-game-language', handleLangSync);
     root.innerHTML = '';
   };
 }

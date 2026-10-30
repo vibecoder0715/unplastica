@@ -979,6 +979,7 @@ export default function App() {
           <GamePage
             balance={balance}
             user={user}
+            language={language}
             cloudSaveState={
               ((profile?.preferences as Record<string, unknown> | undefined)?.sanctuary_save as
                 | Partial<import("@game/game/types").SaveState>
@@ -1056,7 +1057,10 @@ export default function App() {
           }}
         />
       )}
-      {page !== "game" && !enteringGame && !showManualTour && <MascotWidget language={language} />}
+      {/* Penyu Mascot: Only shown on the main page (home) and hidden whenever (i), camera, sample or other modals are active */}
+      {page === "home" && !enteringGame && !showManualTour && !infoHabit && !camera && !sample && !showLoginGate && !showUsernamePrompt && (
+        <MascotWidget language={language} />
+      )}
       {showManualTour && !showUsernamePrompt && page !== "login" && (
         <MascotManualTour
           language={language}
@@ -3381,7 +3385,7 @@ function SampleDialog({ onClose }: { onClose: () => void }) {
     <button className="dialog-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
     <span className="approved-chip"><Icon name="check" size={16} /> {t("sample.approved")}</span>
     <h2 id="sample-title">{t("sample.submission")}</h2><h3>{t("sample.title")}</h3>
-    <p>{t("sample.description")}</p>
+    <p dangerouslySetInnerHTML={{ __html: t("sample.description") }} />
     <div className="score-card"><span>{t("sample.score")}</span><strong>94/100</strong><span>{t("sample.rating")}</span><b>A+</b></div>
   </div></Modal>;
 }
@@ -3392,7 +3396,8 @@ function HabitInfoDialog({ code, onClose }: { code: HabitCode; onClose: () => vo
   if (!habit) return null;
   return <Modal onClose={onClose} labelledBy="habit-info-title"><div className="dialog habit-info-dialog">
     <button className="dialog-close" onClick={onClose} aria-label={t("common.close")}><Icon name="close" /></button><img src={habitImages[code]} alt="" />
-    <h2 id="habit-info-title">{t("habit." + code)}</h2><p>{t("habitDescription." + code)}</p>
+    <h2 id="habit-info-title">{t("habit." + code)}</h2>
+    <p dangerouslySetInnerHTML={{ __html: t("habitDescription." + code) }} />
     <strong style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
       +{habit.points}
       <GreenbitLogo size={18} />
