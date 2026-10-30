@@ -46,12 +46,12 @@ export function renderTurtle(
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  // Center and scale responsive to viewport
+  // Center and scale responsive to viewport (elevated cy and unconstrained lower scale prevent flippers/legs from being cut off)
   const cx = width * 0.5;
-  const cy = height * 0.48;
+  const cy = height * 0.45;
   const baseRadius = Math.min(width, height * 1.08);
   const framing = opts?.framingScale ?? 1.0;
-  const scale = clamp((baseRadius / 650) * framing, 0.25, 1.45);
+  const scale = clamp((baseRadius / 650) * framing, 0.05, 1.45);
 
   ctx.translate(cx, cy);
   ctx.scale(scale, scale);

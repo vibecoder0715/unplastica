@@ -528,113 +528,575 @@ interface MascotWidgetProps {
   language: Language;
 }
 
-interface MascotDialogue {
+export interface MotivatingDialogue {
+  emotion: EmotionType;
   en: string;
   bm: string;
   zh: string;
+  ta: string;
 }
 
-const MOTIVATING_DIALOGUES: MascotDialogue[] = [
+const MOTIVATING_DIALOGUES: MotivatingDialogue[] = [
   {
-    en: "Hi, you look good today! Wanna reduce plastics together?",
-    bm: "Hai, anda nampak hebat hari ini! Jom kurangkan plastik bersama?",
-    zh: "嗨，你今天气色真好！要一起减少塑料吗？",
+    "emotion": "waving",
+    "en": "Hi there! Ready to reduce single-use plastic together today?",
+    "bm": "Hai! Bersedia untuk kurangkan plastik sekali guna bersama hari ini?",
+    "zh": "嗨！今天准备好一起减少一次性塑料了吗？",
+    "ta": "வணக்கம்! இன்று ஒருமுறை பயன்படுத்தும் பிளாஸ்டிக்கை குறைக்க தயாரா?"
   },
   {
-    en: "Every single-use bottle you refuse makes our oceans cleaner!",
-    bm: "Setiap botol sekali guna yang anda tolak menjadikan lautan kita lebih bersih!",
-    zh: "你每拒绝一个塑料瓶，我们的海洋就更干净一分！",
+    "emotion": "laugh",
+    "en": "Every reusable bottle you fill brings clean blue waves to our coral reefs!",
+    "bm": "Setiap botol guna semula yang anda isi membawa ombak biru bersih ke terumbu karang!",
+    "zh": "你每装满一次水壶，就为珊瑚礁带来一朵清澈的浪花！",
+    "ta": "நீங்கள் நிரப்பும் ஒவ்வொரு பாட்டிலும் கடலை தூய்மையாக மாற்றுகிறது!"
   },
   {
-    en: "My coral reef friends send their thank-you waves to you!",
-    bm: "Rakan terumbu karang saya kirimkan lambaian terima kasih kepada anda!",
-    zh: "我的珊瑚礁朋友们向你发来感谢的波浪！",
+    "emotion": "waving",
+    "en": "My sea turtle flippers are sending you a giant wave of gratitude!",
+    "bm": "Sirip penyu laut saya kirimkan lambaian rasa terima kasih yang besar!",
+    "zh": "我的海龟鳍正在向你发送大大的感谢挥手！",
+    "ta": "எனது துடுப்புகள் உங்களுக்கு மனமார்ந்த நன்றிகளைத் தெரிவிக்கின்றன!"
   },
   {
-    en: "Carrying a reusable bag is the coolest superpower in Malaysia!",
-    bm: "Membawa beg guna semula adalah kuasa luar biasa paling hebat di Malaysia!",
-    zh: "自带购物袋是马来西亚最酷的超能力！",
+    "emotion": "congratulate",
+    "en": "Bringing your own bag to the store? That is true eco-hero power!",
+    "bm": "Bawa beg sendiri ke kedai? Itulah kuasa wira eko yang sebenar!",
+    "zh": "自带购物袋去商店？这才是真正的环保英雄超能力！",
+    "ta": "கடைக்கு சொந்தப் பையை எடுத்துச் செல்கிறீர்களா? அதுவே உண்மையான ஹீரோ செயல்!"
   },
   {
-    en: "A sip from your refill flask is a victory for the turtles!",
-    bm: "Tegukan daripada botol guna semula anda ialah kemenangan bagi penyu!",
-    zh: "用自己的水壶喝一口水，就是给海龟带来的一份胜利！",
+    "emotion": "laugh",
+    "en": "A sip from your refill flask is a sweet victory for all ocean turtles!",
+    "bm": "Tegukan dari botol guna semula anda ialah kemenangan manis bagi semua penyu laut!",
+    "zh": "用自己的水壶喝一口水，就是给所有海龟带来的一份甜美胜利！",
+    "ta": "உங்கள் சொந்த பாட்டிலில் நீர் குடிப்பது கடலாமைகளுக்கு கிடைத்த வெற்றி!"
   },
   {
-    en: "Did you know turtles can live over 80 years? Let’s keep oceans safe for my grandkids!",
-    bm: "Tahukah anda penyu boleh hidup lebih 80 tahun? Jom jaga lautan untuk cucu-cicit saya!",
-    zh: "你知道海龟能活80多岁吗？让我们一起守护这片海洋吧！",
+    "emotion": "wondered",
+    "en": "Did you know turtles can live over 80 years? Let’s keep oceans safe for our grandkids!",
+    "bm": "Tahukah anda penyu boleh hidup lebih 80 tahun? Jom jaga lautan untuk cucu-cicit kita!",
+    "zh": "你知道海龟可以活80多岁吗？让我们一起守护这片海洋吧！",
+    "ta": "ஆமைகள் 80 ஆண்டுகளுக்கும் மேல் வாழும் தெரியுமா? கடலை சுத்தமாக வைத்திருப்போம்!"
   },
   {
-    en: "Small green habits today build a giant lush forest tomorrow!",
-    bm: "Amalan hijau kecil hari ini membina hutan yang subur esok hari!",
-    zh: "今天的一个绿色小习惯，能造就明天的一片大森林！",
+    "emotion": "describing",
+    "en": "Small green habits today build a giant flourishing rainforest tomorrow!",
+    "bm": "Amalan hijau kecil hari ini membina hutan hujan yang subur esok hari!",
+    "zh": "今天的一个绿色小习惯，能造就明天的一片繁茂雨林！",
+    "ta": "இன்றைய சிறு பசுமைப் பழக்கம் நாளைய செழிப்பான காட்டை உருவாக்கும்!"
   },
   {
-    en: "No straw? Awesome! You are swimming in the right direction!",
-    bm: "Tak guna penyedut minuman? Hebat! Anda berenang ke arah yang betul!",
-    zh: "不使用吸管？太棒了！你正朝着正确的方向前进！",
+    "emotion": "congratulate",
+    "en": "No plastic straw needed? Awesome! You are swimming in the right direction!",
+    "bm": "Tak perlu penyedut minuman plastik? Hebat! Anda berenang ke arah yang tepat!",
+    "zh": "不需要塑料吸管？太棒了！你正朝着正确的方向前进！",
+    "ta": "பிளாஸ்டிக் உறிஞ்சுகுழல் வேண்டாமா? அற்புதம்! நீங்கள் சரியான வழியில் செல்கிறீர்கள்!"
   },
   {
-    en: "I love swimming through clear water instead of plastic bags!",
-    bm: "Saya suka berenang dalam air yang jernih berbanding celah beg plastik!",
-    zh: "比起塑料袋，我更喜欢在清澈的海水里畅游！",
+    "emotion": "crying",
+    "en": "I hate floating plastic bags! From below, they look just like delicious jellyfish!",
+    "bm": "Saya benci beg plastik hanyut! Dari bawah, rupanya sebiji macam obor-obor lazat!",
+    "zh": "我讨厌漂浮的塑料袋！从水下看，它们长得就跟美味水母一模一样！",
+    "ta": "மிதக்கும் பிளாஸ்டிக் பைகள் எனக்குப் பிடிக்காது! அவை ஜெல்லிமீன் போலவே தோன்றும்!"
   },
   {
-    en: "You've got this! One plastic-free meal at a time!",
-    bm: "Anda pasti boleh! Satu hidangan bebas plastik pada satu masa!",
-    zh: "你一定可以的！每餐少用一点塑料！",
+    "emotion": "laugh",
+    "en": "One plastic-free meal at a time! You are doing fantastic!",
+    "bm": "Satu hidangan bebas plastik demi satu! Anda memang hebat!",
+    "zh": "一步一步实现无塑用餐！你做得太棒了！",
+    "ta": "ஒரு வேளை பிளாஸ்டிக் இல்லா உணவு! நீங்கள் சிறப்பாகச் செயல்படுகிறீர்கள்!"
   },
   {
-    en: "Your sanctuary animals are so happy you checked in today!",
-    bm: "Haiwan santuari anda gembira melihat kehadiran anda hari ini!",
-    zh: "你的生态天地里的小动物们今天看到你开心极了！",
+    "emotion": "describing",
+    "en": "Your sanctuary animals are so happy every time you check in and care for them!",
+    "bm": "Haiwan santuari anda gembira setiap kali anda datang menjenguk dan menyayangi mereka!",
+    "zh": "你的生态天地里的小动物们每次看到你来都开心极了！",
+    "ta": "உங்கள் சரணாலய விலங்குகள் நீங்கள் வரும்போதெல்லாம் மகிழ்ச்சியடைகின்றன!"
   },
   {
-    en: "Eating lunch with your own box? That deserves a high-flipper!",
-    bm: "Makan tengah hari guna bekas sendiri? Mari tepuk sirip!",
-    zh: "用自带餐盒吃午饭？来跟我击个掌（鳍）吧！",
+    "emotion": "laugh",
+    "en": "Eating lunch with your own food container? That deserves a high-flipper!",
+    "bm": "Makan tengah hari guna bekas makanan sendiri? Mari kita tepuk sirip!",
+    "zh": "用自带餐盒吃午饭？来跟我击个掌（鳍）吧！",
+    "ta": "சொந்த உணவுப் பெட்டியைப் பயன்படுத்துகிறீர்களா? வாருங்கள் கைகுலுக்குவோம்!"
   },
   {
-    en: "Let's keep Borneo and Peninsular Malaysia clean and green!",
-    bm: "Jom pastikan Borneo dan Semenanjung Malaysia sentiasa bersih dan hijau!",
-    zh: "让我们一起让婆罗洲和马来半岛更加洁净翠绿！",
+    "emotion": "waving",
+    "en": "Let's keep Borneo and Peninsular Malaysia clean, green, and thriving!",
+    "bm": "Jom pastikan Borneo dan Semenanjung Malaysia sentiasa bersih, hijau dan makmur!",
+    "zh": "让我们一起让婆罗洲和马来半岛更加洁净翠绿！",
+    "ta": "மலேசியாவின் கடற்கரைகளையும் காடுகளையும் தூய்மையாக வைத்திருப்போம்!"
   },
   {
-    en: "Feeling tired? Take a deep breath of fresh, unpolluted ocean air!",
-    bm: "Rasa penat? Tarik nafas dalam-dalam dengan udara laut yang segar!",
-    zh: "累了吗？深吸一口清新的无污染海洋空气吧！",
+    "emotion": "wondered",
+    "en": "Feeling weary? Take a deep breath of fresh, unpolluted ocean breeze!",
+    "bm": "Rasa letih? Tarik nafas dalam-dalam dengan bayu laut yang segar dan bersih!",
+    "zh": "累了吗？深吸一口清新的无污染海洋海风吧！",
+    "ta": "சோர்வாக உணர்கிறீர்களா? தூய கடல் காற்றை ஆழமாக சுவாசியுங்கள்!"
   },
   {
-    en: "Together, we are unstoppable eco-warriors!",
-    bm: "Bersama-sama, kita pahlawan eko yang tidak dapat ditandingi!",
-    zh: "在一起，我们就是不可阻挡的生态勇士！",
+    "emotion": "congratulate",
+    "en": "Together, we are an unstoppable team of Earth guardians!",
+    "bm": "Bersama-sama, kita pasukan penjaga Bumi yang tidak terkalahkan!",
+    "zh": "在一起，我们就是不可阻挡的地球守护者战队！",
+    "ta": "நாம் அனைவரும் இணைந்து பூமியைக் காக்கும் வலிமையான குழுவாக மாறுவோம்!"
   },
   {
-    en: "The best time to reduce plastic was yesterday; the next best time is right now!",
-    bm: "Masa terbaik untuk kurangkan plastik ialah semalam; masa kedua terbaik ialah sekarang!",
-    zh: "减少塑料最好的时机是昨天，其次是现在！",
+    "emotion": "describing",
+    "en": "The best time to reduce plastic was yesterday; the next best time is right now!",
+    "bm": "Masa terbaik kurangkan plastik ialah semalam; masa kedua terbaik ialah sekarang!",
+    "zh": "减少塑料最好的时机是昨天，其次是现在！",
+    "ta": "பிளாஸ்டிக்கைக் குறைக்க சிறந்த நேரம் நேற்று; அடுத்த சிறந்த நேரம் இப்போது!"
   },
   {
-    en: "Your choices inspire everyone around you to do better!",
-    bm: "Pilihan anda memberi inspirasi kepada orang sekeliling untuk menjadi lebih baik!",
-    zh: "你的每一个选择都在激励身边的人！",
+    "emotion": "wondered",
+    "en": "Your green choices inspire everyone around you to do better too!",
+    "bm": "Pilihan hijau anda memberi inspirasi kepada orang sekeliling untuk turut berubah!",
+    "zh": "你的每一次绿色选择都在潜移默化地激励身边的人！",
+    "ta": "உங்கள் பசுமைத் தேர்வுகள் மற்றவர்களுக்கும் நல்ல உத்வேகம் தருகின்றன!"
   },
   {
-    en: "Jellyfish are delicious, but plastic is toxic! Thanks for keeping them separate!",
-    bm: "Obor-obor memang lazat, tetapi plastik toksik! Terima kasih kerana mengelakkannya!",
-    zh: "水母很好吃，但塑料有毒！感谢你帮我区分它们！",
+    "emotion": "laugh",
+    "en": "Jellyfish are delicious, but plastic is toxic! Thank you for protecting us!",
+    "bm": "Obor-obor memang sedap, tapi plastik bertoksik! Terima kasih melindungi kami!",
+    "zh": "水母很好吃，但塑料有毒！感谢你保护我们！",
+    "ta": "ஜெல்லிமீன் சுவையானது, ஆனால் பிளாஸ்டிக் நஞ்சானது! எங்களைப் பாதுகாப்பதற்கு நன்றி!"
   },
   {
-    en: "Ready to earn more rewards? Pick an action in the Earn tab!",
-    bm: "Sedia untuk kumpul lebih banyak ganjaran? Pilih amalan dalam tab Dapatkan!",
-    zh: "准备好赚取更多奖励了吗？快去“赚取”页面选择一项习惯吧！",
+    "emotion": "waving",
+    "en": "Ready to earn more Greenbits? Pick an action in the Earn tab!",
+    "bm": "Sedia untuk kumpul lebih banyak Greenbits? Pilih amalan di tab Dapatkan!",
+    "zh": "准备好赚取更多绿币了吗？快去“赚取”页面选择一项习惯吧！",
+    "ta": "மேலும் கிரீன்பிட்களை சம்பாதிக்க தயாரா? 'சம்பாதிக்க' பக்கத்திற்குச் செல்லுங்கள்!"
   },
   {
-    en: "Keep shining, hero! The planet loves you!",
-    bm: "Teruskan bersemangat, wira! Bumi menyayangi anda!",
-    zh: "继续加油，英雄！地球为你点赞！",
+    "emotion": "congratulate",
+    "en": "Keep shining, champion! The planet and all its wildlife adore you!",
+    "bm": "Teruskan bersinar, sang juara! Bumi dan semua hidupan liar menyayangi anda!",
+    "zh": "继续闪闪发光吧，冠军！地球和所有生灵都在为你喝彩！",
+    "ta": "தொடர்ந்து பிரகாசியுங்கள்! பூமி உங்கள் அன்பை உணர்கிறது!"
   },
+  {
+    "emotion": "wondered",
+    "en": "Did you know Green Sea Turtles can hold their breath underwater for up to 5 hours?",
+    "bm": "Tahukah anda Penyu Hijau boleh tahan nafas di dalam air hingga 5 jam?",
+    "zh": "你知道绿海龟在水下闭气可以长达5个小时吗？",
+    "ta": "பச்சை ஆமைகள் 5 மணி நேரம் வரை நீருக்கடியில் மூச்சடக்கி இருக்கும் தெரியுமா?"
+  },
+  {
+    "emotion": "laugh",
+    "en": "My shell feels extra shiny and smooth today thanks to clean, plastic-free waters!",
+    "bm": "Karapas saya rasa sangat berkilau dan licin hari ini berkat air laut yang bersih!",
+    "zh": "多亏了干净无塑的海水，我今天的龟甲格外光滑发亮！",
+    "ta": "தூய கடலினால் என் ஓடு இன்று மிகவும் பளபளப்பாக இருக்கிறது!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Beeswax wraps keep food so fresh without needing cling wrap. Have you tried them?",
+    "bm": "Pembalut lilin lebah memastikan makanan segar tanpa plastik pembalut. Pernah cuba?",
+    "zh": "蜂蜡保鲜膜无需保鲜膜就能锁鲜食物。你试过吗？",
+    "ta": "தேன்பழுகு உறைகள் உணவை பிளாஸ்டிக் இல்லாமலே புதியதாக வைக்கின்றன!"
+  },
+  {
+    "emotion": "crying",
+    "en": "Ghost nets in the ocean trap hundreds of sea creatures every year. Let's keep fishing clean!",
+    "bm": "Pukat hanyut di laut memerangkap ratusan hidupan laut setiap tahun. Jom jaga laut kita!",
+    "zh": "海洋里的废弃幽灵渔网每年困住成百上千的生灵。让我们守护海洋清洁！",
+    "ta": "கடலில் விடப்படும் பழைய வலைகள் பல உயிரினங்களை பாதிக்கின்றன. கடலைக் காப்போம்!"
+  },
+  {
+    "emotion": "waving",
+    "en": "Terengganu and Sabah have some of the most beautiful turtle nesting beaches in the world!",
+    "bm": "Terengganu dan Sabah mempunyai pantai pendaratan penyu paling cantik di dunia!",
+    "zh": "丁加奴和沙巴拥有全世界最美丽的海龟产卵海滩！",
+    "ta": "தெரெங்கானு மற்றும் சபா கடற்கரைகள் உலகப் புகழ்பெற்ற ஆமை சரணாலயங்கள்!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Swimming at 35 km/h across ocean currents is my favorite morning workout!",
+    "bm": "Berenang 35 km/j merentasi arus laut ialah senaman pagi kegemaran saya!",
+    "zh": "以时速35公里在洋流里畅游是我最爱的晨练！",
+    "ta": "கடல் அலைகளில் வேகமாக நீந்துவது எனக்கு மிகவும் பிடித்த காலை உடற்பயிற்சி!"
+  },
+  {
+    "emotion": "wondered",
+    "en": "Plastic takes over 450 years to break down. That’s five whole turtle generations!",
+    "bm": "Plastik ambil lebih 450 tahun untuk terurai. Itu bersamaan lima generasi penyu!",
+    "zh": "塑料需要450多年才能分解。那可是我们海龟整整五代人的寿命啊！",
+    "ta": "பிளாஸ்டிக் மக்கிப்போக 450 ஆண்டுகள் ஆகும். அது ஐந்து ஆமை தலைமுறைகளுக்கு சமம்!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "You avoided plastic cutlery today? That means no plastic forks washed into rivers!",
+    "bm": "Anda elak kutleri plastik hari ini? Maknanya tiada garpu plastik hanyut ke sungai!",
+    "zh": "你今天避免使用塑料刀叉了？这意味着又少了一批塑料垃圾流入江河！",
+    "ta": "இன்று பிளாஸ்டிக் கரண்டியை தவிர்த்தீர்களா? நதிகள் தூய்மையாக இருக்கும்!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Mangroves trap sediment and shield our coastlines from monstrous storm surges!",
+    "bm": "Hutan bakau memerangkap enapan dan melindungi pantai kita daripada ombak ribut!",
+    "zh": "红树林能稳固淤泥，阻挡狂暴的风暴潮守护我们的海岸线！",
+    "ta": "சதுப்புநிலக் காடுகள் கடலோரப் பகுதிகளை சூறாவளி அலைகளிலிருந்து காக்கின்றன!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Just saw a dugong grazing on seagrass. They are the gentlest sea cows ever!",
+    "bm": "Baru nampak dugong meragut rumput laut. Mereka lembu laut paling lemah lembut!",
+    "zh": "刚才看到一只儒艮在啃食海草。它们真是我见过最温顺的海牛！",
+    "ta": "கடற்பசுக்கள் கடல்புல்லை மேய்வதைப் பார்த்தேன், அவை மிகவும் சாதுவானவை!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Tualang trees can grow over 80 meters high! Giant wild honeybees love nesting in them.",
+    "bm": "Pokok Tualang boleh membesar lebih 80 meter! Lebah hutan gergasi suka bersarang padanya.",
+    "zh": "图阿朗树能长到80多米高！大型野生蜜蜂最喜欢在它的高冠上筑巢。",
+    "ta": "துவாலாங் மரங்கள் 80 மீட்டர் வரை வளரக்கூடியவை! காட்டுத் தேனீக்கள் அதில் கூடு கட்டும்."
+  },
+  {
+    "emotion": "wondered",
+    "en": "Did you hear the Malayan Tiger’s mighty roar? They are the heart and soul of our jungle.",
+    "bm": "Pernah dengar ngauman megah Harimau Malaya? Mereka ialah nadi rimba kita.",
+    "zh": "听到马来亚虎威武的咆哮了吗？它们是我们热带雨林的灵魂守护者。",
+    "ta": "மலாயா புலியின் கர்ஜனையைக் கேட்டீர்களா? அவை நமது காடுகளின் கம்பீரம்."
+  },
+  {
+    "emotion": "laugh",
+    "en": "Orangutans build brand new sleeping nests in tree canopies every single night!",
+    "bm": "Orangutan membina sarang tidur baharu di kanopi pokok setiap malam!",
+    "zh": "红毛猩猩每天晚上都会在树冠上搭建一个全新的温馨睡巢！",
+    "ta": "ஒராங்குட்டான்கள் தினமும் மர உச்சியில் புதிய படுக்கை கூடுகளை உருவாக்குகின்றன!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "Your environmental points are growing fast! Your sanctuary looks so vibrant!",
+    "bm": "Mata alam sekitar anda makin meningkat! Santuari anda nampak sangat berseri!",
+    "zh": "你的环保积分正在快速增长！你的生态天地看起来生机盎然！",
+    "ta": "உங்கள் சுற்றுச்சூழல் புள்ளிகள் உயர்ந்து வருகின்றன! சரணாலயம் அற்புதமாக உள்ளது!"
+  },
+  {
+    "emotion": "waving",
+    "en": "Sun bears have super long tongues to slurp up wild honey from hollow tree trunks!",
+    "bm": "Beruang matahari ada lidah sangat panjang untuk hirup madu hutan dari batang pokok!",
+    "zh": "马来熊有超长的舌头，能从树洞深处舔食甜美的野生蜂蜜！",
+    "ta": "சூரியக் கரடிகள் மரப் பொந்துகளில் இருந்து தேனை எடுக்க நீண்ட நாக்கைப் பயன்படுத்துகின்றன!"
+  },
+  {
+    "emotion": "crying",
+    "en": "When plastics blow into the jungle, mousedeer and tapirs might swallow them. Thank you for recycling!",
+    "bm": "Bila plastik ditiup ke hutan, kancil dan tapir boleh tertelan. Terima kasih kerana mengitar semula!",
+    "zh": "塑料如果被风吹进森林，小鼷鹿和马来貘可能会误食。感谢你坚持环保！",
+    "ta": "காடுகளில் வீசப்படும் பிளாஸ்டிக்கை விலங்குகள் விழுங்கக்கூடும். மறுசுழற்சிக்கு நன்றி!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Rafflesia has no leaves, stems, or roots—just one colossal, magnificent flower!",
+    "bm": "Rafflesia tiada daun, batang, atau akar—hanya satu kuntum bunga gergasi yang menakjubkan!",
+    "zh": "大王花没有树叶、茎干或根须——就只有一朵震撼人心的巨大奇花！",
+    "ta": "ராஃப்ளேசியாவிற்கு இலை, தண்டு எதுவுமில்லை—ஒரே ஒரு பிரம்மாண்ட மலர் மட்டுமே!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Hornbills are known as rainforest farmers because they scatter seeds across miles of jungle!",
+    "bm": "Burung enggang digelar petani hutan kerana mereka menyebarkan benih beribu batu!",
+    "zh": "犀鸟被称为雨林农夫，因为它们能把果实种子播撒到整片雨林深处！",
+    "ta": "இருவாச்சி பறவைகள் விதைகளைப் பரப்பி காடுகளை வளர்க்கும் உன்னத விவசாயிகள்!"
+  },
+  {
+    "emotion": "wondered",
+    "en": "Have you checked on your plants today? They might have ripe fruits ready to harvest!",
+    "bm": "Dah periksa pokok-pokok anda hari ini? Mungkin ada buah ranum yang sedia dituai!",
+    "zh": "你今天去查看你的植物了吗？说不定已经结满成熟可收获的果实了！",
+    "ta": "இன்று செடிகளைப் பார்த்தீர்களா? அறுவடைக்கு பழங்கள் தயாராக இருக்கலாம்!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "You are setting an amazing standard for zero-waste living on campus and at home!",
+    "bm": "Anda menetapkan standard hebat untuk gaya hidup sifar sisa di kampus dan rumah!",
+    "zh": "你在校园和家里树立了零废弃生活的绝佳榜样！",
+    "ta": "வளாகத்திலும் வீட்டிலும் கழிவில்லா வாழ்க்கைக்கு நீங்கள் சிறந்த முன்மாதிரி!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Bulk pantry shopping with your own jars saves heaps of plastic packaging!",
+    "bm": "Beli barangan runcit pukal guna balang sendiri jimatkan banyak pembungkusan plastik!",
+    "zh": "自带玻璃罐去零包装杂货铺，能省下成堆的塑料包装！",
+    "ta": "சொந்த பாத்திரங்களை எடுத்துச் சென்று பொருட்கள் வாங்குவது பிளாஸ்டிக்கைக் குறைக்கும்!"
+  },
+  {
+    "emotion": "waving",
+    "en": "Don't forget to wash and dry your recyclables before placing them in the recycling bin!",
+    "bm": "Jangan lupa basuh dan keringkan barangan kitar semula sebelum masuk tong kitar semula!",
+    "zh": "在把可回收物投入回收箱之前，别忘了洗净并晾干哦！",
+    "ta": "மறுசுழற்சி செய்வதற்கு முன் பொருட்களைக் கழுவி உலர வைக்க மறக்காதீர்கள்!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Composting fruit peels turns kitchen scraps into rich soil for your garden plants!",
+    "bm": "Membuat kompos kulit buah menukar sisa dapur menjadi tanah subur untuk tanaman!",
+    "zh": "把果皮做成堆肥，能将厨余变成花园植物最爱的肥沃养料！",
+    "ta": "பழத்தோல்களை மக்கச் செய்து இயற்கை உரமாக மாற்றி செடிகளுக்குப் பயன்படுத்துங்கள்!"
+  },
+  {
+    "emotion": "wondered",
+    "en": "Wondering how much plastic you've diverted? Check your total habit count on your profile!",
+    "bm": "Tertanya-tanya berapa banyak plastik anda telah selamatkan? Semak jumlah di profil anda!",
+    "zh": "好奇自己已经减少了多少塑料？快去你的个人主页查看习惯累计总数吧！",
+    "ta": "நீங்கள் எவ்வளவு பிளாஸ்டிக்கை தவிர்த்துள்ளீர்கள் என்பதை சுயவிவரத்தில் பார்க்கலாம்!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "Leveling up your habits unlocks new animals and rare plants in the Sanctuary Store!",
+    "bm": "Tingkatkan amalan anda untuk buka haiwan baharu dan pokok nadir di Kedai!",
+    "zh": "提升你的环保习惯，就能在商店解锁全新动物与珍稀植物！",
+    "ta": "பழக்கங்களை மேம்படுத்தி புதிய விலங்குகளையும் அரிய தாவரங்களையும் பெறுங்கள்!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Walking or cycling for short trips cuts carbon emissions and keeps you energized!",
+    "bm": "Berjalan kaki atau berbasikal untuk perjalanan dekat kurangkan karbon dan beri tenaga!",
+    "zh": "短途出行多步行或骑单车，既能减碳又能让你活力满满！",
+    "ta": "குறுகிய தூரத்திற்கு நடப்பது அல்லது சைக்கிள் ஓட்டுவது உடலுக்கும் நல்லது!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Bamboo grows up to 90 centimeters a day! It is one of Earth's fastest renewable materials.",
+    "bm": "Buluh boleh membesar sehingga 90 cm sehari! Antara bahan boleh diperbaharui terpantas.",
+    "zh": "竹子一天能长高90厘米！它是地球上生长速度最快、最环保的可再生材料之一。",
+    "ta": "மூங்கில் ஒரு நாளில் 90 செமீ வரை வளரும்! மிக விரைவாக வளரும் இயற்கை வளம்."
+  },
+  {
+    "emotion": "crying",
+    "en": "Over 8 million tons of plastic enter our oceans each year. But together, we are changing that!",
+    "bm": "Lebih 8 juta tan plastik masuk ke lautan setiap tahun. Tapi bersama, kita sedang mengubahnya!",
+    "zh": "每年有超过800万吨塑料流入海洋。但有了你我同行，我们正在改变这一切！",
+    "ta": "ஆண்டுதோறும் பல மில்லியன் டன் பிளாஸ்டிக் கடலில் கலக்கிறது. நாம் அதை மாற்றுவோம்!"
+  },
+  {
+    "emotion": "waving",
+    "en": "Saying 'No plastic bag please' at the cashier takes just one second and saves a turtle's life!",
+    "bm": "Cakap 'Tak perlu beg plastik' di kaunter hanya ambil 1 saat dan selamatkan nyawa penyu!",
+    "zh": "结账时说一句“不用塑料袋”只需一秒钟，却能拯救海龟的一生！",
+    "ta": "கடையில் 'பிளாஸ்டிக் பை வேண்டாம்' என்று சொல்வது ஆமையின் உயிரைக் காக்கும்!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Did you pet your sanctuary animals today? They love gentle chin scratches!",
+    "bm": "Dah belai haiwan santuari anda hari ini? Mereka suka digaru manja di bawah dagu!",
+    "zh": "你今天抚摸生态天地里的小动物了吗？它们最喜欢被挠下巴了！",
+    "ta": "இன்று உங்கள் செல்லப்பிராணிகளைக் கொஞ்சினீர்களா? அவற்றுக்கு அது மிகவும் பிடிக்கும்!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "The APU Plastic-Free Champion challenge has RM 1,000 in cash prizes! Are you participating?",
+    "bm": "Cabaran Wira Bebas Plastik APU menawarkan RM 1,000 hadiah tunai! Anda sertai?",
+    "zh": "APU无塑先锋挑战赛设有RM 1,000现金总奖金！你参加了吗？",
+    "ta": "APU பிளாஸ்டிக் இல்லா சவாலில் RM 1,000 ரொக்கப் பரிசுகள் உள்ளன! பங்கேற்றுள்ளீர்களா?"
+  },
+  {
+    "emotion": "waving",
+    "en": "Invite your campus friends to join unplastica! Group impact is ten times more powerful!",
+    "bm": "Ajak kawan-kawan kampus sertai unplastica! Impak berkumpulan sepuluh kali lebih hebat!",
+    "zh": "邀请你的大学好友加入unplastica吧！团队的力量比一个人强十倍！",
+    "ta": "உங்கள் கல்லூரி நண்பர்களையும் இணையுங்கள்! ஒன்றாகச் செயல்படுவது அதிக பலன் தரும்!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Drinking bubble tea? Bringing your own metal boba straw makes it taste twice as refreshing!",
+    "bm": "Minum teh boba? Bawa penyedut boba logam sendiri buat rasanya dua kali lebih nikmat!",
+    "zh": "喝珍珠奶茶？带上自己的粗不锈钢吸管，喝起来双倍快乐！",
+    "ta": "சொந்த மறுபயன்பாட்டு உறிஞ்சுகுழலைப் பயன்படுத்துங்கள், சுவை இன்னும் அதிகரிக்கும்!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Snap a clear photo of your eco-action in good lighting to get verified instantly!",
+    "bm": "Ambil gambar jelas amalan eko anda dalam pencahayaan baik untuk pengesahan pantas!",
+    "zh": "在光线充足的环境下清晰拍摄你的环保行动，就能秒速通过审核！",
+    "ta": "நல்ல வெளிச்சத்தில் தெளிவான படம் எடுத்தால் உடனே சரிபார்க்கப்படும்!"
+  },
+  {
+    "emotion": "wondered",
+    "en": "Did you know that coral reefs cover less than 1% of the ocean but shelter 25% of marine life?",
+    "bm": "Tahukah anda terumbu karang litupi kurang 1% lautan tapi jadi rumah 25% hidupan laut?",
+    "zh": "你知道吗？珊瑚礁面积只占海洋的不到1%，却庇护着25%的海洋生物！",
+    "ta": "பவளப்பாறைகள் கடலில் 1% மட்டுமே இருந்தாலும் 25% உயிரினங்களுக்கு புகலிடம்!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "Consistency is your superpower! Checking in every day builds unbreakable habits.",
+    "bm": "Konsistensi ialah kuasa hebat anda! Buka aplikasi setiap hari bina amalan kukuh.",
+    "zh": "坚持就是你的超能力！每天打卡能养成坚不可摧的优良习惯。",
+    "ta": "தொடர்ந்து செயல்படுவதே உங்கள் பலம்! தினசரி பழக்கம் நல்ல மாற்றத்தைக் கொண்டுவரும்."
+  },
+  {
+    "emotion": "laugh",
+    "en": "Look at that mischievous monkey stealing a banana in the trees! Too cute!",
+    "bm": "Tengok monyet nakal tu curi pisang atas pokok! Comel sungguh!",
+    "zh": "快看树上那只调皮的小猴子在偷香蕉吃呢！真是太逗了！",
+    "ta": "மரத்திலிருந்து குரங்கு வாழைப்பழம் எடுப்பதைப் பாருங்கள்! எவ்வளவு அழகு!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Upcycling old plastic containers into mini plant pots gives them a second flourishing life!",
+    "bm": "Ubah botol plastik lama jadi pasu anak pokok beri mereka kehidupan kedua yang segar!",
+    "zh": "把废旧塑料盒改造成植物盆栽，赋予了它们第二次蓬勃的生命！",
+    "ta": "பழைய பிளாஸ்டிக் பாத்திரங்களை செடி தொட்டிகளாக மாற்றி மறுபயன்பாடு செய்யுங்கள்!"
+  },
+  {
+    "emotion": "crying",
+    "en": "Microplastics have been found in the deepest ocean trenches. That’s why your actions matter so much!",
+    "bm": "Mikroplastik ditemui di jurang laut paling dalam. Sebab itulah tindakan anda sangat bermakna!",
+    "zh": "连最深的马里亚纳海沟里都发现了微塑料。正因如此，你的每一次减塑都至关重要！",
+    "ta": "ஆழ்கடலிலும் மைக்ரோ பிளாஸ்டிக் உள்ளது. உங்கள் செயல் கடலைக் காக்க உதவும்!"
+  },
+  {
+    "emotion": "waving",
+    "en": "Sun, rain, or mist—our sanctuary is always open and welcoming for you!",
+    "bm": "Panas, hujan, atau kabus—santuari kita sentiasa sedia menyambut kehadiran anda!",
+    "zh": "无论是晴天、雨天还是迷雾，我们的生态天地随时欢迎你的到来！",
+    "ta": "வெயில், மழை எதுவாக இருந்தாலும் நமது சரணாலயம் உங்களை எப்போதும் வரவேற்கிறது!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Tapirs look like a cross between a pig and an anteater, but their closest relatives are horses!",
+    "bm": "Tapir nampak macam gabungan babi dan tenggiling, tapi saudara terdekat mereka ialah kuda!",
+    "zh": "马来貘看起来像猪和食蚁兽的结合体，但它们在生物学上最亲近的亲戚其实是马！",
+    "ta": "தபீர் விலங்கு குதிரையின் குடும்பத்தைச் சேர்ந்த விசித்திரமான பாலூட்டி!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Pitcher plants can grow large enough in Borneo to catch rainwater and feed small jungle frogs!",
+    "bm": "Periuk kera di Borneo boleh membesar hingga tampung air hujan dan jadi rumah katak!",
+    "zh": "婆罗洲的巨型猪笼草大到能盛装雨水，甚至能成为树蛙的天然游泳池！",
+    "ta": "போர்னியோவின் குடுவை தாவரங்கள் மழைநீரை சேமித்து தவளைகளுக்கு புகலிடம் தரும்!"
+  },
+  {
+    "emotion": "wondered",
+    "en": "Did you know whale sharks have unique spot patterns just like human fingerprints?",
+    "bm": "Tahukah anda jerung paus ada corak tompok unik seperti cap jari manusia?",
+    "zh": "你知道吗？每条鲸鲨身上的斑点图案就像人类的指纹一样独一无二！",
+    "ta": "திமிங்கல சுறாக்களின் உடலில் உள்ள புள்ளிகள் மனித கைரேகை போல தனித்துவமானது!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "You are turning plastic reduction into an enjoyable daily game! That is the secret to success.",
+    "bm": "Anda jadikan pengurangan plastik sebagai permainan harian yang seronok! Inilah rahsia kejayaan.",
+    "zh": "把减少塑料变成一件轻松好玩的日常游戏，这就是成功的终极秘诀！",
+    "ta": "பிளாஸ்டிக் குறைப்பை மகிழ்ச்சியான விளையாட்டாக மாற்றிவிட்டீர்கள்! அற்புதம்."
+  },
+  {
+    "emotion": "waving",
+    "en": "Sea turtles always return to the very same beach where they were born to lay their eggs!",
+    "bm": "Penyu laut sentiasa kembali ke pantai tempat mereka dilahirkan untuk bertelur!",
+    "zh": "海龟无论游过多远的大洋，成年后总会回到自己出生的同一片海滩产卵！",
+    "ta": "கடலாமைகள் தாங்கள் பிறந்த கடற்கரைக்கே திரும்பி வந்து முட்டையிடுகின்றன!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Mudskippers can breathe through their skin and climb up mangrove roots! How cool is that?",
+    "bm": "Ikan tembakul boleh bernafas guna kulit dan panjat akar pokok bakau! Hebat kan?",
+    "zh": "弹涂鱼能用皮肤呼吸，还能爬到红树林根须上晒太阳！是不是很神奇？",
+    "ta": "தண்ணீர் தாண்டும் மீன்கள் தோலின் வழியே சுவாசித்து மர வேர்களில் ஏறும்!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Seagrass meadows store carbon 35 times faster than tropical rainforests! Let's protect our coasts.",
+    "bm": "Padang rumput laut serap karbon 35 kali lebih pantas daripada hutan hujan! Jom lindungi pantai.",
+    "zh": "海底海草平原吸收碳汇的速度比热带雨林还要快35倍！让我们保护近海生态！",
+    "ta": "கடல் புல்வெளிகள் மழைக்காடுகளை விட 35 மடங்கு வேகமாக கரியமில வாயுவை உறிஞ்சுகின்றன!"
+  },
+  {
+    "emotion": "crying",
+    "en": "Discarded fishing line can strangle fragile coral branches. Remember to dispose of gear safely!",
+    "bm": "Tali pancing terbuang boleh menjerat dahan karang rapuh. Buang sisa dengan selamat ya!",
+    "zh": "废弃的鱼线会缠断脆弱的珊瑚分枝。钓鱼用具一定要妥善安全回收哦！",
+    "ta": "வீசப்படும் தூண்டில் நூல்கள் பவளப்பாறைகளை சேதப்படுத்தும். பாதுகாப்பாக அகற்றுங்கள்!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "High-five, eco-adventurer! You are making our Malaysian waters cleaner and safer every single day!",
+    "bm": "Tepuk tangan, pengembara eko! Anda jadikan perairan Malaysia lebih bersih setiap hari!",
+    "zh": "击个掌，生态探险家！你每天都在让马来西亚的海域变得更加清澈安全！",
+    "ta": "வாழ்த்துகள்! நீங்கள் தினமும் மலேசிய கடல்களை தூய்மையாக மாற்றுகிறீர்கள்!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "Even Sang Kancil the clever mousedeer would be proud of your wise, waste-free decisions!",
+    "bm": "Sang Kancil yang cerdik pun pasti bangga dengan keputusan bijak bebas sisa anda!",
+    "zh": "连机智聪慧的小鼷鹿都会为你的明智零塑选择竖起大拇指！",
+    "ta": "புத்திசாலி சுண்டெலி மான் கூட உங்கள் விவேகமான செயலைப் பாராட்டும்!"
+  },
+  {
+    "emotion": "waving",
+    "en": "Every tiny step counts. Never underestimate the ripple of your good deeds!",
+    "bm": "Setiap langkah kecil bermakna. Jangan sesekali pandang rendah impak kebaikan anda!",
+    "zh": "每一个微小的善举都算数。永远不要低估你的绿色选择掀起的浪花！",
+    "ta": "ஒவ்வொரு சிறு படியும் முக்கியம். உங்கள் நல்ல செயலின் தாக்கத்தை குறைத்து மதிப்பிடாதீர்கள்!"
+  },
+  {
+    "emotion": "laugh",
+    "en": "I did three backflips underwater just now because of your awesome habit streak!",
+    "bm": "Saya baru buat tiga pusingan dalam air sebab gembira dengan rekod amalan anda!",
+    "zh": "看到你这么棒的打卡连续记录，我刚才在水下连翻了三个跟头！",
+    "ta": "உங்கள் தொடர் பழக்கத்தைக் கண்டு நான் மகிழ்ச்சியில் நீருக்கடியில் துள்ளிக் குதித்தேன்!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Remember: refuse what you do not need, reduce what you use, and reuse whenever you can!",
+    "bm": "Ingat: tolak yang tak perlu, kurangkan yang diguna, dan guna semula seboleh mungkin!",
+    "zh": "记住：拒绝不需要的，减少正在用的，尽可能重复使用手头的物品！",
+    "ta": "நினைவில் கொள்க: தேவையில்லாததை மறுக்கவும், பயன்பாட்டைக் குறைக்கவும், மறுபயன்பாடு செய்யவும்!"
+  },
+  {
+    "emotion": "wondered",
+    "en": "Ever watched fireflies illuminate mangrove trees like Christmas lights? Clean rivers keep them glowing!",
+    "bm": "Pernah tengok kelip-kelip hias pokok bakau macam lampu perayaan? Sungai bersih buat mereka bersinar!",
+    "zh": "你看过萤火虫在红树林间如节日彩灯般闪耀吗？洁净的河流是它们长明的光源！",
+    "ta": "சதுப்புநிலத்தில் மின்மினிப் பூச்சிகள் மின்னுவதைப் பார்த்திருக்கிறீர்களா? சுத்தமான நதியே காரணம்!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "Congratulations on choosing green today! You are building a world where nature thrives.",
+    "bm": "Tahniah kerana pilih hijau hari ini! Anda sedang bina dunia di mana alam mekar subur.",
+    "zh": "祝贺你今天做出的绿色选择！你正在共建一个人与自然和谐共生的美好世界。",
+    "ta": "இன்று பசுமை வழியைத் தேர்ந்தெடுத்ததற்கு வாழ்த்துகள்! இயற்கை செழிக்க உதவுகிறீர்கள்."
+  },
+  {
+    "emotion": "waving",
+    "en": "Whenever you feel alone in your eco-journey, just tap me! I’m always here by your side.",
+    "bm": "Bila-bila rasa sunyi dalam perjalanan eko anda, ketuk saya! Saya sentiasa ada di sisi anda.",
+    "zh": "每当在环保路上感到孤单时，点点我吧！我永远在屏幕右下角陪伴着你。",
+    "ta": "சுற்றுச்சூழல் பயணத்தில் எப்போது வேண்டுமானாலும் என்னை தட்டுங்கள்! நான் உங்களுடன் இருக்கிறேன்."
+  },
+  {
+    "emotion": "laugh",
+    "en": "Delicious Malaysian food tastes even better when served in clean, reusable tiffin containers!",
+    "bm": "Makanan enak Malaysia rasa jauh lebih sedap bila dihidang dalam mangkuk tingkat guna semula!",
+    "zh": "用漂亮的复古环保提锅装马来西亚美食，吃起来滋味更是翻倍香！",
+    "ta": "மறுபயன்பாட்டு பாத்திரங்களில் சாப்பிடும்போது மலேசிய உணவு இன்னும் சுவையாக இருக்கும்!"
+  },
+  {
+    "emotion": "describing",
+    "en": "Take a postcard photo in your sanctuary to remember how beautiful your ecosystem is becoming!",
+    "bm": "Ambil gambar poskad di santuari anda untuk abadikan keindahan ekosistem yang sedang mekar!",
+    "zh": "在生态天地里拍一张明信片吧，记录下你的专属家园变得多么绚丽多姿！",
+    "ta": "உங்கள் அழகான சரணாலயத்தை நினைவில் வைத்திருக்க ஒரு அஞ்சலட்டை படம் எடுங்கள்!"
+  },
+  {
+    "emotion": "congratulate",
+    "en": "Thank you for being a true friend to sea turtles and the wild beauty of Malaysia!",
+    "bm": "Terima kasih kerana menjadi sahabat sejati penyu laut dan keindahan rimba Malaysia!",
+    "zh": "感谢你成为海龟最真诚的朋友，以及马来西亚自然野性之美的守护者！",
+    "ta": "கடலாமைகளுக்கும் மலேசியாவின் இயற்கை அழகிற்கும் உண்மையான நண்பராக இருப்பதற்கு நன்றி!"
+  },
+  {
+    "emotion": "waving",
+    "en": "Have an inspiring, peaceful, and plastic-free day! Let’s keep swimming forward!",
+    "bm": "Semoga hari anda penuh inspirasi, damai, dan bebas plastik! Jom terus berenang ke hadapan!",
+    "zh": "祝你拥有充满灵感、宁静且无塑的一天！让我们一起向前畅游吧！",
+    "ta": "இனிய, அமைதியான, பிளாஸ்டிக் இல்லா நாளாக அமையட்டும்! தொடர்ந்து முன்னேறுவோம்!"
+  }
 ];
 
 export function MascotWidget({ language }: MascotWidgetProps) {
@@ -645,7 +1107,7 @@ export function MascotWidget({ language }: MascotWidgetProps) {
   const [dialogueMode, setDialogueMode] = useState<"random" | "verify-success" | "verify-fail">("random");
   const [verifiedPoints, setVerifiedPoints] = useState<number>(10);
 
-  const langKey = language === "Bahasa Melayu" ? "bm" : language === "中文" ? "zh" : "en";
+  const langKey = language === "Bahasa Melayu" ? "bm" : language === "中文" ? "zh" : language === "தமிழ்" ? "ta" : "en";
 
   const renderCoinIcon = () => (
     <img
@@ -680,6 +1142,14 @@ export function MascotWidget({ language }: MascotWidgetProps) {
           </>
         );
       }
+      if (langKey === "ta") {
+        return (
+          <>
+            வாழ்த்துகள்! உங்கள் சான்று சரிபார்க்கப்பட்டது! +{pts}
+            {renderCoinIcon()}வழங்கப்பட்டது!
+          </>
+        );
+      }
       return (
         <>
           Congratulations! Your habit proof is verified! +{pts}
@@ -691,20 +1161,25 @@ export function MascotWidget({ language }: MascotWidgetProps) {
   );
 
   const buildVerifyFailNode = useCallback((): string => {
-    return langKey === "bm"
-      ? "Aduh... gambar ini tidak dapat disahkan. Jangan putus asa, cuba lagi ya!"
-      : langKey === "zh"
-        ? "呜呜... 这张照片未能通过验证。别灰心，换个角度再试一次吧！"
-        : "Oh no... this photo could not be verified. Don't worry, try again!";
+    if (langKey === "bm") {
+      return "Aduh... gambar ini tidak dapat disahkan. Jangan putus asa, cuba lagi ya!";
+    }
+    if (langKey === "zh") {
+      return "呜呜... 这张照片未能通过验证。别灰心，换个角度再试一次吧！";
+    }
+    if (langKey === "ta") {
+      return "அச்சச்சோ... இந்த புகைப்படத்தை சரிபார்க்க முடியவில்லை. கவலைப்பட வேண்டாம், மீண்டும் முயற்சிக்கவும்!";
+    }
+    return "Oh no... this photo could not be verified. Don't worry, try again!";
   }, [langKey]);
 
   const triggerRandomMascotTalk = useCallback(() => {
     const nextIdx = Math.floor(Math.random() * MOTIVATING_DIALOGUES.length);
     setDialogueIndex(nextIdx);
     setDialogueMode("random");
-    setActiveText(MOTIVATING_DIALOGUES[nextIdx][langKey]);
-    const nextEmotion: EmotionType = Math.random() > 0.5 ? "waving" : "wondered";
-    setEmotion(nextEmotion);
+    const d = MOTIVATING_DIALOGUES[nextIdx];
+    setActiveText(d[langKey]);
+    setEmotion(d.emotion);
   }, [langKey]);
 
   // Listen to verification success or failure events

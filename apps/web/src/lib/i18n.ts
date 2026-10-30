@@ -1,4 +1,4 @@
-export type Language = "English" | "Bahasa Melayu" | "中文";
+export type Language = "English" | "Bahasa Melayu" | "中文" | "தமிழ்";
 
 export const messages: Record<Language, Record<string, string>> = {
   English: {
@@ -232,11 +232,79 @@ export const messages: Record<Language, Record<string, string>> = {
     "sample.approved": "已批准示例", "sample.submission": "提交编号 #0042", "sample.title": "校园补充水站之旅：零 PET 周", "sample.description": "通过自带水壶及补充站记录，连续减少 14 个一次性饮料瓶。", "sample.score": "评分", "sample.rating": "影响力评分",
     "install.openBrowser": "在浏览器打开", "install.browserHelp": "推荐使用 Safari 或 Chrome。", "install.title": "添加到主屏幕", "install.iosHelp": "轻点分享，选择添加到主屏幕。", "install.keep": "随时使用 无塑行动", "install.help": "安装应用，打开更快。", "install.manualHelp": "打开浏览器菜单，选择添加到主屏幕。", "install.button": "安装应用", "update.notice": "正在更新…", "update.refresh": "更新", "update.available": "有新版本可用！", "update.clearCache": "更新并清除缓存",
   },
+  "தமிழ்": {
+    "nav.home": "முகப்பு", "nav.earn": "சம்பாதிக்க", "nav.events": "நிகழ்வுகள்", "nav.profile": "சுயவிவரம்", "nav.mainNav": "முதன்மை வழிசெலுத்தல்", "app.title": "Unplastica — மலேசியாவில் பிளாஸ்டிக்கைக் குறைக்க விளையாடுங்கள்",
+    "home.title1": "பிளாஸ்டிக் மோசம்.", "home.title2": "எனவே தவிர்ப்போம்.", "home.sanctuary": "உங்கள் புகலிடம்", "home.enter": "நுழைக",
+    "home.speech": "விலங்குகளை வளர்க்கவும், சூழலை அழகாக்கவும், உலகைக் காப்பாற்றும் போதே விளையாடுவோம்!",
+    "events.headline": "பிளாஸ்டிக்கைக் குறைப்பதன் மூலம் பணப் பரிசுகளை வெல்லலாம்:", "events.campusName": "APU வளாகம்", "events.campusFullName": "ஆசியா பசிபிக் தொழில்நுட்பம் மற்றும் கண்டுபிடிப்பு பல்கலைக்கழகம்",
+    "events.columnChallenge": "பிளாஸ்டிக் இல்லா சவால்", "events.columnDone": "APU-வில் நாம் செய்தது என்ன?",
+    "events.deadline": "சமர்ப்பிப்பு காலக்கெடு: 3 பிப்ரவரி 2027", "events.winners": "வெற்றியாளர்கள்",
+    "events.actionReduce": "பிளாஸ்டிக்கைக் குறைக்கும் வழிகள்:", "events.actionCollab": "பல செயல்கள் அல்லது கூட்டாக இணைந்து செயல்படலாம் (பரிந்துரைக்கப்படுகிறது)",
+    "events.socialRule": "*ஆதரிக்கப்படும் சமூக ஊடகங்கள்:", "events.tagRule": "*#unplastica மற்றும் #unplasticaAPU ஹேஷ்டேக்குகளைச் சேர்த்து எங்கள் அதிகாரப்பூர்வ கணக்கைக் குறிப்பிடவும்",
+    "earn.title": "இங்கு கிரீன்பிட்களைச் சம்பாதிக்கவும்.", "earn.titleStart": "கிரீன்பிட்களைச் சம்பாதிக்கவும்", "earn.titleEnd": "இங்கு.", "earn.subtitle": "சரிபார்க்க குறைந்த பிளாஸ்டிக் பழக்கத்தைத் தேர்வுசெய்யவும்.", "earn.checker": "பழக்க சரிபார்ப்பாளர்", "common.ready": "தயார்", "earn.frame": "உங்கள் பழக்க ஆதாரத்தை படமெடுக்கவும்", "earn.hold": "ஒரு பழக்கத்தைத் தேர்ந்தெடுத்து படம் எடுக்கவும்", "earn.reward": "வெகுமதி +{points}", "earn.habits": "பழக்கங்கள்", "earn.actions": "செயல்கள்", "earn.chooseFirst": "முதலில் ஒரு பழக்கத்தைத் தேர்வுசெய்யவும்!",
+    "earn.boxCutleryLimit": "பதிவுகளுக்கு இடையே 5 மணிநேர இடைவெளி.",
+    "habit.box_cutlery": "பெட்டி & கரண்டி", "habit.recycle_bags": "மறுபயன்பாட்டு பைகள்", "habit.self_bottle_refill": "பாட்டில் நீர் நிரப்புதல்", "habit.greenery_furniture": "செடிகள் & மரச்சாமான்கள்", "habit.handicraft_projects": "கைவினைத் திட்டங்கள்", "habit.beeswax_food_wraps": "தேன்பழுகு உணவு உறைகள்", "habit.bulk_pantry_refill": "மொத்த மளிகை நிரப்புதல்",
+    "habitDescription.box_cutlery": "உங்கள் சொந்த <b>மறுபயன்பாட்டு உணவுப் பெட்டி</b> மற்றும் <b>கரண்டிகளைப்</b> பயன்படுத்துங்கள்.", "habitDescription.recycle_bags": "<b>பிளாஸ்டிக் பைகளுக்குப்</b> பதிலாக <b>மறுபயன்பாட்டு பைகளை</b> எடுத்துச் செல்லுங்கள்.", "habitDescription.self_bottle_refill": "<b>பிளாஸ்டிக் பாட்டில்களை</b> வாங்குவதற்கு பதிலாக உங்கள் சொந்த <b>பாட்டிலில் தண்ணீர்</b> நிரப்புங்கள்.", "habitDescription.greenery_furniture": "<b>பயன்படுத்திய பிளாஸ்டிக்குகளை</b> <b>செடி தொட்டிகள்</b> அல்லது <b>மரச்சாமான்களாக</b> மறுசுழற்சி செய்யுங்கள்.", "habitDescription.handicraft_projects": "<b>பயன்படுத்திய பிளாஸ்டிக்கிலிருந்து</b> பயனுள்ள <b>கைவினைப் பொருட்களை</b> உருவாக்குங்கள்.", "habitDescription.beeswax_food_wraps": "<b>பிளாஸ்டிக் உறைக்கு</b> பதிலாக <b>தேன்பழுகு உறைகளைப்</b> பயன்படுத்துங்கள்.", "habitDescription.bulk_pantry_refill": "உங்கள் சொந்த <b>பாத்திரங்களைப்</b> பயன்படுத்தி <b>மொத்த மளிகைப் பொருட்களை</b> வாங்குங்கள்.",
+    "events.title": "முதல் பிளாஸ்டிக்-இல்லா வீரன் சவால் APU-வில் நடைபெறுகிறது", "events.prizes": "பரிசு விவரங்கள்", "events.pool": "", "events.champion": "சாம்பியன்", "events.runner": "2வது இடம்", "events.second": "2வது இடம்", "events.tiers": "3வது – 5வது இடம்", "events.third": "3வது – 5வது", "events.each": "", "events.prizeChampion": "RM 500", "events.prizeSecond": "RM 200", "events.prizeThird": "RM 100", "events.details": "போட்டி விவரங்கள்", "events.action": "நடவடிக்கை படி", "events.proof": "சமூக ஊடகங்களில் புகைப்படம் அல்லது காணொளி ஆதாரத்தைச் சமர்ப்பிக்கவும்*", "events.social": "ஆதரிக்கப்படும் சமூக ஊடகங்கள்: Instagram, Facebook, YouTube, TikTok, RedNote, X", "events.tag": "குறிச்சொற்களைச் சேர்க்கவும்", "events.judging": "தீர்ப்பு அளவுகோல்கள்", "events.impact": "தாக்கம்", "events.diversion": "நேரடி கழிவு குறைப்பு", "events.collaboration": "கூட்டுமுயற்சி", "events.engagement": "நண்பர்கள் ஈடுபாடு", "events.popularity": "பிரபலம்", "events.verification": "மாணவர் சரிபார்ப்பு", "events.creative": "படைப்பாற்றல்", "events.substitutes": "அசல் மாற்றுகள்", "events.sample": "மாதிரி விளக்கம்", "events.inspect": "அங்கீகரிக்கப்பட்ட சமர்ப்பிப்பை ஆய்வு செய்யவும்", "events.done": "APU-வில் நாம் செய்தது", "events.milestones": "மைல்கற்கள்", "events.items": "500+ பொருட்கள்", "events.itemsDetail": "உணவகங்களில் மறுபயன்பாட்டு கரண்டிகள் வழங்கப்பட்டன", "events.campus": "வளாகம் முழுவதும்", "events.campusDetail": "வளாகத்தில் பிளாஸ்டிக் இல்லாத கரண்டிகள் அறிமுகப்படுத்தப்பட்டன", "events.pioneer": "முன்னோடி நிகழ்வு", "events.pioneerDetail": "APU-வின் முதல் பசுமை வளாக நிகழ்வு",
+    "settings.profile": "சுயவிவரம்", "settings.guest": "விருந்தினர் கணக்கு", "settings.username": "பயனர்பெயர்", "settings.email": "மின்னஞ்சல்", "settings.phone": "தொலைபேசி எண்", "settings.addPhone": "தொலைபேசி எண்ணைச் சேர்க்கவும்", "settings.tagline": "உங்கள் வாசகம்", "settings.preferences": "விருப்பத்தேர்வுகள் & கட்டுப்பாடுகள்", "settings.notifications": "அறிவிப்புகளை அனுமதி", "settings.language": "மொழி", "settings.theme": "பின்னணி தீம்", "theme.light": "வெளிச்சம்", "theme.dark": "இருள்", "theme.system": "அமைப்பு இயல்பு", "theme.ariaLabel": "{label} தீம்", "settings.downloadApp": "செயலியைப் பதிவிறக்குக", "settings.login": "கணக்கில் உள்நுழைக", "settings.logout": "கணக்கிலிருந்து வெளியேறு", "settings.guestNote": "சுயவிவரத்தைச் சேமிக்கவும் வெகுமதிகளைப் பெறவும் உள்நுழையவும்.",
+    "profile.uploadPhoto": "சுயவிவரப் படத்தை பதிவேற்றவும்", "profile.changePhoto": "படத்தை மாற்றவும்", "profile.loginToUpload": "படம் சேர்க்க உள்நுழைக", "profile.uploading": "சேமிக்கிறது…", "profile.photoLimit": "JPG, PNG அல்லது WebP", "profile.photoTooLarge": "அதிகபட்சம் 50 KB.", "profile.photoType": "JPG, PNG அல்லது WebP பயன்படுத்தவும்.", "profile.photoUploaded": "படம் புதுப்பிக்கப்பட்டது!", "profile.photoError": "படத்தை புதுப்பிக்க முடியவில்லை.",
+    "auth.loginTitle": "மீண்டும் வருக", "auth.signupTitle": "கணக்கை உருவாக்கவும்", "auth.subtitle": "மின்னஞ்சல், தொலைபேசி அல்லது சமூக கணக்கு மூலம் உள்நுழையவும்.", "auth.name": "உங்கள் பெயர்", "auth.username": "பயனர்பெயர்", "auth.identifier": "பயனர்பெயர், மின்னஞ்சல் அல்லது தொலைபேசி", "auth.email": "மின்னஞ்சல் முகவரி", "auth.phone": "தொலைபேசி எண்", "auth.password": "கடவுச்சொல்", "auth.login": "உள்நுழைக", "auth.signup": "கணக்கை உருவாக்கு", "auth.google": "Google உடன் தொடரவும்", "auth.or": "அல்லது", "auth.hasAccount": "ஏற்கனவே கணக்கு உள்ளதா? உள்நுழைக", "auth.hasAccountPrefix": "ஏற்கனவே கணக்கு உள்ளதா?", "auth.hasAccountAction": "உள்நுழைக", "auth.newAccount": "Unplastica-விற்கு புதியவரா? பதிவு செய்க", "auth.newAccountPrefix": "Unplastica-விற்கு புதியவரா?", "auth.newAccountAction": "பதிவு செய்க", "auth.emailMode": "மின்னஞ்சல்", "auth.phoneMode": "தொலைபேசி", "auth.code": "SMS சரிபார்ப்புக் குறியீடு", "auth.verify": "தொலைபேசியைச் சரிபார்க்கவும்", "auth.verifiedEmail": "சரிபார்ப்பு இணைப்பிற்கு மின்னஞ்சலைச் சரிபார்க்கவும்.", "auth.phoneSent": "சரிபார்ப்புக் குறியீடு அனுப்பப்பட்டது!", "auth.setupNeeded": "கணக்கு உள்நுழைவு இன்னும் இணைக்கப்படவில்லை.", "auth.genericError": "உள்நுழைவு தோல்வியடைந்தது.", "auth.oauthError": "Google உள்நுழைவைத் தொடங்க முடியவில்லை.",
+    "gate.title": "தொடர உள்நுழையவும்", "gate.body": "வெகுமதிகளைப் பெறவும் புகலிடத்தில் நுழையவும் உள்நுழையவும்.", "gate.login": "உள்நுழைக அல்லது பதிவு செய்க", "gate.cancel": "உலாவலைத் தொடரவும்",
+    "camera.title": "பழக்க ஆதாரத்தை படமெடுக்கவும்", "camera.allow": "கேமரா அனுமதியை வழங்கி மீண்டும் முயற்சிக்கவும்.", "camera.retake": "மீண்டும் எடு", "camera.capture": "படம் எடு", "camera.consent": "சரிபார்ப்பிற்காக தற்காலிக சேமிப்பை அனுமதிக்கவும் (30 நாட்கள் வரை).", "camera.submit": "சரிபார்ப்பிற்கு சமர்ப்பி", "camera.checking": "சரிபார்க்கிறது…", "camera.server": "சேவையகத்தால் சரிபார்க்கப்பட்டது.", "camera.savedNoModel": "ஆதாரம் சேமிக்கப்பட்டது.", "camera.failed": "புகைப்படத்தை சரிபார்க்க முடியவில்லை.", "camera.success": "சரிபார்க்கப்பட்டது! +{points}", "camera.noBackend": "பின்னணி சேவையகம் இணைக்கப்படவில்லை.",
+    "camera.verified": "சரிபார்க்கப்பட்டது", "camera.notVerified": "சரிபார்க்கப்படவில்லை", "camera.notRecognized": "பொருள் தெளிவாக இல்லை. சீரமைத்து மீண்டும் எடுக்கவும்.",
+    "camera.rateLimit": "{lockoutSec} வினாடிகளுக்கு பூட்டப்பட்டது.", "camera.mockRejected": "நேரடி புகைப்படத்தை எடுக்கவும்.",
+    "camera.uploadPhoto": "புகைப்படத்தைப் பதிவேற்றவும்", "camera.checkingPhoto": "புகைப்படம் சரிபார்க்கப்படுகிறது…", "camera.canvasUnavailable": "திரை கிடைக்கவில்லை", "camera.preparing": "கேமரா தயாராகிறது…",
+    "camera.fileTooLarge": "அதிகபட்ச கோப்பு அளவு 10 MB.", "camera.resTooHigh": "தெளிவுத்திறன் மிக அதிகம். நிலையான புகைப்படம் எடுக்கவும்.",
+    "earn.cooldownActive": "இடைவேளை: {h}ம {m}நி மீதமுள்ளது", "earn.dailyLimitReachedToday": "இன்றைய வரம்பு எட்டப்பட்டது!",
+    "earn.dailyLimitReachedToast": "இன்றைய வரம்பு எட்டப்பட்டது!", "earn.dailyQuotaToday": "இன்று {used}/{limit}", "earn.dailyQuotaCapped": "தினசரி வரம்பு முடிந்தது!",
+    "earn.dailyQuotaCooldown": "{h}ம {m}நி காத்திருக்கவும்", "earn.dailyQuotaNotice": "தினசரி வரம்பு எட்டப்பட்டது!",
+    "criteria.length72": "8–72 எழுத்துகள்", "criteria.length36": "8–36 எழுத்துகள்", "criteria.complexity": "1 எண், எழுத்து மற்றும் சிறப்பு குறியீடு (!@#$)",
+    "auth.newPasswordLabel": "புதிய கடவுச்சொல்", "auth.confirmPasswordLabel": "கடவுச்சொல்லை உறுதிப்படுத்துக", "auth.repeatPasswordPlaceholder": "கடவுச்சொல்லை மீண்டும் உள்ளிடவும்",
+    "auth.passwordMismatch": "கடவுச்சொற்கள் பொருந்தவில்லை.", "auth.passwordRequirement": "கடவுச்சொல் 8–36 எழுத்துகள் நீளமும் எண், எழுத்து மற்றும் குறியீட்டைக் கொண்டிருக்க வேண்டும்.",
+    "auth.passwordRequirement72": "கடவுச்சொல் குறைந்தது 8 எழுத்துகள் நீளமும் எழுத்து, எண் மற்றும் குறியீட்டைக் கொண்டிருக்க வேண்டும்.",
+    "auth.setPassword": "கடவுச்சொல்லை அமைக்கவும்", "auth.closePassword": "மூடு", "auth.setAccountPasswordTitle": "கணக்கு கடவுச்சொல்லை அமைக்கவும்",
+    "auth.setPasswordGoogleDesc": "உங்கள் கணக்கு Google மூலம் இணைக்கப்பட்டுள்ளது. கடவுச்சொல்லை அமைப்பது எந்த சாதனத்திலும் நேரடியாக உள்நுழைய அனுமதிக்கும்!",
+    "auth.setPasswordDeviceDesc": "உங்கள் கணக்கு இந்த சாதனத்தில் உருவாக்கப்பட்டது. கடவுச்சொல்லை அமைப்பது எந்த சாதனத்திலும் உள்நுழைய அனுமதிக்கும்!",
+    "auth.passwordSetSuccess": "கடவுச்சொல் வெற்றிகரமாக அமைக்கப்பட்டது!", "auth.passwordSetFailed": "கடவுச்சொல் அமைப்பதில் தோல்வி: {error}",
+    "auth.updating": "புதுப்பிக்கிறது…", "auth.microsoft": "Microsoft / Outlook மூலம் தொடரவும்", "auth.forgotPasswordPrompt": "கடவுச்சொல் மறந்துவிட்டதா?",
+    "auth.enterEmailForReset": "கடவுச்சொல் அமைக்கும் இணைப்பைப் பெற மின்னஞ்சலை உள்ளிடவும்.",
+    "auth.resetEmailSent": "கடவுச்சொல் இணைப்பு {email} முகவரிக்கு அனுப்பப்பட்டது!", "auth.resetEmailFailed": "கடவுச்சொல் இணைப்பு அனுப்ப முடியவில்லை.",
+    "auth.resendConfirmation": "உறுதிப்படுத்தல் மின்னஞ்சலை மீண்டும் அனுப்பு", "auth.confirmationResent": "மின்னஞ்சல் மீண்டும் அனுப்பப்பட்டது!",
+    "auth.resendFailed": "மின்னஞ்சல் மீண்டும் அனுப்புவதில் தோல்வி.", "auth.lockoutMessage": "பல தவறான முயற்சிகள். {sec} வினாடிகளுக்கு பூட்டப்பட்டுள்ளது.",
+    "auth.accountCreatedNotice": "கணக்கு உருவாக்கப்பட்டது! உங்கள் மின்னஞ்சல் அல்லது பயனர்பெயரைக் கொண்டு உள்நுழையலாம்.", "auth.oauthNoticePrefix": "அறிவிப்பு:",
+    "auth.oauthMicrosoftNotice": "Microsoft மூலம் உருவாக்கப்பட்ட கணக்குகளுக்கு இயல்பாக கடவுச்சொல் இல்லை.", "auth.oauthGoogleNotice": "Google மூலம் உருவாக்கப்பட்ட கணக்குகளுக்கு இயல்பாக கடவுச்சொல் இல்லை.",
+    "auth.sendPasswordSetupLink": "எனது மின்னஞ்சலுக்கு கடவுச்சொல் அமைக்கும் இணைப்பை அனுப்பு", "auth.invalidUsernameOrPassword": "தவறான பயனர்பெயர் அல்லது கடவுச்சொல்.",
+    "auth.invalidCredentialsMicrosoftHint": "தவறான உள்நுழைவு விவரங்கள்.",
+    "auth.invalidCredentialsGoogleHint": "தவறான உள்நுழைவு விவரங்கள்.",
+    "auth.usernameRuleError": "பயனர்பெயர் 3–30 எழுத்துகள் இருக்க வேண்டும்.",
+    "auth.usernameLengthError": "பயனர்பெயர் 1 எழுத்துக்கு மேல் இருக்க வேண்டும்.",
+    "auth.usernameCharError": "பயனர்பெயரில் எழுத்துகள், எண்கள், அடிக்கோடுகள், புள்ளிகள் மட்டுமே இருக்கலாம்.",
+    "auth.codeSentToPhone": "சரிபார்ப்புக் குறியீடு அனுப்பப்பட்டது.", "auth.enterValidPhone": "செல்லுபடியாகும் தொலைபேசி எண்ணை உள்ளிடவும்.",
+    "settings.preferenceSaveError": "விருப்பத்தேர்வுகளைச் சேமிக்க முடியவில்லை.", "settings.outlookAccountLabel": "Microsoft / Outlook கணக்கு",
+    "settings.googleAccountLabel": "Google கணக்கு (Gmail)", "settings.guestConnectHint": "விருந்தினர் (உள்நுழையவும்)",
+    "settings.guestPhoneHint": "விருந்தினர் (உள்நுழையவும்)", "settings.notLinkedHint": "இணைக்கப்படவில்லை",
+    "settings.forceRefreshClearCache": "புதுப்பித்து தற்காலிக நினைவகத்தை அழிக்கவும்", "settings.updateReady": "புதுப்பிப்பு தயார்", "settings.updatingApp": "புதுப்பிக்கிறது…",
+    "settings.newBadge": "புதியது", "settings.taglinePlaceholder": "பிளாஸ்டிக்கைக் குறைப்போம், கடலைக் காப்போம்.",
+    "settings.notificationsEnabled": "அறிவிப்புகள் இயக்கப்பட்டன!",
+    "settings.notificationsDisabled": "அறிவிப்புகள் முடக்கப்பட்டன.",
+    "settings.notificationsBlocked": "உலாவி அமைப்புகளில் அறிவிப்புகளை அனுமதிக்கவும்.",
+    "settings.notificationsNotSupported": "இந்த உலாவியில் அறிவிப்புகள் ஆதரிக்கப்படவில்லை.",
+    "settings.notificationsPermissionDenied": "அறிவிப்பு அனுமதி மறுக்கப்பட்டது.",
+    "notification.apuTitle": "🏆 APU பிளாஸ்டிக் இல்லா சவால்!",
+    "notification.apuBody": "RM 1,000 பரிசுத்தொகுப்பு! பிளாஸ்டிக்கைத் தவிர்த்து பணப்பரிசுகளை வெல்லுங்கள்.",
+    "notification.welcomeTitle": "அறிவிப்புகள் இயக்கப்பட்டன 🔔",
+    "notification.welcomeBody": "சவால் நினைவூட்டல்கள் மற்றும் செய்திகளைப் பெறுவீர்கள்!",
+    "notification.verifiedTitle": "✅ பழக்கம் சரிபார்க்கப்பட்டது!",
+    "notification.verifiedBody": "உங்கள் பழக்க ஆதாரம் அங்கீகரிக்கப்பட்டது! +{points} புள்ளிகள் பெறப்பட்டன.",
+    "common.back": "பின்செல்", "common.close": "மூடு", "common.cancel": "ரத்து", "settings.logoutAction": "வெளியேறு", "auth.logoutConfirmTitle": "வெளியேறவா?", "auth.logoutConfirmDesc": "எப்போது வேண்டுமானாலும் மீண்டும் உள்நுழையலாம்.", "profile.cropTitle": "படத்தை செதுக்கு", "profile.cropSave": "சேமிக்க", "profile.zoom": "பெரிதாக்கு", "common.dismiss": "விலக்கு", "common.wait": "காத்திருக்கவும்…", "common.profile": "சுயவிவரம்", "common.choose": "முதலில் ஒரு பழக்கத்தைத் தேர்ந்தெடுக்கவும்!", "common.ok": "சரி", "common.about": "{habit} பற்றி", "common.logoutSuccess": "வெளியேறியாச்சு.", "common.languageSaved": "மொழியைச் சேமிக்க முடியவில்லை.", "camera.alt": "முன்னோட்டம்",
+    "sample.approved": "அங்கீகரிக்கப்பட்ட மாதிரி", "sample.submission": "சமர்ப்பிப்பு #0042", "sample.title": "வளாக நீர் நிரப்புதல் பயணம்", "sample.description": "சொந்த பாட்டிலைப் பயன்படுத்தி 14 ஒருமுறை பயன்பாட்டு பாட்டில்கள் தவிர்க்கப்பட்டன.", "sample.score": "மதிப்பெண்", "sample.rating": "தாக்க மதிப்பீடு",
+    "install.openBrowser": "உலாவியில் திறக்கவும்", "install.browserHelp": "Safari அல்லது Chrome பரிந்துரைக்கப்படுகிறது.", "install.title": "முகப்புத் திரையில் சேர்க்கவும்", "install.iosHelp": "பகிர் என்பதைத் தட்டி முகப்புத் திரையில் சேர்க்கவும்.", "install.keep": "எப்போதும் எளிதாக அணுக", "install.help": "வேகமாக திறக்க செயலியை நிறுவவும்.", "install.manualHelp": "மெனுவில் முகப்புத் திரையில் சேர் என்பதைத் தேர்ந்தெடுக்கவும்.", "install.button": "செயலியை நிறுவு", "update.notice": "புதுப்பிக்கிறது…", "update.refresh": "புதுப்பி", "update.available": "புதிய பதிப்பு உள்ளது!", "update.clearCache": "புதுப்பித்து நினைவகத்தை அழி",
+  },
 };
 
 export function getLanguage(): Language {
   const stored = localStorage.getItem("unplastica-language");
-  return stored === "Bahasa Melayu" || stored === "中文" ? stored : "English";
+  return stored === "Bahasa Melayu" || stored === "中文" || stored === "தமிழ்" ? stored : "English";
 }
 
 export function translate(language: Language, key: string, values?: Record<string, string | number>): string {

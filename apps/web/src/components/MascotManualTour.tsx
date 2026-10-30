@@ -12,6 +12,7 @@ export interface MascotTourStep {
     en: (coinImg: React.ReactNode) => React.ReactNode;
     bm: (coinImg: React.ReactNode) => React.ReactNode;
     zh: (coinImg: React.ReactNode) => React.ReactNode;
+    ta: (coinImg: React.ReactNode) => React.ReactNode;
   };
 }
 
@@ -41,6 +42,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "Welcome to unplastica!",
       bm: () => "Selamat datang ke unplastica!",
       zh: () => "欢迎来到 unplastica！",
+      ta: () => "unplastica-விற்கு நல்வரவு!",
     },
   },
   // 2
@@ -53,6 +55,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "Do you know that reducing plastics saves me?",
       bm: () => "Tahukah anda mengurangkan plastik menyelamatkan saya?",
       zh: () => "你知道减少塑料可以拯救我吗？",
+      ta: () => "பிளாஸ்டிக்கைக் குறைப்பது என்னை எப்படிக் காப்பாற்றுகிறது தெரியுமா?",
     },
   },
   // 3
@@ -65,6 +68,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "I hate plastics! Sometimes I ate it and thought it is a jellyfish!",
       bm: () => "Saya benci plastik! Kadang-kadang saya termakannya kerana sangka ia obor-obor!",
       zh: () => "我讨厌塑料！有时我误以为它是水母吃下去了！",
+      ta: () => "எனக்கு பிளாஸ்டிக் பிடிக்காது! சில நேரங்களில் அதை ஜெல்லிமீன் என்று நினைத்து சாப்பிட்டுவிடுவேன்!",
     },
   },
   // 4
@@ -77,6 +81,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "Now, let me show you how to use this app!",
       bm: () => "Sekarang, mari saya tunjukkan cara menggunakan aplikasi ini!",
       zh: () => "现在，让我带你了解如何使用这个应用吧！",
+      ta: () => "இப்போது, இந்த செயலியை எவ்வாறு பயன்படுத்துவது என்பதை உங்களுக்குக் காட்டுகிறேன்!",
     },
   },
   // 5
@@ -89,6 +94,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "You can enter your personal virtual ecosystem in here!",
       bm: () => "Anda boleh memasuki ekosistem maya peribadi anda di sini!",
       zh: () => "你可以在这里进入你的专属虚拟生态天地！",
+      ta: () => "இங்கே உங்கள் தனிப்பட்ட மெய்நிகர் சுற்றுச்சூழல் அமைப்பில் நுழையலாம்!",
     },
   },
   // 6
@@ -101,6 +107,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: (coin) => <>Wonder how you can use {coin}? Directly in this virtual ecosystem!</>,
       bm: (coin) => <>Tertanya-tanya bagaimana menggunakan {coin}? Terus dalam ekosistem maya ini!</>,
       zh: (coin) => <>想知道怎么使用 {coin} 吗？直接在这个虚拟生态里使用！</>,
+      ta: (coin) => <>{coin} நாணயங்களை எப்படிப் பயன்படுத்துவது என்று ஆச்சரியப்படுகிறீர்களா? நேரடியாக இந்த மெய்நிகர் சுற்றுச்சூழல் அமைப்பில்!</>,
     },
   },
   // 7
@@ -113,6 +120,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: (coin) => <>Here is where you can earn {coin} for your personal virtual ecosystem!</>,
       bm: (coin) => <>Di sinilah anda boleh mengumpul {coin} untuk ekosistem maya anda!</>,
       zh: (coin) => <>这里就是为你的虚拟生态天地赚取 {coin} 的地方！</>,
+      ta: (coin) => <>உங்கள் தனிப்பட்ட மெய்நிகர் சரணாலயத்திற்கு {coin} சம்பாதிக்கக்கூடிய இடம் இதுவே!</>,
     },
   },
   // 8
@@ -125,6 +133,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: (coin) => <>By reducing plastics using these habits, you get to earn coins {coin}!</>,
       bm: (coin) => <>Dengan mengurangkan plastik melalui amalan ini, anda boleh dapatkan syiling {coin}!</>,
       zh: (coin) => <>通过实践这些无塑习惯减少塑料，就能赚取硬币 {coin}！</>,
+      ta: (coin) => <>இந்த பழக்கங்கள் மூலம் பிளாஸ்டிக்கைக் குறைத்து, நீங்கள் நாணயங்களை {coin} சம்பாதிக்கலாம்!</>,
     },
   },
   // 9
@@ -137,6 +146,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "These are the important events unplastica organised!",
       bm: () => "Inilah acara penting yang dianjurkan oleh unplastica!",
       zh: () => "这些是 unplastica 举办的重要活动！",
+      ta: () => "இவை unplastica ஏற்பாடு செய்த முக்கியமான நிகழ்வுகள்!",
     },
   },
   // 10
@@ -149,6 +159,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "Do you know that you can win up to RM 500 just by reducing plastics? Join now!",
       bm: () => "Tahukah anda bahawa anda boleh memenangi sehingga RM 500 hanya dengan kurangkan plastik? Sertai sekarang!",
       zh: () => "你知道吗？只要减少塑料就有机会赢得高达 RM 500 奖金！快来参加吧！",
+      ta: () => "பிளாஸ்டிக்கைக் குறைப்பதன் மூலமே நீங்கள் RM 500 வரை வெல்லலாம் தெரியுமா? இப்போதே இணையுங்கள்!",
     },
   },
   // 11
@@ -161,6 +172,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "Here is where you can change your personal settings!",
       bm: () => "Di sinilah tempat anda mengubah tetapan peribadi anda!",
       zh: () => "这里是你可以修改个人设置的地方！",
+      ta: () => "இங்கே உங்கள் தனிப்பட்ட அமைப்புகளை மாற்றலாம்!",
     },
   },
   // 12
@@ -173,6 +185,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "Here is where you rerun this manual again, allow notifications or set language and theme!",
       bm: () => "Di sinilah anda boleh mainkan manual ini semula, benarkan pemberitahuan atau tetapkan bahasa dan tema!",
       zh: () => "在这里你可以重看使用指南、开启通知，或设置语言与主题！",
+      ta: () => "இங்கே நீங்கள் இந்த கையேட்டை மீண்டும் இயக்கலாம், அறிவிப்புகளை அனுமதிக்கலாம் அல்லது மொழி மற்றும் கருப்பொருளை அமைக்கலாம்!",
     },
   },
   // 13
@@ -185,6 +198,7 @@ export const TOUR_STEPS: MascotTourStep[] = [
       en: () => "Have a nice day! Thanks for being part of us!",
       bm: () => "Semoga hari anda ceria! Terima kasih kerana menjadi sebahagian daripada kami!",
       zh: () => "祝你有美好的一天！感谢你加入我们！",
+      ta: () => "இனிய நாளாக அமையட்டும்! எங்களுடன் இணைந்ததற்கு நன்றி!",
     },
   },
 ];
@@ -211,11 +225,11 @@ export function MascotManualTour({
   }, []);
 
   const isNarrow = windowWidth < 480;
-  const turtleWidth = isNarrow ? 116 : 155;
-  const turtleHeight = Math.round(turtleWidth * 0.9);
+  const turtleWidth = isNarrow ? 120 : 155;
+  const turtleHeight = Math.round(turtleWidth * 0.95);
 
   const step = TOUR_STEPS[currentStepIdx];
-  const langKey = language === "Bahasa Melayu" ? "bm" : language === "中文" ? "zh" : "en";
+  const langKey = language === "Bahasa Melayu" ? "bm" : language === "中文" ? "zh" : language === "தமிழ்" ? "ta" : "en";
 
   const updateFocus = useCallback((shouldScroll = false) => {
     if (!step.focus) {
@@ -277,18 +291,22 @@ export function MascotManualTour({
 
   const isLast = currentStepIdx === TOUR_STEPS.length - 1;
 
-  const quitLabel = langKey === "bm" ? "Keluar" : langKey === "zh" ? "退出" : "Quit";
-  const backLabel = langKey === "bm" ? "Kembali" : langKey === "zh" ? "上一步" : "Back";
+  const quitLabel = langKey === "bm" ? "Keluar" : langKey === "zh" ? "退出" : langKey === "ta" ? "வெளியேறு" : "Quit";
+  const backLabel = langKey === "bm" ? "Kembali" : langKey === "zh" ? "上一步" : langKey === "ta" ? "முந்தையது" : "Back";
   const nextLabel = isLast
     ? langKey === "bm"
       ? "Selesai"
       : langKey === "zh"
       ? "完成"
+      : langKey === "ta"
+      ? "முடிந்தது"
       : "Finish"
     : langKey === "bm"
     ? "Seterusnya"
     : langKey === "zh"
     ? "下一步"
+    : langKey === "ta"
+    ? "அடுத்தது"
     : "Next";
 
   return (
@@ -359,7 +377,7 @@ export function MascotManualTour({
           right: 0,
           ...(isTop
             ? { top: "max(16px, env(safe-area-inset-top) + 12px)", bottom: "auto" }
-            : { bottom: "max(16px, env(safe-area-inset-bottom) + 12px)", top: "auto" }),
+            : { bottom: "max(38px, env(safe-area-inset-bottom) + 32px)", top: "auto" }),
           display: "flex",
           justifyContent: "center",
           padding: "0 14px",
@@ -387,7 +405,7 @@ export function MascotManualTour({
               height: turtleHeight,
               filter:
                 "drop-shadow(0 14px 28px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 20px rgba(174, 246, 130, 0.5))",
-              transform: isTop ? "translateY(-4px)" : "translateY(8px)",
+              transform: "translateY(0)",
               animation: "mascotSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1), mascotTalkingBounce 1.5s ease-in-out infinite",
             }}
           >

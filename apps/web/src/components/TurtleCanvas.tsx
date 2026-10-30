@@ -72,7 +72,7 @@ export function TurtleCanvas({
           rigRef.current.tearDrops,
           false,
           undefined,
-          { skipClear: true, framingScale: 0.9 }
+          { skipClear: true, framingScale: 0.8 }
         );
         ctx.restore();
       }

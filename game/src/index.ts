@@ -74,7 +74,11 @@ const INFO_SVG_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height
 
 const TOWER_SVG_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 19 9 12 22 5 9 12 2"/><circle cx="12" cy="9" r="2.5"/></svg>`;
 
-const WORLD_MAP_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+const WORLD_MAP_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/><circle cx="12" cy="9" r="1.5" fill="currentColor"/><path d="M12 4a3 3 0 0 0-3 3c0 2.5 3 6 3 6s3-3.5 3-6a3 3 0 0 0-3-3z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>`;
+
+const PET_PAW_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11c-2.4 0-4.3 1.8-4.3 4.2 0 2 1.8 3.3 4.3 3.3s4.3-1.3 4.3-3.3c0-2.4-1.9-4.2-4.3-4.2z"/><circle cx="6.5" cy="9.5" r="2.2" fill="currentColor"/><circle cx="10" cy="5.5" r="2.2" fill="currentColor"/><circle cx="14" cy="5.5" r="2.2" fill="currentColor"/><circle cx="17.5" cy="9.5" r="2.2" fill="currentColor"/></svg>`;
+
+const LOCATION_PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
 
 const CART_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1.5"/><circle cx="20" cy="21" r="1.5"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`;
 
@@ -235,18 +239,12 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   worldCanvas.setAttribute('aria-label', 'Wild Malaysia Interactive Ecosystem World');
   root.appendChild(worldCanvas);
 
-  let currentLang: GameLanguage = options?.language ?? 'English';
-  const handleLangSync = (e: Event) => {
-    const detail = (e as CustomEvent).detail;
-    if (detail && (detail === 'English' || detail === 'Bahasa Melayu' || detail === '中文')) {
-      currentLang = detail;
-      renderEntityCard();
-      renderDockCards();
-    }
-  };
-  window.addEventListener('unplastica-sync-game-language', handleLangSync);
+  const storedLang = (typeof localStorage !== 'undefined' ? localStorage.getItem('unplastica-language') : null) as GameLanguage | null;
+  let currentLang: GameLanguage = (storedLang === 'Bahasa Melayu' || storedLang === '中文' || storedLang === 'தமிழ்' || storedLang === 'English')
+    ? storedLang
+    : (options?.language ?? 'English');
 
-  // 2. Minimalist Top HUD with 4 Circular Buttons (World Map, Store, Postcard View, Red Exit)
+  // 2. Minimalist Top HUD with Circular Buttons (Pets, World Map, Store, Postcard View, Red Exit)
   // Greenbit coin count is intentionally removed from the game HUD (only shown inside Store modal).
   const hudTop = document.createElement('header');
   hudTop.className = 'hud-top';
@@ -254,6 +252,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
   const buttonCluster = document.createElement('div');
   buttonCluster.className = 'hud-cluster';
+
+  // Left of Map: Circular Pets Button (Paw SVG only)
+  const petsBtn = document.createElement('button');
+  petsBtn.type = 'button';
+  petsBtn.className = 'hud-circle-btn pets-btn';
+  petsBtn.innerHTML = PET_PAW_SVG;
+  petsBtn.setAttribute('aria-label', getGameString('myPets', currentLang));
+  petsBtn.title = getGameString('myPets', currentLang);
+  petsBtn.addEventListener('click', () => openPetsTeleportModal());
 
   const mapBtn = document.createElement('button');
   mapBtn.type = 'button';
@@ -279,10 +286,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   postcardBtn.title = getGameString('postcardView', currentLang);
   postcardBtn.addEventListener('click', () => setPostcardView(true));
 
-  buttonCluster.append(mapBtn, storeBtn, postcardBtn);
+  buttonCluster.append(petsBtn, mapBtn, storeBtn, postcardBtn);
 
+  let exitBtn: HTMLButtonElement | null = null;
   if (options?.onExit) {
-    const exitBtn = document.createElement('button');
+    exitBtn = document.createElement('button');
     exitBtn.type = 'button';
     exitBtn.className = 'hud-circle-btn exit-btn';
     exitBtn.innerHTML = EXIT_DOOR_ROUND_SVG;
@@ -293,6 +301,43 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     });
     buttonCluster.append(exitBtn);
   }
+
+  const updateHudTooltips = () => {
+    petsBtn.setAttribute('aria-label', getGameString('myPets', currentLang));
+    petsBtn.title = getGameString('myPets', currentLang);
+    mapBtn.setAttribute('aria-label', getGameString('worldMap', currentLang));
+    mapBtn.title = getGameString('worldMap', currentLang);
+    storeBtn.setAttribute('aria-label', getGameString('store', currentLang));
+    storeBtn.title = getGameString('store', currentLang);
+    postcardBtn.setAttribute('aria-label', getGameString('postcardView', currentLang));
+    postcardBtn.title = getGameString('postcardView', currentLang);
+    if (exitBtn) {
+      exitBtn.setAttribute('aria-label', getGameString('exit', currentLang));
+      exitBtn.title = getGameString('exit', currentLang);
+    }
+  };
+
+  const handleLangSync = (e: Event) => {
+    const raw = (e as CustomEvent).detail;
+    const detail = (typeof raw === 'object' && raw ? (raw.language || raw.lang) : raw) as GameLanguage;
+    if (detail && (detail === 'English' || detail === 'Bahasa Melayu' || detail === '中文' || detail === 'தமிழ்')) {
+      currentLang = detail;
+      updateHudTooltips();
+      renderEntityCard();
+      renderDockCards();
+    }
+  };
+  window.addEventListener('unplastica-sync-game-language', handleLangSync);
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'unplastica-language' && e.newValue) {
+      if (e.newValue === 'English' || e.newValue === 'Bahasa Melayu' || e.newValue === '中文' || e.newValue === 'தமிழ்') {
+        currentLang = e.newValue as GameLanguage;
+        updateHudTooltips();
+        renderEntityCard();
+        renderDockCards();
+      }
+    }
+  });
 
   hudTop.append(buttonCluster);
   root.appendChild(hudTop);
@@ -518,10 +563,56 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
   // ============================================================================
   // BOTTOM PANEL CARDS (All owned items in one clean strip + "Drag me!" on hover)
+  // Hold-to-drag allows smooth horizontal scrolling without accidentally dragging!
   // ============================================================================
+  function attachHoldToDrag(
+    cardEl: HTMLElement,
+    getItem: (clientX: number, clientY: number) => ActiveDragItem | null
+  ): void {
+    let holdTimer = 0;
+    let startX = 0;
+    let startY = 0;
+    let isHolding = false;
+
+    const clearHold = () => {
+      window.clearTimeout(holdTimer);
+      cardEl.classList.remove('is-held');
+      isHolding = false;
+    };
+
+    cardEl.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      isHolding = true;
+
+      holdTimer = window.setTimeout(() => {
+        if (!isHolding) return;
+        const item = getItem(e.clientX, e.clientY);
+        if (!item) return;
+        cardEl.classList.add('is-held');
+        startDraggingItem(item);
+      }, 230); // 230ms threshold allows smooth scrolling without accidental drags
+    });
+
+    cardEl.addEventListener('pointermove', (e) => {
+      if (!isHolding) return;
+      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+      // If moved more than 7px before hold timer fires, user is scrolling the strip!
+      if (dist > 7) {
+        clearHold();
+      }
+    });
+
+    cardEl.addEventListener('pointerup', clearHold);
+    cardEl.addEventListener('pointercancel', clearHold);
+    cardEl.addEventListener('pointerleave', clearHold);
+  }
+
   function renderDockCards(): void {
     dockStrip.innerHTML = '';
     let totalRendered = 0;
+    const dragMsg = currentLang === '中文' ? '拖动我！' : currentLang === 'Bahasa Melayu' ? 'Tarik saya!' : currentLang === 'தமிழ்' ? 'இழுக்கவும்!' : 'Drag me!';
 
     // 1. Owned Food Cards
     for (const food of foodList) {
@@ -535,7 +626,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
       const dragPop = document.createElement('span');
       dragPop.className = 'dock-card-drag-pop';
-      dragPop.textContent = 'Drag me!';
+      dragPop.textContent = dragMsg;
 
       const countSpan = document.createElement('span');
       countSpan.className = 'dock-card-count';
@@ -552,26 +643,32 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
       card.append(dragPop, countSpan, img, title);
 
-      card.addEventListener('pointerdown', (e) => {
-        if ((saveState.foodInventory[food.id] ?? 0) <= 0) return;
-        e.preventDefault();
-        startDraggingItem({
+      attachHoldToDrag(card, (clientX, clientY) => {
+        if ((saveState.foodInventory[food.id] ?? 0) <= 0) return null;
+        return {
           kind: 'food',
           id: food.id,
           label: food.name,
           thumbUrl: img.src,
-          pointerX: e.clientX,
-          pointerY: e.clientY,
-        });
+          pointerX: clientX,
+          pointerY: clientY,
+        };
       });
 
       dockStrip.appendChild(card);
     }
 
-    // 2. Owned Animal & Plant Cards
+    // 2. Owned Animal & Plant Cards (Animals already placed in the world are removed from bottom dock bar)
     for (const asset of ROSTER_ASSETS) {
       const ownedCount = saveState.ownedAssets[asset.id] ?? 0;
       if (ownedCount <= 0) continue;
+
+      let availableInBag = ownedCount;
+      if (asset.isAnimal) {
+        const placedCount = saveState.placedAnimals.filter((a) => a.assetId === asset.id).length;
+        availableInBag = Math.max(0, ownedCount - placedCount);
+      }
+      if (availableInBag <= 0) continue;
       totalRendered++;
 
       const card = document.createElement('div');
@@ -580,34 +677,39 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
       const dragPop = document.createElement('span');
       dragPop.className = 'dock-card-drag-pop';
-      dragPop.textContent = 'Drag me!';
+      dragPop.textContent = dragMsg;
 
       const countSpan = document.createElement('span');
       countSpan.className = 'dock-card-count';
-      countSpan.textContent = `x${ownedCount}`;
+      countSpan.textContent = `x${availableInBag}`;
 
       const img = document.createElement('img');
       img.className = 'dock-card-thumb';
       bindAssetThumbnailImage(img, asset.id);
       img.alt = asset.name;
 
+      const localizedName = getLocalizedAssetName(asset.id, asset.name, currentLang);
       const title = document.createElement('div');
       title.className = 'dock-card-title';
-      title.textContent = asset.name;
+      title.textContent = localizedName;
 
       card.append(dragPop, countSpan, img, title);
 
-      card.addEventListener('pointerdown', (e) => {
-        if ((saveState.ownedAssets[asset.id] ?? 0) <= 0) return;
-        e.preventDefault();
-        startDraggingItem({
+      attachHoldToDrag(card, (clientX, clientY) => {
+        let curCount = saveState.ownedAssets[asset.id] ?? 0;
+        if (asset.isAnimal) {
+          const placedCount = saveState.placedAnimals.filter((a) => a.assetId === asset.id).length;
+          curCount = Math.max(0, curCount - placedCount);
+        }
+        if (curCount <= 0) return null;
+        return {
           kind: 'asset',
           id: asset.id,
-          label: asset.name,
+          label: localizedName,
           thumbUrl: getAssetThumbnailDataUrl(asset.id),
-          pointerX: e.clientX,
-          pointerY: e.clientY,
-        });
+          pointerX: clientX,
+          pointerY: clientY,
+        };
       });
 
       dockStrip.appendChild(card);
@@ -616,7 +718,14 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     if (totalRendered === 0) {
       const emptyMsg = document.createElement('div');
       emptyMsg.className = 'dock-empty-msg';
-      emptyMsg.textContent = 'Open Store to get animals, plants, or food.';
+      emptyMsg.textContent =
+        currentLang === '中文'
+          ? '背包暂空，前往商店获取物种或食物吧！'
+          : currentLang === 'Bahasa Melayu'
+          ? 'Beg anda kosong, buka Kedai untuk dapatkan haiwan atau makanan!'
+          : currentLang === 'தமிழ்'
+          ? 'பை காலியாக உள்ளது, கடையைத் திறந்து விலங்குகளைப் பெறுங்கள்!'
+          : 'Your bag is empty. Open Store to get animals, plants, or food.';
       dockStrip.appendChild(emptyMsg);
     }
   }
@@ -651,7 +760,31 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     dragGhost.style.display = 'none';
 
     const dockRect = bottomDock.getBoundingClientRect();
-    if (!isDockCollapsed && e.clientY >= dockRect.top - 10) {
+    if (e.clientY >= dockRect.top - 20) {
+      if (item.kind === 'reposition_animal' && item.placedUid) {
+        // Dragged from forest back to bottom dock bar: recall back into bag!
+        const idx = saveState.placedAnimals.findIndex((a) => a.uid === item.placedUid);
+        if (idx !== -1) {
+          const removed = saveState.placedAnimals.splice(idx, 1)[0];
+          if (selectedAnimalUid === removed.uid) {
+            selectedAnimalUid = saveState.placedAnimals[0]?.uid ?? null;
+          }
+          soundEngine.playCoinChime();
+          const animalName = removed.customName || getLocalizedAssetName(removed.assetId, 'Animal', currentLang);
+          showToast(
+            currentLang === '中文'
+              ? `已将 ${animalName} 收回背包`
+              : currentLang === 'Bahasa Melayu'
+              ? `${animalName} telah disimpan semula ke dalam beg`
+              : currentLang === 'தமிழ்'
+              ? `${animalName} பையில் சேர்க்கப்பட்டது`
+              : `Returned ${animalName} to your bag`
+          );
+          renderEntityCard();
+          renderDockCards();
+          persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+        }
+      }
       return;
     }
 
@@ -1061,7 +1194,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
         if (initialPinchDistance > 10 && currentDist > 10) {
           const factor = currentDist / initialPinchDistance;
-          targetCameraZoom = clamp(initialPinchZoom * factor, 0.45, 2.2);
+          targetCameraZoom = clamp(initialPinchZoom * factor, 0.22, 2.2);
         }
       }
     },
@@ -1083,7 +1216,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       if (e.ctrlKey || e.metaKey) {
         // Trackpad / browser pinch gesture
         const zoomDelta = -e.deltaY * 0.005;
-        targetCameraZoom = clamp(targetCameraZoom + zoomDelta, 0.45, 2.2);
+        targetCameraZoom = clamp(targetCameraZoom + zoomDelta, 0.22, 2.2);
         return;
       }
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
@@ -1356,7 +1489,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     fullnessWrap.className = 'fullness-wrap';
     const fullnessHeader = document.createElement('div');
     fullnessHeader.className = 'fullness-header';
-    fullnessHeader.innerHTML = `<span>Fullness</span><span>${fullnessPct}%</span>`;
+    const fullnessLabel = getGameString('fullness', currentLang);
+    const condLabel = getGameString('condition', currentLang);
+    fullnessHeader.innerHTML = `<span>${fullnessLabel}</span><span>${fullnessPct}%</span>`;
     const barTrack = document.createElement('div');
     barTrack.className = 'hunger-bar-track';
     const barFill = document.createElement('div');
@@ -1371,9 +1506,36 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     // (iv) Condition: xxx
     const condRow = document.createElement('div');
     condRow.className = 'condition-row';
-    condRow.textContent = `Condition: ${conditionText}`;
+    condRow.textContent = `${condLabel}: ${conditionText}`;
 
-    entityCard.append(nameRow, loveRow, fullnessWrap, condRow);
+    // (v) Recall / Store in Bag button
+    const recallBtn = document.createElement('button');
+    recallBtn.type = 'button';
+    recallBtn.className = 'entity-recall-btn';
+    recallBtn.textContent = getGameString('recallToBag', currentLang);
+    recallBtn.addEventListener('click', () => {
+      const idx = saveState.placedAnimals.findIndex((a) => a.uid === animal.uid);
+      if (idx !== -1) {
+        const removed = saveState.placedAnimals.splice(idx, 1)[0];
+        selectedAnimalUid = saveState.placedAnimals[0]?.uid ?? null;
+        soundEngine.playCoinChime();
+        const animalName = removed.customName || getLocalizedAssetName(removed.assetId, 'Animal', currentLang);
+        showToast(
+          currentLang === '中文'
+            ? `已将 ${animalName} 收回背包`
+            : currentLang === 'Bahasa Melayu'
+            ? `${animalName} telah disimpan semula ke dalam beg`
+            : currentLang === 'தமிழ்'
+            ? `${animalName} பையில் சேர்க்கப்பட்டது`
+            : `Returned ${animalName} to your bag`
+        );
+        renderEntityCard();
+        renderDockCards();
+        persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+      }
+    });
+
+    entityCard.append(nameRow, loveRow, fullnessWrap, condRow, recallBtn);
   }
 
   function syncHudDOM(): void {
@@ -1818,7 +1980,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     backdrop.className = 'modal-backdrop';
     backdrop.id = 'teleport-map-modal';
     backdrop.setAttribute('role', 'dialog');
-    backdrop.setAttribute('aria-label', 'Sanctuary Teleport Map');
+    backdrop.setAttribute('aria-label', getGameString('teleportTitle', currentLang));
 
     const sheet = document.createElement('div');
     sheet.className = 'modal-sheet';
@@ -1828,12 +1990,12 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     const title = document.createElement('h2');
     title.className = 'modal-title';
-    title.textContent = 'Sanctuary Teleport Map';
+    title.textContent = getGameString('teleportTitle', currentLang);
 
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'modal-close-btn';
-    closeBtn.textContent = 'Close';
+    closeBtn.textContent = getGameString('close', currentLang);
     closeBtn.addEventListener('click', () => backdrop.remove());
 
     header.append(title, closeBtn);
@@ -1853,6 +2015,10 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     mapCanvas.width = 440;
     mapCanvas.height = 440;
     board.appendChild(mapCanvas);
+
+    // Current camera position indicator ring and "You are here" marker
+    const curMapX = clamp((cameraX + viewportWidth * 0.5) / WORLD_WIDTH, 0.04, 0.96) * 440;
+    const curMapY = clamp(0.5 + cameraY / (viewportHeight * 2.4), 0.1, 0.9) * 440;
 
     // Draw tactical terrain & biome contours on the square map canvas (solid colors, no gradients)
     const mCtx = mapCanvas.getContext('2d');
@@ -1896,15 +2062,29 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         mCtx.stroke();
       }
 
-      // Current camera position indicator ring on the square map
-      const curMapX = clamp((cameraX + viewportWidth * 0.5) / WORLD_WIDTH, 0.04, 0.96) * 440;
-      const curMapY = clamp(0.5 + cameraY / (viewportHeight * 2.4), 0.1, 0.9) * 440;
+      // Current camera position radar ripple
       mCtx.strokeStyle = '#aef682';
       mCtx.lineWidth = 2.5;
       mCtx.beginPath();
-      mCtx.arc(curMapX, curMapY, 12, 0, Math.PI * 2);
+      mCtx.arc(curMapX, curMapY, 14, 0, Math.PI * 2);
       mCtx.stroke();
+      mCtx.fillStyle = 'rgba(174, 246, 130, 0.25)';
+      mCtx.fill();
     }
+
+    // "You are here" marker with Location Pin SVG
+    const hereMarker = document.createElement('div');
+    hereMarker.className = 'you-are-here-marker';
+    hereMarker.style.left = `${(curMapX / 440) * 100}%`;
+    hereMarker.style.top = `${(curMapY / 440) * 100}%`;
+    hereMarker.innerHTML = `
+      <div class="you-are-here-pill">
+        ${LOCATION_PIN_SVG}
+        <span>${getGameString('youAreHere', currentLang)}</span>
+      </div>
+      <div class="you-are-here-pulse-dot"></div>
+    `;
+    board.appendChild(hereMarker);
 
     // Right: List of Teleport Waypoint Towers (clean tower names only, no elevation/zone sub-labels)
     const listPanel = document.createElement('div');
@@ -1941,7 +2121,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const goBtn = document.createElement('button');
       goBtn.type = 'button';
       goBtn.className = 'teleport-go-btn';
-      goBtn.textContent = 'Teleport';
+      goBtn.textContent = getGameString('teleportToPet', currentLang);
       goBtn.addEventListener('click', () => {
         backdrop.remove();
         triggerTurtleTeleportLoadingScene(tower);
@@ -1953,6 +2133,193 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     layout.append(board, listPanel);
     body.appendChild(layout);
+    sheet.append(header, body);
+    backdrop.appendChild(sheet);
+    root!.appendChild(backdrop);
+  }
+
+  // ============================================================================
+  // MODAL: MY PETS & TELEPORT TO SPECIFIC PET (With search function bar)
+  // ============================================================================
+  function openPetsTeleportModal(): void {
+    const existing = document.getElementById('pets-teleport-modal');
+    if (existing) existing.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop pets-teleport-backdrop';
+    backdrop.id = 'pets-teleport-modal';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-label', getGameString('myPets', currentLang));
+
+    const sheet = document.createElement('div');
+    sheet.className = 'modal-sheet pets-teleport-sheet';
+
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+
+    const title = document.createElement('h2');
+    title.className = 'modal-title';
+    title.innerHTML = `${PET_PAW_SVG}<span>${getGameString('myPets', currentLang)}</span>`;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'modal-close-btn';
+    closeBtn.textContent = getGameString('close', currentLang);
+    closeBtn.addEventListener('click', () => backdrop.remove());
+
+    header.append(title, closeBtn);
+
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    body.style.display = 'flex';
+    body.style.flexDirection = 'column';
+
+    // Search function bar on top
+    const searchRow = document.createElement('div');
+    searchRow.className = 'pets-search-row';
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'pets-search-input';
+    searchInput.placeholder = getGameString('searchPetsPlaceholder', currentLang);
+    searchRow.appendChild(searchInput);
+
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'pets-cards-container';
+
+    let filterText = '';
+
+    const renderPetsList = () => {
+      cardsContainer.innerHTML = '';
+      const animals = saveState.placedAnimals;
+
+      if (animals.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'pets-empty-state';
+        empty.textContent = getGameString('noPetsInWorld', currentLang);
+        cardsContainer.appendChild(empty);
+        return;
+      }
+
+      const q = filterText.toLowerCase().trim();
+      const filtered = animals.filter((animal) => {
+        if (!q) return true;
+        const asset = ROSTER_ASSETS.find((a) => a.id === animal.assetId);
+        const localizedName = getLocalizedAssetName(animal.assetId, asset?.name || 'Pet', currentLang).toLowerCase();
+        const customName = (animal.customName || '').toLowerCase();
+        const zoneName = getLocalizedZoneName(animal.zoneId, currentLang).toLowerCase();
+        return localizedName.includes(q) || customName.includes(q) || zoneName.includes(q);
+      });
+
+      if (filtered.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'pets-empty-state';
+        empty.textContent = getGameString('noPetsFound', currentLang);
+        cardsContainer.appendChild(empty);
+        return;
+      }
+
+      for (const animal of filtered) {
+        const asset = ROSTER_ASSETS.find((a) => a.id === animal.assetId);
+        const card = document.createElement('div');
+        card.className = 'pet-teleport-card';
+
+        const thumbWrap = document.createElement('div');
+        thumbWrap.className = 'pet-card-thumb-wrap';
+        const img = document.createElement('img');
+        img.className = 'pet-card-thumb';
+        bindAssetThumbnailImage(img, animal.assetId);
+        img.alt = animal.customName || asset?.name || 'Pet';
+        thumbWrap.appendChild(img);
+
+        const info = document.createElement('div');
+        info.className = 'pet-card-info';
+
+        const topRow = document.createElement('div');
+        topRow.className = 'pet-card-top-row';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'pet-card-name';
+        const animalDisplayName = animal.customName || getLocalizedAssetName(animal.assetId, asset?.name || 'Pet', currentLang);
+        nameEl.textContent = animalDisplayName;
+
+        const level = computeAnimalLoveLevel(animal);
+        const levelBadge = document.createElement('span');
+        levelBadge.className = 'pet-card-level-badge';
+        levelBadge.innerHTML = `${HEART_SVG_ICON}Lv.${level}`;
+
+        topRow.append(nameEl, levelBadge);
+
+        const statsRow = document.createElement('div');
+        statsRow.className = 'pet-card-stats-row';
+
+        const fullnessPct = Math.max(0, Math.min(100, Math.round(animal.hunger)));
+        const fullnessWrap = document.createElement('div');
+        fullnessWrap.className = 'pet-card-fullness-wrap';
+        fullnessWrap.innerHTML = `
+          <span>${getGameString('fullness', currentLang)}</span>
+          <div class="pet-card-fullness-track">
+            <div class="pet-card-fullness-fill" style="width: ${fullnessPct}%; background: ${fullnessPct <= 25 ? '#ef4444' : fullnessPct <= 55 ? '#f59e0b' : '#22c55e'};"></div>
+          </div>
+          <span>${fullnessPct}%</span>
+        `;
+
+        const isHappy = animal.hunger > 35;
+        const condBadge = document.createElement('span');
+        condBadge.className = `pet-card-cond-badge ${isHappy ? 'happy' : 'hungry'}`;
+        condBadge.textContent = isHappy ? getGameString('happy', currentLang) : getGameString('hungry', currentLang);
+
+        const zoneBadge = document.createElement('span');
+        zoneBadge.className = 'pet-card-zone-badge';
+        zoneBadge.textContent = getLocalizedZoneName(animal.zoneId, currentLang);
+
+        statsRow.append(fullnessWrap, condBadge, zoneBadge);
+        info.append(topRow, statsRow);
+
+        const teleBtn = document.createElement('button');
+        teleBtn.type = 'button';
+        teleBtn.className = 'pet-card-teleport-btn';
+        teleBtn.textContent = getGameString('teleportToPet', currentLang);
+
+        const doTeleport = () => {
+          backdrop.remove();
+          targetCameraX = clamp(animal.x - viewportWidth * 0.5, 0, Math.max(0, WORLD_WIDTH - viewportWidth));
+          targetCameraY = clamp(animal.y - viewportHeight * 0.45, -viewportHeight * 0.85, viewportHeight * 2.65);
+          cameraX = targetCameraX;
+          cameraY = targetCameraY;
+          saveState.cameraY = cameraY;
+          selectedAnimalUid = animal.uid;
+          renderEntityCard();
+          soundEngine.playWaveChirp();
+          showToast(
+            currentLang === '中文'
+              ? `已传送至 ${animalDisplayName}`
+              : currentLang === 'Bahasa Melayu'
+              ? `Diteleportasikan ke ${animalDisplayName}`
+              : currentLang === 'தமிழ்'
+              ? `${animalDisplayName} இடம் செல்லப்பட்டது`
+              : `Teleported to ${animalDisplayName}!`
+          );
+        };
+
+        card.addEventListener('click', doTeleport);
+        teleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          doTeleport();
+        });
+
+        card.append(thumbWrap, info, teleBtn);
+        cardsContainer.appendChild(card);
+      }
+    };
+
+    searchInput.addEventListener('input', () => {
+      filterText = searchInput.value;
+      renderPetsList();
+    });
+
+    renderPetsList();
+    body.append(searchRow, cardsContainer);
     sheet.append(header, body);
     backdrop.appendChild(sheet);
     root!.appendChild(backdrop);

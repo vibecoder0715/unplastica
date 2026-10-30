@@ -338,7 +338,7 @@ export default function App() {
   userRef.current = user;
 
   useEffect(() => {
-    const langCode = language === "中文" ? "zh-CN" : language === "Bahasa Melayu" ? "ms" : "en";
+    const langCode = language === "中文" ? "zh-CN" : language === "Bahasa Melayu" ? "ms" : language === "தமிழ்" ? "ta" : "en";
     document.documentElement.lang = langCode;
     document.title = t("app.title");
   }, [language, t]);
@@ -582,7 +582,7 @@ export default function App() {
     setNotifications(notifVal);
     localStorage.setItem("unplastica-notifications", String(notifVal));
     const savedLanguage = profile.preferences?.language;
-    if (savedLanguage === "Bahasa Melayu" || savedLanguage === "中文" || savedLanguage === "English") {
+    if (savedLanguage === "Bahasa Melayu" || savedLanguage === "中文" || savedLanguage === "English" || savedLanguage === "தமிழ்") {
       setLanguage(savedLanguage);
     }
     if (profile.preferences?.theme) setTheme(profile.preferences.theme);
@@ -1057,10 +1057,17 @@ export default function App() {
           }}
         />
       )}
-      {/* Penyu Mascot: Only shown on the main page (home) and hidden whenever (i), camera, sample or other modals are active */}
-      {page === "home" && !enteringGame && !showManualTour && !infoHabit && !camera && !sample && !showLoginGate && !showUsernamePrompt && (
-        <MascotWidget language={language} />
-      )}
+      {/* Penyu Mascot: Shown on home, earn, and main events page, but hidden when modals or detail cards (infoHabit, eventSubpage, camera, sample) are active */}
+      {(page === "home" || page === "earn" || (page === "events" && !eventSubpage)) &&
+        !enteringGame &&
+        !showManualTour &&
+        !infoHabit &&
+        !camera &&
+        !sample &&
+        !showLoginGate &&
+        !showUsernamePrompt && (
+          <MascotWidget language={language} />
+        )}
       {showManualTour && !showUsernamePrompt && page !== "login" && (
         <MascotManualTour
           language={language}
@@ -1759,6 +1766,7 @@ function SettingsPage(props: {
 }) {
   const t = useCopy();
   const [toggleBusy, setToggleBusy] = useState(false);
+  const [showLangInfo, setShowLangInfo] = useState(false);
   const [updatePending, setUpdatePending] = useState(() => {
     const pendingVer = localStorage.getItem("unplastica_update_available");
     if (!pendingVer) return false;
@@ -2169,9 +2177,126 @@ function SettingsPage(props: {
           }
         }
       }}><span /></button></div>
-      <div className="setting-card setting-select"><div className="setting-title"><span className="setting-icon"><Icon name="globe" /></span><strong>{t("settings.language")}</strong></div><div className="segmented language-options">
-        {(["Bahasa Melayu", "English", "中文"] as const).map((value) => <button key={value} className={props.language === value ? "active" : ""} onClick={() => props.onLanguage(value)}>{value}</button>)}
-      </div></div>
+      <div className="setting-card setting-select" style={{ position: "relative" }}>
+        <div className="setting-title" style={{ display: "flex", alignItems: "center" }}>
+          <span className="setting-icon"><Icon name="globe" /></span>
+          <strong>{t("settings.language")}</strong>
+          <button
+            type="button"
+            className="lang-info-btn"
+            aria-label="Translation disclaimer info"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowLangInfo((prev) => !prev);
+            }}
+            style={{
+              background: "none",
+              border: "1.5px solid currentColor",
+              color: "inherit",
+              borderRadius: "50%",
+              width: 19,
+              height: 19,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 11,
+              fontWeight: 700,
+              fontFamily: "var(--font-display)",
+              cursor: "pointer",
+              marginLeft: 8,
+              padding: 0,
+              opacity: 0.82,
+              lineHeight: 1,
+            }}
+          >
+            i
+          </button>
+        </div>
+
+        {showLangInfo && (
+          <div
+            className="lang-info-bubble"
+            style={{
+              position: "absolute",
+              top: 50,
+              left: 12,
+              right: 12,
+              background: "#ffffff",
+              color: "#111827",
+              border: "2px solid #111827",
+              borderRadius: 16,
+              padding: "10px 14px",
+              fontSize: 12,
+              lineHeight: 1.45,
+              fontWeight: 600,
+              boxShadow: "0 10px 28px rgba(0, 0, 0, 0.32)",
+              zIndex: 20,
+              animation: "mascotSlideUp 0.18s ease-out",
+            }}
+          >
+            {/* Pointer tail pointing up to (i) button */}
+            <div
+              style={{
+                position: "absolute",
+                top: -7,
+                left: 132,
+                width: 0,
+                height: 0,
+                borderLeft: "6px solid transparent",
+                borderRight: "6px solid transparent",
+                borderBottom: "7px solid #111827",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                top: -4.5,
+                left: 132,
+                width: 0,
+                height: 0,
+                borderLeft: "5px solid transparent",
+                borderRight: "5px solid transparent",
+                borderBottom: "6px solid #ffffff",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+              <span>
+                {props.language === "Bahasa Melayu"
+                  ? "Terjemahan mungkin tidak 100% tepat, sila rujuk Bahasa Inggeris jika perlu."
+                  : props.language === "中文"
+                  ? "翻译可能无法做到100%完全准确，必要时请以英文为准。"
+                  : props.language === "தமிழ்"
+                  ? "மொழிபெயர்ப்பு 100% துல்லியமாக இல்லாமல் இருக்கலாம், தேவைப்படும் இடங்களில் ஆங்கிலத்தைப் பார்க்கவும்."
+                  : "Translations might not be 100% accurate, refer to English where necessary."}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowLangInfo(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#6b7280",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="segmented language-options">
+          {(["Bahasa Melayu", "English", "中文", "தமிழ்"] as const).map((value) => (
+            <button key={value} className={props.language === value ? "active" : ""} onClick={() => props.onLanguage(value)}>
+              {value}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="setting-card setting-select"><div className="setting-title"><span className="setting-icon"><Icon name="sun" /></span><strong>{t("settings.theme")}</strong></div><div className="segmented theme-options">
         {([["light", "sun", t("theme.light")], ["dark", "moon", t("theme.dark")], ["system", "monitor", t("theme.system")]] as const).map(([value, icon, label]) =>
           <button key={value} className={props.theme === value ? "active" : ""} aria-label={t("theme.ariaLabel", { label })} aria-pressed={props.theme === value} onClick={() => props.onTheme(value)}><Icon name={icon} /><span>{label}</span></button>)}
