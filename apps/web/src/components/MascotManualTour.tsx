@@ -202,6 +202,17 @@ export function MascotManualTour({
 }: MascotManualTourProps) {
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [focusRect, setFocusRect] = useState<DOMRect | null>(null);
+  const [windowWidth, setWindowWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 390));
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isNarrow = windowWidth < 480;
+  const turtleWidth = isNarrow ? 116 : 155;
+  const turtleHeight = Math.round(turtleWidth * 0.9);
 
   const step = TOUR_STEPS[currentStepIdx];
   const langKey = language === "Bahasa Melayu" ? "bm" : language === "中文" ? "zh" : "en";
@@ -222,6 +233,14 @@ export function MascotManualTour({
       setFocusRect(null);
     }
   }, [step.focus]);
+
+  // Dynamically detect if designated shown area is in the lower half of screen to prevent overlap
+  const isTop = Boolean(
+    focusRect && (
+      focusRect.bottom > (typeof window !== "undefined" ? window.innerHeight - 280 : 540) ||
+      focusRect.top > (typeof window !== "undefined" ? window.innerHeight * 0.44 : 360)
+    )
+  );
 
   useEffect(() => {
     // Navigate to page first
@@ -331,20 +350,22 @@ export function MascotManualTour({
         />
       )}
 
-      {/* Floating Mascot Dialogue Bottom Container */}
-      {/* Interactive Mascot Tour: Turtle freely standing in the app talking (NO enclosing box around turtle!) */}
+      {/* Floating Mascot Dialogue Container - Dynamically positioned at Top or Bottom to prevent overlapping with focused element */}
       <div
         className="mascot-tour-card-wrapper"
         style={{
           position: "fixed",
           left: 0,
           right: 0,
-          bottom: "max(18px, env(safe-area-inset-bottom) + 12px)",
+          ...(isTop
+            ? { top: "max(16px, env(safe-area-inset-top) + 12px)", bottom: "auto" }
+            : { bottom: "max(16px, env(safe-area-inset-bottom) + 12px)", top: "auto" }),
           display: "flex",
           justifyContent: "center",
-          padding: "0 16px",
+          padding: "0 14px",
           zIndex: 9999,
           pointerEvents: "none",
+          transition: "top 0.3s ease, bottom 0.3s ease",
         }}
       >
         <div
@@ -352,93 +373,106 @@ export function MascotManualTour({
             maxWidth: 580,
             width: "100%",
             display: "flex",
-            alignItems: "flex-end",
-            gap: 14,
+            alignItems: isTop ? "flex-start" : "flex-end",
+            gap: 12,
             flexDirection: step.direction === "left" ? "row-reverse" : "row",
             pointerEvents: "auto",
           }}
         >
-          {/* Animated Mascot Rig: Standing freely in the app (40% larger, talking & interacting animation) */}
+          {/* Animated Mascot Rig: Standing freely in the app (proportional size that prevents overlapping) */}
           <div
             style={{
               flexShrink: 0,
+              width: turtleWidth,
+              height: turtleHeight,
               filter:
                 "drop-shadow(0 14px 28px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 20px rgba(174, 246, 130, 0.5))",
-              transform: "translateY(8px)",
+              transform: isTop ? "translateY(-4px)" : "translateY(8px)",
               animation: "mascotSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1), mascotTalkingBounce 1.5s ease-in-out infinite",
             }}
           >
             <TurtleCanvas
               emotion={step.emotion}
               direction={step.direction}
-              width={180}
-              height={162}
+              width={turtleWidth}
+              height={turtleHeight}
             />
           </div>
 
-          {/* Authentic Comic Chat Bubble (rounded balloon with curved pointer tail as in screenshot) */}
+          {/* Authentic Comic Chat Bubble (rounded balloon with curved pointer tail directly towards the turtle) */}
           <div
             className="comic-speech-bubble"
             style={{
-              flex: 1,
+              flex: "1 1 auto",
+              minWidth: 0,
               background: "#ffffff",
               border: "2.5px solid #111827",
-              borderRadius: 30,
-              padding: "18px 22px 20px",
+              borderRadius: 26,
+              padding: isNarrow ? "12px 14px 14px" : "16px 20px 18px",
               boxShadow:
                 "0 20px 48px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.15)",
               display: "flex",
               flexDirection: "column",
-              gap: 12,
+              gap: 10,
               position: "relative",
+              boxSizing: "border-box",
               animation: "mascotSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
-            {/* Curved Comic Speech Tail pointing directly toward turtle */}
-            <svg
-              width="32"
-              height="24"
-              viewBox="0 0 32 24"
-              style={{
-                position: "absolute",
-                bottom: -22,
-                left: step.direction === "left" ? "auto" : 42,
-                right: step.direction === "left" ? 42 : "auto",
-                transform: step.direction === "left" ? "none" : "scaleX(-1)",
-                overflow: "visible",
-                pointerEvents: "none",
-              }}
-            >
-              <path
-                d="M 2 0 C 4 10, 16 18, 28 24 C 23 16, 25 7, 30 0"
-                fill="#ffffff"
-                stroke="#111827"
-                strokeWidth="2.5"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-              <rect x="3" y="-2" width="26" height="4" fill="#ffffff" />
-            </svg>
-
-            {/* Header row with step counter & Quit button (expands naturally without squeezing) */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span
+            {/* Curved Comic Speech Tail pointing directly towards the turtle on the left */}
+            {step.direction !== "left" && (
+              <svg
+                width="24"
+                height="28"
+                viewBox="0 0 24 28"
                 style={{
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  color: "#15803d",
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  background: "#f0fdf4",
-                  border: "1px solid #bbf7d0",
-                  padding: "4px 12px",
-                  borderRadius: 999,
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
+                  position: "absolute",
+                  left: -20,
+                  ...(isTop ? { top: 22 } : { bottom: 22 }),
+                  overflow: "visible",
+                  pointerEvents: "none",
                 }}
               >
-                Step {currentStepIdx + 1} of {TOUR_STEPS.length}
-              </span>
+                <path
+                  d="M 22 2 C 14 5, 6 11, 0 16 C 8 19, 15 23, 22 26"
+                  fill="#ffffff"
+                  stroke="#111827"
+                  strokeWidth="2.5"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                <rect x="20" y="3" width="5" height="22" fill="#ffffff" />
+              </svg>
+            )}
+
+            {/* Curved Comic Speech Tail pointing directly towards the turtle on the right */}
+            {step.direction === "left" && (
+              <svg
+                width="24"
+                height="28"
+                viewBox="0 0 24 28"
+                style={{
+                  position: "absolute",
+                  right: -20,
+                  ...(isTop ? { top: 22 } : { bottom: 22 }),
+                  overflow: "visible",
+                  pointerEvents: "none",
+                }}
+              >
+                <path
+                  d="M 2 2 C 10 5, 18 11, 24 16 C 16 19, 9 23, 2 26"
+                  fill="#ffffff"
+                  stroke="#111827"
+                  strokeWidth="2.5"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                <rect x="-1" y="3" width="5" height="22" fill="#ffffff" />
+              </svg>
+            )}
+
+            {/* Header row with Quit button (step count removed per user request) */}
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", width: "100%" }}>
               <button
                 type="button"
                 onClick={onComplete}
@@ -449,7 +483,7 @@ export function MascotManualTour({
                   color: "#4b5563",
                   fontSize: 12,
                   fontWeight: 600,
-                  padding: "5px clamp(12px, 3vw, 18px)",
+                  padding: "4px clamp(10px, 2.5vw, 16px)",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                   flexShrink: 0,
@@ -465,7 +499,7 @@ export function MascotManualTour({
             <div
               style={{
                 color: "#111827",
-                fontSize: 15.5,
+                fontSize: isNarrow ? 14 : 15.5,
                 lineHeight: 1.48,
                 fontWeight: 600,
               }}
