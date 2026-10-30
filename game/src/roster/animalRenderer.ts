@@ -1,4 +1,5 @@
 import type { TearDrop, TurtlePose } from '../turtle/types';
+import { REFINED_ANIMAL_RIGS } from './rigs';
 import {
   drawEmotionProps,
   drawExpressiveAnimalBrows,
@@ -271,6 +272,43 @@ let currentAnimalYaw = 0;
 let currentAnimalPitch = 0;
 let currentAnimalWaveAmt = 0;
 let currentAnimalId = '';
+let currentAnimalSwimming = false;
+let currentAnimalActivity = 0;
+let currentAnimalLocoTime = 0;
+let currentAnimalLandSpecies = false;
+
+/**
+ * Read-only render state for the refined rigs in `rigs/*`. Values are set by
+ * `renderAnimalAsset` right before a rig is called.
+ */
+export interface AnimalRenderState {
+  assetId: string;
+  yaw: number;
+  pitch: number;
+  /** 0..1 how far the near forelimb/fin is raised for a wave. */
+  waveAmt: number;
+  /** True when the species is drawn with the swim cycle (aquatic, or a land species in water). */
+  swimming: boolean;
+  /** True for species that stand on legs on land (even while currently swimming). */
+  landSpecies: boolean;
+  /** 0..1 smoothed locomotion activity (0 = idle/emoting, 1 = full walk/swim). */
+  activity: number;
+  /** Continuous locomotion clock in seconds. Walk phase = t * 4.4, swim phase = t * 3.8. */
+  locoTime: number;
+}
+
+export function getAnimalRenderState(): AnimalRenderState {
+  return {
+    assetId: currentAnimalId,
+    yaw: currentAnimalYaw,
+    pitch: currentAnimalPitch,
+    waveAmt: currentAnimalWaveAmt,
+    swimming: currentAnimalSwimming,
+    landSpecies: currentAnimalLandSpecies,
+    activity: currentAnimalActivity,
+    locoTime: currentAnimalLocoTime,
+  };
+}
 
 /**
  * 3-Round Zoological Realism & 70% Realistic / 30% Cuteness Critique Registry
@@ -847,6 +885,25 @@ function fillRimAndStroke(
     skipClear?: boolean;
     framingScale?: number;
     locoBlend?: number;
+    /**
+     * Semi-aquatic walkers (otter, terrapin, water monitor, tapir...) use the swim cycle
+     * while they are in the water instead of walking on thin air mid-water.
+     */
+    swimming?: boolean;
+  }
+
+  /** Whether the species is drawn standing on legs (walk cycle) by default. */
+  export function isLandStandingAnimal(assetId: string): boolean {
+    return LAND_STANDING_ANIMAL_IDS.has(assetId);
+  }
+
+  /**
+   * The internal framing multiplier used inside the drawing box for this species
+   * (the Green Sea Turtle is drawn by its own renderer and uses 1.0 here).
+   */
+  export function getSpeciesFramingScale(assetId: string): number {
+    if (assetId.startsWith('animal_28_green_sea_turtle')) return 1.0;
+    return SPECIES_SCALE_MAP[assetId] ?? 1.0;
   }
 
   export function renderAnimalAsset(
@@ -900,7 +957,7 @@ function fillRimAndStroke(
     void tearDrops;
     void currentAnimalId;
 
-    const isLandStanding = LAND_STANDING_ANIMAL_IDS.has(assetId);
+    const isLandStanding = LAND_STANDING_ANIMAL_IDS.has(assetId) && !preview3D?.swimming;
     const speciesScaleMult = SPECIES_SCALE_MAP[assetId] ?? 1.0;
 
     // Continuous locomotion time source (uses elapsedSec when available, or pose.waveRaysPhase)
@@ -1043,6 +1100,22 @@ function fillRimAndStroke(
     ctx.translate(groundedPose.bodyX, groundedPose.bodyY);
     ctx.rotate(groundedPose.bodyRot);
     ctx.scale(groundedPose.bodyScaleX, groundedPose.bodyScaleY);
+
+    currentAnimalSwimming = !isLandStanding;
+    currentAnimalActivity = activityScale;
+    currentAnimalLocoTime = locoTime;
+    currentAnimalLandSpecies = LAND_STANDING_ANIMAL_IDS.has(assetId);
+
+    // Refined vector rigs (game/src/roster/rigs/*) take over species one by one.
+    // The frozen references (A01 tiger, A28 turtle) never enter this registry.
+    const refinedRig = assetId !== 'animal_01_malayan_tiger' ? REFINED_ANIMAL_RIGS[assetId] : undefined;
+    if (refinedRig) {
+      refinedRig(ctx, groundedPose);
+      drawEmotionProps(ctx, groundedPose);
+      ctx.restore();
+      ctx.restore();
+      return;
+    }
 
     switch (assetId) {
       case 'animal_01_malayan_tiger':
@@ -1431,7 +1504,8 @@ function fillRimAndStroke(
     const cLight = '#b0bec5';
     const cMid = '#8796a1';
     const cDark = '#5c6b75';
-    const nailCol = '#f5ebd6';
+    // Feet stay skin-grey (they were ivory "socks"); separate toenails are drawn on top
+    const nailCol = '#7f8c96';
     const farGestureAmt = Math.max(pose.farFlipperChinAmount, pose.farFlipperRaiseAmount);
 
     // Far Hind & Far Front Pillar Legs (permanently socketed behind torso, turning right on emotes)
@@ -1483,21 +1557,15 @@ function fillRimAndStroke(
     drawSculptedPawLimb(ctx, -130, 72, pose.hindNearAngle * 0.45, 114, 62, cLight, cMid, cDark, outline, {
       pawTipColor: nailCol,
     });
+    drawLimbFolds(ctx, -130, 72, pose.hindNearAngle * 0.45, 114, 62, 'rgba(50, 60, 70, 0.32)');
+    drawToenails(ctx, -130, 72, pose.hindNearAngle * 0.45, 114, 62, 3, '#ece2cc', outline);
 
     const waveAmt = clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1);
-    drawSculptedPawLimb(
-      ctx,
-      12,
-      68,
-      pose.nearFlipperAngle * (0.42 + 0.18 * waveAmt) + 0.04 - 0.48 * waveAmt - 0.22 * pose.nearFlipperTuckAmount,
-      118,
-      58,
-      cLight,
-      cMid,
-      cDark,
-      outline,
-      { pawTipColor: nailCol },
-    );
+    const nearFrontAngle =
+      pose.nearFlipperAngle * (0.42 + 0.18 * waveAmt) + 0.04 - 0.48 * waveAmt - 0.22 * pose.nearFlipperTuckAmount;
+    drawSculptedPawLimb(ctx, 12, 68, nearFrontAngle, 118, 58, cLight, cMid, cDark, outline, { pawTipColor: nailCol });
+    drawLimbFolds(ctx, 12, 68, nearFrontAngle, 118, 58, 'rgba(50, 60, 70, 0.32)');
+    drawToenails(ctx, 12, 68, nearFrontAngle, 118, 58, 4, '#ece2cc', outline);
 
     // Head, Large Fan Ears & Expressive Curved Trunk
     ctx.save();
@@ -1521,6 +1589,29 @@ function fillRimAndStroke(
       ctx.clip(earP);
       ctx.fillStyle = 'rgba(244, 164, 176, 0.65)';
       drawOvalSpot(ctx, 0, 12, rx * 0.72, ry * 0.7, 0);
+      // Branching blood vessels that cool the elephant through its ears
+      ctx.strokeStyle = 'rgba(150, 82, 96, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      for (const [vx, vy, bend] of [
+        [-0.5, -0.55, -0.2],
+        [0.05, -0.7, 0.1],
+        [0.5, -0.4, 0.25],
+        [-0.45, 0.45, -0.15],
+        [0.4, 0.55, 0.2],
+      ] as const) {
+        ctx.beginPath();
+        ctx.moveTo(0, ry * 0.15);
+        ctx.quadraticCurveTo(rx * (vx * 0.5 + bend), ry * vy * 0.5, rx * vx, ry * vy);
+        ctx.lineTo(rx * (vx + 0.12), ry * (vy - 0.1));
+        ctx.stroke();
+      }
+      // Folded upper rim of the ear
+      ctx.strokeStyle = 'rgba(70, 82, 92, 0.55)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx * 0.86, ry * 0.88, 0, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
       ctx.restore();
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = outline;
@@ -1600,6 +1691,27 @@ function fillRimAndStroke(
     trunkOpen.bezierCurveTo(58, 28, 48, 52, 34, 48);
     trunkOpen.bezierCurveTo(16, 42, 18, 6, 22, -6);
     fillRimAndStroke(ctx, trunkFill, -20, -6, 75, 85, cLight, cMid, cDark, outline, 3.5, trunkOpen);
+    // Ring wrinkles across the trunk (it is a muscular hydrostat, folded in rings),
+    // spaced closer toward the tip, plus the single finger-like tip of the Asian elephant
+    ctx.save();
+    ctx.clip(trunkFill);
+    ctx.strokeStyle = 'rgba(52, 62, 72, 0.42)';
+    ctx.lineWidth = 1.8;
+    const bez = (t: number, a: number, b: number, c: number, d: number) =>
+      (1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t * t * c + t ** 3 * d;
+    for (let k = 1; k <= 11; k++) {
+      const t = Math.pow(k / 12, 0.85);
+      // Midline between the outer and inner trunk curves
+      const ox = bez(t, -24, -22, 12, 58);
+      const oy = bez(t, -4, 42, 92, 84);
+      const ix = bez(t, 22, 18, 16, 34);
+      const iy = bez(t, -6, 6, 42, 48);
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      ctx.quadraticCurveTo((ox + ix) * 0.5 + 4, (oy + iy) * 0.5 + 6, ix, iy);
+      ctx.stroke();
+    }
+    ctx.restore();
     ctx.fillStyle = '#f4a4b0';
     drawOvalSpot(ctx, 78, 44, 6, 4, 0.3);
     ctx.restore();
@@ -1621,6 +1733,72 @@ function fillRimAndStroke(
     ctx.quadraticCurveTo(6, -145, 14, -148);
     ctx.stroke();
 
+    ctx.restore();
+  }
+
+  /** Effective limb angle used by drawSculptedPawLimb (includes the 120 degree wave offset). */
+  function getEffectiveLimbAngle(x: number, angle: number): number {
+    const isNearFrontWaveSocket = x >= -18 && x <= 32 && currentAnimalWaveAmt > 0.02;
+    return isNearFrontWaveSocket ? angle + 2.58 * currentAnimalWaveAmt : angle;
+  }
+
+  /** Separate toenails along the front edge of a pillar foot (elephant, tapir, panda...). */
+  function drawToenails(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    angle: number,
+    length: number,
+    thickness: number,
+    count: number,
+    nailColor: string,
+    outline: string,
+  ): void {
+    const a = getEffectiveLimbAngle(x, angle);
+    const w = thickness * 0.5;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    const footY = Math.max(44, length) + w * 0.62;
+    for (let i = 0; i < count; i++) {
+      const u = count === 1 ? 0.5 : i / (count - 1);
+      const nx = -w * 0.55 + u * w * 1.35;
+      ctx.fillStyle = nailColor;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(nx, footY, w * 0.2, w * 0.16, 0, Math.PI, Math.PI * 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** Horizontal skin folds at the wrist/ankle of a heavy limb. */
+  function drawLimbFolds(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    angle: number,
+    length: number,
+    thickness: number,
+    color: string,
+  ): void {
+    const a = getEffectiveLimbAngle(x, angle);
+    const w = thickness * 0.5;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    for (const t of [0.52, 0.6, 0.68, 0.76]) {
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.85, length * t);
+      ctx.quadraticCurveTo(0, length * t + 5, w * 0.9, length * t - 1);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -1663,14 +1841,17 @@ function fillRimAndStroke(
 
     ctx.save();
     ctx.clip(torso);
+    // Malayan tapir pattern: black head, shoulders and forelegs; the white saddle covers the
+    // back, flanks AND rump all the way to the tail; hind legs are black again. The saddle
+    // previously stopped short and left a black rump.
     const saddle = new Path2D();
-    saddle.moveTo(-134, -55);
-    saddle.bezierCurveTo(-58, -60, -8, -52, -4, -44);
+    saddle.moveTo(-200, -70);
+    saddle.lineTo(-58, -64);
+    saddle.bezierCurveTo(-18, -60, -6, -52, -4, -44);
     saddle.bezierCurveTo(2, 12, -4, 92, -22, 140);
-    saddle.lineTo(-132, 140);
-    saddle.bezierCurveTo(-148, 76, -146, 0, -134, -55);
+    saddle.lineTo(-200, 140);
     saddle.closePath();
-    fillRimAndStroke(ctx, saddle, -130, -48, -4, 130, saddleLight, saddleMid, saddleDark, outline, 3.2);
+    fillRimAndStroke(ctx, saddle, -180, -48, -4, 110, saddleLight, saddleMid, saddleDark, outline, 3.2);
     ctx.restore();
 
     ctx.lineWidth = 3.6;
@@ -1764,6 +1945,86 @@ function fillRimAndStroke(
     ctx.restore();
   }
 
+  /** A single tapered hair lock. */
+  function drawHairLock(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    dirX: number,
+    dirY: number,
+    len: number,
+    width: number,
+    color: string,
+  ): void {
+    const nx = -dirY;
+    const ny = dirX;
+    const tipX = x + dirX * len;
+    const tipY = y + dirY * len;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x + nx * width, y + ny * width);
+    ctx.quadraticCurveTo(x + dirX * len * 0.55 + nx * width * 0.8, y + dirY * len * 0.55 + ny * width * 0.8, tipX, tipY);
+    ctx.quadraticCurveTo(x + dirX * len * 0.5 - nx * width * 0.6, y + dirY * len * 0.5 - ny * width * 0.6, x - nx * width, y - ny * width);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /** Shaggy hair hanging from an arc of an ellipse outline (belly and rump fringe). */
+  function drawHairFringeOnEllipse(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    tilt: number,
+    a0: number,
+    a1: number,
+    count: number,
+    maxLen: number,
+    cMid: string,
+    cDark: string,
+  ): void {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(tilt);
+    for (let i = 0; i < count; i++) {
+      const u = (i + 0.5) / count;
+      const a = a0 + (a1 - a0) * u;
+      const px = Math.cos(a) * rx * 0.97;
+      const py = Math.sin(a) * ry * 0.97;
+      // Hair hangs with gravity, swept slightly backward (-x)
+      const len = maxLen * (0.55 + 0.45 * hash01(i * 13.1)) * (0.5 + 0.5 * Math.sin(Math.PI * u));
+      const dx = -0.32 + (hash01(i * 3.7) - 0.5) * 0.2;
+      const d = Math.hypot(dx, 1);
+      drawHairLock(ctx, px, py - 2, dx / d, 1 / d, len, 3.4, i % 3 === 0 ? cDark : cMid);
+    }
+    ctx.restore();
+  }
+
+  /** Hair locks hanging from the rear edge of a limb drawn by drawSculptedPawLimb. */
+  function drawLimbHairFringe(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    angle: number,
+    length: number,
+    thickness: number,
+    cMid: string,
+    cDark: string,
+  ): void {
+    const a = getEffectiveLimbAngle(x, angle);
+    const w = thickness * 0.5;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    for (let i = 0; i < 6; i++) {
+      const d = length * (0.12 + i * 0.12);
+      // Hang backward (-x in the limb frame is the rear edge) and down along the limb
+      drawHairLock(ctx, -w * 0.95, d, -0.7, 0.72, 14 + 8 * hash01(i * 5.3 + x), 3.2, i % 2 ? cDark : cMid);
+    }
+    ctx.restore();
+  }
+
   /* ============================================================================
    * A04, A09, A10, A13: PRIMATES (Distinct anatomical silhouettes per species!)
    * ========================================================================== */
@@ -1778,8 +2039,9 @@ function fillRimAndStroke(
         cLight: '#f57f29',
         cMid: '#d95614',
         cDark: '#9e3608',
-        faceLight: '#f7cfa6',
-        faceDark: '#d99e6c',
+        // Orangutan facial skin is darker than the coat (kept warm and soft)
+        faceLight: '#e2ae84',
+        faceDark: '#b67a52',
         belly: '#e87a38',
         iris: IRIS_PALETTES.warmBrown,
         hasTail: false,
@@ -1886,6 +2148,12 @@ function fillRimAndStroke(
     ctx.strokeStyle = pal.outline;
     ctx.stroke(torso);
 
+    if (species === 'orangutan') {
+      // Long, coarse, sparse hair hanging from the belly and rump (orangutan coat is shaggy,
+      // not a smooth fill)
+      drawHairFringeOnEllipse(ctx, -28, 40, pal.torsoRx, pal.torsoRy, 0.06, Math.PI * 0.12, Math.PI * 1.02, 26, 30, pal.cMid, pal.cDark);
+    }
+
     // 3. Species-specific Embedded Tail with aligned fill/stroke root so zero unstroked fill protrudes!
     if (pal.hasTail) {
       ctx.save();
@@ -1928,11 +2196,13 @@ function fillRimAndStroke(
     });
 
     const waveAmt = clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1);
+    const primateArmAngle =
+      pose.nearFlipperAngle * (0.42 + 0.2 * waveAmt) + 0.04 - 0.52 * waveAmt - 0.24 * pose.nearFlipperTuckAmount;
     drawSculptedPawLimb(
       ctx,
       8,
       68,
-      pose.nearFlipperAngle * (0.42 + 0.2 * waveAmt) + 0.04 - 0.52 * waveAmt - 0.24 * pose.nearFlipperTuckAmount,
+      primateArmAngle,
       118,
       species === 'orangutan' ? 52 : 46,
       pal.cLight,
@@ -1941,6 +2211,11 @@ function fillRimAndStroke(
       pal.outline,
       { pawTipColor: pal.faceLight },
     );
+    if (species === 'orangutan') {
+      // Long hair hanging from the back of the long arm
+      drawLimbHairFringe(ctx, 8, 68, primateArmAngle, 118, 52, pal.cMid, pal.cDark);
+      drawLimbHairFringe(ctx, -112, 72, pose.hindNearAngle * 0.45, 114, 50, pal.cMid, pal.cDark);
+    }
 
     // 5. Primate Head & Species-Specific Facial Architecture
     ctx.save();
@@ -2265,6 +2540,90 @@ function fillRimAndStroke(
     ctx.restore();
   }
 
+  /** Deterministic 0..1 noise for seeded natural variation. */
+  function hash01(n: number): number {
+    const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+
+  /**
+   * Imbricate (roof-tile) armour over the upper part of an ellipse body. Rows are concentric
+   * shells of the ellipse so they follow the body; scales are sized by position (largest on
+   * the mid-back); free edges point toward the tail (-x); lower rows are drawn first so the
+   * dorsal rows overlap them, and each row is laid tail-to-head.
+   */
+  function drawImbricateScaleShell(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    tilt: number,
+    cLight: string,
+    cMid: string,
+    cDark: string,
+    outline: string,
+  ): void {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(tilt);
+    const rows = 6;
+    for (let j = rows - 1; j >= 0; j--) {
+      const shell = 1.04 - j * 0.15;
+      const thetaStart = Math.PI * (0.84 + j * 0.02);
+      const thetaEnd = Math.PI * (2.12 - j * 0.02);
+      const count = Math.round(8 + 9 * shell);
+      for (let i = 0; i < count; i++) {
+        const u = i / (count - 1);
+        const theta = thetaStart + (thetaEnd - thetaStart) * u + (hash01(j * 31 + i) - 0.5) * 0.05;
+        const px = Math.cos(theta) * rx * shell;
+        const py = Math.sin(theta) * ry * shell;
+        // Tangent toward the head; scale tips point the opposite way (toward the tail)
+        const dx = -Math.sin(theta) * rx;
+        const dy = Math.cos(theta) * ry;
+        const len = Math.hypot(dx, dy) || 1;
+        const rot = Math.atan2(dx / len, -dy / len);
+        const regional = 0.62 + 0.5 * Math.sin(Math.PI * u);
+        const size = (30 + 6 * (1 - j / rows)) * regional * (0.92 + hash01(i * 7 + j) * 0.16);
+        drawPangolinArtichokeScale(ctx, px, py, size, size * 0.86, rot, cLight, cMid, cDark, outline);
+      }
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Scales down the outer face of an upper limb drawn by drawSculptedPawLimb (same pivot and
+   * angle, including the wave offset), pointing toward the foot. Lower scales first so the
+   * upper ones overlap them. The lower leg and foot stay bare with claws.
+   */
+  function drawLimbScales(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    angle: number,
+    length: number,
+    thickness: number,
+    cLight: string,
+    cMid: string,
+    cDark: string,
+    outline: string,
+  ): void {
+    const isNearFrontWaveSocket = x >= -18 && x <= 32 && currentAnimalWaveAmt > 0.02;
+    const a = isNearFrontWaveSocket ? angle + 2.58 * currentAnimalWaveAmt : angle;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    const w = thickness * 0.5;
+    for (let k = 3; k >= 0; k--) {
+      const d = 6 + k * length * 0.15;
+      const shrink = 1 - k * 0.12;
+      for (const side of k % 2 === 0 ? [-0.42, 0.42] : [0]) {
+        drawPangolinArtichokeScale(ctx, side * w, d, w * 1.25 * shrink, w * 1.05 * shrink, 0, cLight, cMid, cDark, outline);
+      }
+    }
+    ctx.restore();
+  }
+
   function drawSundaPangolinRig(ctx: CanvasRenderingContext2D, pose: TurtlePose): void {
     const outline = '#2b180a';
     const scaleLight = '#eab66a';
@@ -2274,9 +2633,11 @@ function fillRimAndStroke(
     const skinDark = '#cfa07a';
 
     const farGestureAmt = Math.max(pose.farFlipperChinAmount, pose.farFlipperRaiseAmount);
-    drawSculptedPawLimb(ctx, -74, 74, pose.hindFarAngle * 0.45, 112, 46, scaleLight, scaleMid, scaleDark, outline, {
+    // Limbs: scaled outer surface, bare lower leg; forefeet carry the long digging claws
+    drawSculptedPawLimb(ctx, -74, 74, pose.hindFarAngle * 0.45, 112, 46, skinDark, scaleMid, scaleDark, outline, {
       clawsColor: '#fff5e0',
     });
+    drawLimbScales(ctx, -74, 74, pose.hindFarAngle * 0.45, 112, 46, scaleLight, scaleMid, scaleDark, outline);
     drawSculptedPawLimb(
       ctx,
       50,
@@ -2302,15 +2663,18 @@ function fillRimAndStroke(
 
     ctx.save();
     ctx.clip(torso);
-    ctx.fillStyle = skinLight;
-    drawOvalSpot(ctx, 58, 22, 28, 30, -0.08);
-    for (let row = -2; row <= 1; row++) {
-      for (let col = -3; col <= 2; col++) {
-        const sx = col * 32 + (row % 2) * 16 - 26;
-        const sy = row * 22 - 4;
-        drawPangolinArtichokeScale(ctx, sx, sy, 32, 26, 1.45, scaleLight, scaleMid, scaleDark, outline);
-      }
-    }
+    // Bare, pale belly skin (pangolins have no scales on the underside)
+    const bellyGrad = ctx.createLinearGradient(0, 70, 0, 130);
+    bellyGrad.addColorStop(0, skinDark);
+    bellyGrad.addColorStop(1, skinLight);
+    ctx.fillStyle = bellyGrad;
+    ctx.beginPath();
+    ctx.ellipse(-26, 112, 128, 44, 0.06, 0, Math.PI * 2);
+    ctx.fill();
+    // Imbricate keratin scales following the body: concentric shell rows on the torso
+    // ellipse, free edges pointing to the tail, larger on the mid-back and smaller at the
+    // shoulders, hips and flanks, drawn tail-to-head so each scale overlaps the one behind.
+    drawImbricateScaleShell(ctx, -30, 38, 132, 86, 0.06, scaleLight, scaleMid, scaleDark, outline);
     ctx.restore();
     ctx.lineWidth = 3.6;
     ctx.strokeStyle = outline;
@@ -2331,33 +2695,49 @@ function fillRimAndStroke(
       scaleDark,
       outline,
       (tCtx) => {
-        for (let i = 0; i < 5; i++) {
-          const tx = -12 - i * 22;
-          const ty = 2 + i * 7;
-          drawPangolinArtichokeScale(tCtx, tx, ty, 24 - i * 2, 22 - i * 1.5, 1.35, scaleLight, scaleMid, scaleDark, outline);
+        // Prehensile tail armoured to the tip: three rows of scales that shrink toward the
+        // tip, laid tip-first so every scale overlaps the next one toward the tail end.
+        const length = 132;
+        const baseHalf = 26;
+        const tipHalf = 7;
+        const curl = 36;
+        for (let i = 11; i >= 0; i--) {
+          const t = i / 11;
+          const cx = 4 - t * (length - 6);
+          const cy = curl * t * t;
+          const half = baseHalf + (tipHalf - baseHalf) * t;
+          const size = half * 1.15 + 4;
+          for (const lane of [-0.55, 0.55, 0]) {
+            drawPangolinArtichokeScale(
+              tCtx,
+              cx + (lane === 0 ? -size * 0.3 : 0),
+              cy + lane * half,
+              size,
+              size * 0.95,
+              Math.PI / 2 + lane * 0.25 - t * 0.5,
+              scaleLight,
+              scaleMid,
+              scaleDark,
+              outline,
+            );
+          }
         }
       },
     );
     ctx.restore();
 
-    drawSculptedPawLimb(ctx, -112, 72, pose.hindNearAngle * 0.45, 114, 52, scaleLight, scaleMid, scaleDark, outline, {
+    drawSculptedPawLimb(ctx, -112, 72, pose.hindNearAngle * 0.45, 114, 52, skinLight, skinDark, scaleMid, outline, {
       clawsColor: '#fff5e0',
     });
+    drawLimbScales(ctx, -112, 72, pose.hindNearAngle * 0.45, 114, 52, scaleLight, scaleMid, scaleDark, outline);
 
     const waveAmt = clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1);
-    drawSculptedPawLimb(
-      ctx,
-      8,
-      68,
-      pose.nearFlipperAngle * (0.42 + 0.2 * waveAmt) + 0.04 - 0.5 * waveAmt - 0.22 * pose.nearFlipperTuckAmount,
-      118,
-      46,
-      scaleLight,
-      scaleMid,
-      scaleDark,
-      outline,
-      { clawsColor: '#fff5e0' },
-    );
+    const nearFrontAngle =
+      pose.nearFlipperAngle * (0.42 + 0.2 * waveAmt) + 0.04 - 0.5 * waveAmt - 0.22 * pose.nearFlipperTuckAmount;
+    drawSculptedPawLimb(ctx, 8, 68, nearFrontAngle, 118, 46, skinLight, skinDark, scaleMid, outline, {
+      clawsColor: '#fff5e0',
+    });
+    drawLimbScales(ctx, 8, 68, nearFrontAngle, 118, 46, scaleLight, scaleMid, scaleDark, outline);
 
     // 3. Sharp Conical Pangolin Head
     ctx.save();
@@ -2379,19 +2759,23 @@ function fillRimAndStroke(
 
     ctx.save();
     ctx.clip(headFill);
-    for (let i = 0; i < 4; i++) {
-      drawPangolinArtichokeScale(
-        ctx,
-        -52 + i * 26,
-        -46 + i * 10,
-        28 - i * 2,
-        22 - i * 1.5,
-        1.25,
-        scaleLight,
-        scaleMid,
-        scaleDark,
-        outline,
-      );
+    // Fine crown scales over the top of the head and neck only; the face and snout are bare
+    for (let row = 0; row < 2; row++) {
+      for (let i = 0; i < 7 - row * 2; i++) {
+        const t = i / 6;
+        drawPangolinArtichokeScale(
+          ctx,
+          -86 + t * 118 + row * 10,
+          -58 + t * 26 + row * 16,
+          22 - t * 8 - row * 3,
+          18 - t * 6 - row * 2,
+          Math.PI / 2 + 0.25,
+          scaleLight,
+          scaleMid,
+          scaleDark,
+          outline,
+        );
+      }
     }
     drawSoftCheekBlushes(ctx, -28 + lookX * 0.8, 22 + lookY * 0.8, 62 + lookX * 0.8, 26 + lookY * 0.8, 20, 12, pose.blushAlpha);
     ctx.restore();
@@ -2418,9 +2802,10 @@ function fillRimAndStroke(
    * ========================================================================== */
   function drawCervidRig(ctx: CanvasRenderingContext2D, pose: TurtlePose, hasAntlers: boolean): void {
     const outline = '#261408';
-    const cLight = hasAntlers ? '#d9914c' : '#f0a854';
-    const cMid = hasAntlers ? '#a66229' : '#c47425';
-    const cDark = hasAntlers ? '#6e3b12' : '#874810';
+    // Sambar is a dark, coarse grey-brown deer; the mousedeer is a warm rufous brown
+    const cLight = hasAntlers ? '#b4875a' : '#e09a52';
+    const cMid = hasAntlers ? '#85603b' : '#b46a26';
+    const cDark = hasAntlers ? '#523621' : '#7a4212';
     const cream = '#fff8eb';
     const farGestureAmt = Math.max(pose.farFlipperChinAmount, pose.farFlipperRaiseAmount);
 
@@ -2466,20 +2851,23 @@ function fillRimAndStroke(
       ctx.lineTo(62, 38);
       ctx.stroke();
     }
-    ctx.fillStyle = 'rgba(255, 248, 225, 0.85)';
-    for (const [sx, sy] of [
-      [-92, 16],
-      [-64, 6],
-      [-36, 18],
-      [-78, 38],
-      [-48, 42],
-    ]) {
-      drawOvalSpot(ctx, sx, sy, 7, 5, 0.1);
-    }
+    // No flank spots: sambar adults and greater mousedeer are plain-coated (spots belong to
+    // chital fawns). Instead: a darker dorsal line and paler belly.
+    const backGrad = ctx.createLinearGradient(0, -50, 0, 30);
+    backGrad.addColorStop(0, 'rgba(40, 22, 10, 0.35)');
+    backGrad.addColorStop(1, 'rgba(40, 22, 10, 0)');
+    ctx.fillStyle = backGrad;
+    ctx.fillRect(-200, -60, 280, 90);
+    ctx.fillStyle = 'rgba(255, 244, 222, 0.5)';
+    drawOvalSpot(ctx, -40, 112, torsoRx * 0.8, 26, 0.04);
     ctx.restore();
     ctx.lineWidth = 3.5;
     ctx.strokeStyle = outline;
     ctx.stroke(torso);
+    if (hasAntlers) {
+      // Coarse shaggy neck mane of the sambar stag
+      drawHairFringeOnEllipse(ctx, 40, 10, 60, 56, -0.3, Math.PI * 0.05, Math.PI * 0.62, 12, 22, cMid, cDark);
+    }
 
     // Short perky deer tail with aligned fill/stroke root so zero unstroked fill protrudes!
     ctx.save();
@@ -2572,6 +2960,21 @@ function fillRimAndStroke(
     ctx.stroke(headP);
 
     drawExpressiveAnimalMouth(ctx, 20 + lookX, 42 + lookY, 0.8, 0.08, pose, outline);
+    if (!hasAntlers) {
+      // Male mousedeer carry small tusk-like upper canines instead of antlers
+      for (const tx of [4, 36]) {
+        ctx.fillStyle = '#fbf6ea';
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(tx - 3 + lookX, 44 + lookY);
+        ctx.quadraticCurveTo(tx - 2 + lookX, 54 + lookY, tx + 3 + lookX, 58 + lookY);
+        ctx.quadraticCurveTo(tx + 3 + lookX, 50 + lookY, tx + 3 + lookX, 44 + lookY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
     ctx.fillStyle = '#24150c';
     drawOvalSpot(ctx, 26 + lookX, 12 + lookY, 15, 11, 0.06);
 
@@ -3030,58 +3433,50 @@ function fillRimAndStroke(
     ctx.translate(pose.shellOffsetX, pose.shellOffsetY);
     ctx.rotate(pose.shellRot);
 
-    // A14 Malayan Crested Fireback: Beautiful Peacock-Like Ocelli Train Feathers mounted on its back!
-    // Always visible as a graceful folded train on the back at rest, and opens wide into a breathtaking display fan during emotes!
+    // A14 Malayan Crested Fireback: a pheasant, not a peacock. Its tail is a laterally
+    // compressed, arched "roof" of glossy blue-black feathers whose central pair is buff-cream,
+    // held up and drooping at the tips. (It used to carry a peacock train with eye-spots.)
+    // During displays the tail is raised higher and spread slightly.
     if (!isHornbill) {
       ctx.save();
-      ctx.translate(-56, 18);
-      ctx.rotate(pose.hindNearAngle * 0.35);
-      const numPlumes = 11;
-      for (let i = 0; i < numPlumes; i++) {
-        const norm = i / (numPlumes - 1) - 0.5;
-        const baseAngle = 0.18 + fanExpand * 0.45 + norm * (0.32 + fanExpand * 2.05);
-        const sway = Math.sin(pose.waveRaysPhase * 1.2 + i * 0.55) * (0.015 + 0.04 * fanExpand);
-        const len = 142 + (1 - Math.abs(norm) * 0.45) * (24 + 48 * fanExpand);
-        const isCentralGold = Math.abs(norm) < 0.18;
+      ctx.translate(-62, 14);
+      ctx.rotate(pose.hindNearAngle * 0.3 - fanExpand * 0.25);
+      const numFeathers = 9;
+      for (let i = 0; i < numFeathers; i++) {
+        const norm = i / (numFeathers - 1); // 0 = lowest outer feather, 1 = top central feather
+        const isCentral = i >= numFeathers - 2;
+        const sway = Math.sin(pose.waveRaysPhase * 1.1 + i * 0.5) * 0.02;
+        const len = 92 + norm * 78 + fanExpand * 18;
+        const lift = 0.15 + norm * 0.75 + fanExpand * (0.2 + norm * 0.25);
         ctx.save();
-        ctx.rotate(baseAngle + sway);
-        const plume = new Path2D();
-        plume.moveTo(18, -7);
-        plume.bezierCurveTo(-len * 0.42, -22, -len * 0.84, -22, -len, 0);
-        plume.bezierCurveTo(-len * 0.84, 22, -len * 0.42, 20, 18, 7);
-        plume.closePath();
+        ctx.rotate(-lift + sway);
+        const half = 9 - norm * 2;
+        const feather = new Path2D();
+        feather.moveTo(10, -half);
+        // Sweep backward and up, then droop at the tip (sickle shape)
+        feather.bezierCurveTo(-len * 0.4, -half * 1.6, -len * 0.82, -half * 0.4, -len, half * 1.8);
+        feather.bezierCurveTo(-len * 0.8, half * 2.4, -len * 0.38, half * 1.2, 10, half);
+        feather.closePath();
         fillRimAndStroke(
           ctx,
-          plume,
+          feather,
           -len,
-          -18,
-          18,
-          18,
-          isCentralGold ? '#fef3c7' : '#2dd4bf',
-          isCentralGold ? '#f59e0b' : '#0284c7',
-          isCentralGold ? '#92400e' : '#1e1b4b',
+          -half * 1.6,
+          10,
+          half * 2.4,
+          isCentral ? '#fff7e0' : '#3b5b9a',
+          isCentral ? '#ead3a0' : '#1e2f5c',
+          isCentral ? '#b8925a' : '#0b1430',
           outline,
-          2.6,
+          2.4,
         );
-        ctx.save();
-        ctx.clip(plume);
-        ctx.strokeStyle = isCentralGold ? '#fffbeb' : '#99f6e4';
-        ctx.lineWidth = 1.6;
+        // Rachis (central shaft) following the feather curve
+        ctx.strokeStyle = isCentral ? 'rgba(120, 86, 40, 0.6)' : 'rgba(147, 197, 253, 0.45)';
+        ctx.lineWidth = 1.3;
         ctx.beginPath();
-        ctx.moveTo(10, 0);
-        ctx.lineTo(-len * 0.88, 0);
+        ctx.moveTo(6, 0);
+        ctx.bezierCurveTo(-len * 0.4, -half * 0.3, -len * 0.8, half * 0.6, -len * 0.96, half * 1.9);
         ctx.stroke();
-        ctx.fillStyle = '#10b981';
-        drawOvalSpot(ctx, -len * 0.78, 0, 17, 11, 0);
-        ctx.fillStyle = '#f59e0b';
-        drawOvalSpot(ctx, -len * 0.78, 0, 12, 7.5, 0);
-        ctx.fillStyle = '#38bdf8';
-        drawOvalSpot(ctx, -len * 0.8, 0, 7.5, 5, 0);
-        ctx.fillStyle = '#1e1b4b';
-        drawOvalSpot(ctx, -len * 0.81, 0, 4.2, 3.0, 0);
-        ctx.fillStyle = '#ffffff';
-        drawOvalSpot(ctx, -len * 0.83, -1.2, 1.6, 1.1, 0);
-        ctx.restore();
         ctx.restore();
       }
       ctx.restore();
@@ -3179,9 +3574,13 @@ function fillRimAndStroke(
     if (!isHornbill) {
       ctx.save();
       ctx.clip(headP);
-      ctx.fillStyle = '#e53935';
+      // Bare cobalt-blue facial skin (wattle) of the crested fireback; it was red before
+      ctx.fillStyle = '#1e40af';
       drawOvalSpot(ctx, -32 + lookX * 0.7, -14 + lookY * 0.7, 34, 38, -0.1);
       drawOvalSpot(ctx, 34 + lookX * 0.7, -10 + lookY * 0.7, 28, 32, 0.1);
+      ctx.fillStyle = '#3b82f6';
+      drawOvalSpot(ctx, -34 + lookX * 0.7, -18 + lookY * 0.7, 24, 26, -0.1);
+      drawOvalSpot(ctx, 32 + lookX * 0.7, -14 + lookY * 0.7, 19, 22, 0.1);
       ctx.restore();
       ctx.lineWidth = 3.6;
       ctx.strokeStyle = outline;
@@ -3200,7 +3599,8 @@ function fillRimAndStroke(
       isHornbill ? 14.5 : 16.5,
       -0.08,
       pose,
-      isHornbill ? IRIS_PALETTES.crimsonRed : IRIS_PALETTES.amber,
+      // Both species have red irises (male hornbill and crested fireback)
+      IRIS_PALETTES.crimsonRed,
       cLight,
       cMid,
       outline,
@@ -3214,7 +3614,7 @@ function fillRimAndStroke(
       isHornbill ? 13 : 14.5,
       0.12,
       pose,
-      isHornbill ? IRIS_PALETTES.crimsonRed : IRIS_PALETTES.amber,
+      IRIS_PALETTES.crimsonRed,
       cLight,
       cMid,
       outline,
@@ -3398,6 +3798,32 @@ function fillRimAndStroke(
       [12, -16, 15, -0.05],
     ] as const;
 
+    // Fine overlapping scale texture over the whole body
+    ctx.strokeStyle = 'rgba(90, 56, 10, 0.2)';
+    ctx.lineWidth = 1.1;
+    for (let sy = -40; sy <= 150; sy += 9) {
+      for (let sx = -180 + ((sy / 9) % 2) * 6; sx <= 135; sx += 12) {
+        ctx.beginPath();
+        ctx.arc(sx, sy, 5.5, Math.PI * 0.1, Math.PI * 0.9);
+        ctx.stroke();
+      }
+    }
+
+    // The "reticulated" net: dark lines joining neighbouring diamonds into a mesh
+    ctx.strokeStyle = '#2a1806';
+    ctx.lineWidth = 3.2;
+    ctx.lineJoin = 'round';
+    for (let k = 0; k < diamondChain.length - 1; k++) {
+      const [ax, ay, ar, arot] = diamondChain[k];
+      const [bx, by, br, brot] = diamondChain[k + 1];
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(ax + Math.sin(arot) * ar * s * -1, ay + Math.cos(arot) * ar * 0.9 * s);
+        ctx.quadraticCurveTo((ax + bx) * 0.5, (ay + by) * 0.5 + s * 10, bx + Math.sin(brot) * br * s * -1, by + Math.cos(brot) * br * 0.9 * s);
+        ctx.stroke();
+      }
+    }
+
     for (const [dx, dy, dr, rot] of diamondChain) {
       ctx.save();
       ctx.translate(dx, dy);
@@ -3512,12 +3938,14 @@ function fillRimAndStroke(
    * - Realistic small alert reptile eyes (12x14 / 10x12)
    * ========================================================================== */
   function drawMonitorLizardRig(ctx: CanvasRenderingContext2D, pose: TurtlePose, isClouded: boolean): void {
-    const outline = isClouded ? '#292111' : '#122416';
-    const cLight = isClouded ? '#dfd084' : '#5ca856';
-    const cMid = isClouded ? '#9e8842' : '#2f6e31';
-    const cDark = isClouded ? '#5c4b1b' : '#173d1a';
-    const spotCol = isClouded ? '#fff3b0' : '#facc15';
-    const bellyCol = isClouded ? '#f7eed2' : '#e8dfa2';
+    // The Asian water monitor is dark grey-black with yellow-cream spot rows (it was bright
+    // green, which no Varanus salvator is); the clouded monitor keeps its olive-brown
+    const outline = isClouded ? '#292111' : '#15160f';
+    const cLight = isClouded ? '#dfd084' : '#6e7262';
+    const cMid = isClouded ? '#9e8842' : '#45493b';
+    const cDark = isClouded ? '#5c4b1b' : '#26281f';
+    const spotCol = isClouded ? '#fff3b0' : '#e9d37c';
+    const bellyCol = isClouded ? '#f7eed2' : '#dcd2a6';
     const waveAmt = clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1);
 
     // Far Hind Leg & Far Front Leg behind torso (permanently socketed, turning right on emotes)
@@ -4495,13 +4923,15 @@ function fillRimAndStroke(
 
     if (species === 'featherback') {
       const featherDorsalFill = new Path2D();
-      featherDorsalFill.moveTo(-40, -82);
-      featherDorsalFill.bezierCurveTo(-54, -146, -12, -148, -4, -84);
+      // Knifefish: only a tiny, feather-like dorsal fin (it was a tall shark-like fin); the
+      // propulsion comes from the long rippling anal fin below
+      featherDorsalFill.moveTo(-34, -84);
+      featherDorsalFill.bezierCurveTo(-40, -110, -18, -114, -12, -86);
       featherDorsalFill.closePath();
       dorsalOpenStroke = new Path2D();
-      dorsalOpenStroke.moveTo(-40, -82);
-      dorsalOpenStroke.bezierCurveTo(-54, -146, -12, -148, -4, -84);
-      fillRimAndStroke(ctx, featherDorsalFill, -24, -60, -28, -148, cfg.cLight, cfg.finCol, cfg.cMid, cfg.outline, 3.2, dorsalOpenStroke);
+      dorsalOpenStroke.moveTo(-34, -84);
+      dorsalOpenStroke.bezierCurveTo(-40, -110, -18, -114, -12, -86);
+      fillRimAndStroke(ctx, featherDorsalFill, -24, -84, -24, -114, cfg.cLight, cfg.finCol, cfg.cMid, cfg.outline, 2.8, dorsalOpenStroke);
 
       const knifeVentralFill = new Path2D();
       knifeVentralFill.moveTo(-166, 28);
@@ -4512,6 +4942,21 @@ function fillRimAndStroke(
       analOpenStroke.bezierCurveTo(-128, 118, -12, 126, 52, 66);
       fillRimAndStroke(ctx, knifeVentralFill, -60, 40, -60, 124, cfg.cMid, cfg.finCol, cfg.cDark, cfg.outline, 3.2, analOpenStroke);
       drawFinRays(knifeVentralFill, 'rgba(26, 36, 48, 0.35)', -152, 36, 44, 120, 14);
+      // Travelling wave along the anal fin margin (how knifefish swim forward and backward)
+      ctx.save();
+      ctx.clip(knifeVentralFill);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let k = 0; k <= 24; k++) {
+        const t = k / 24;
+        const fx = -160 + t * 206;
+        const fy = 40 + Math.sin(Math.PI * t) * 66 + Math.sin(t * 18 - pose.waveRaysPhase * 2) * 4;
+        if (k === 0) ctx.moveTo(fx, fy);
+        else ctx.lineTo(fx, fy);
+      }
+      ctx.stroke();
+      ctx.restore();
     } else if (species === 'snakehead') {
       const longDorsalFill = new Path2D();
       longDorsalFill.moveTo(-144, -16);
@@ -5551,7 +5996,9 @@ function fillRimAndStroke(
             ? 1.48 * waveAmt + pose.nearFlipperAngle * 0.32 * waveAmt
             : 0;
       ctx.rotate(spec.baseAngle + dynamicSway + waveRearTurn);
-      ctx.scale(spec.curlDir * spec.lenScale, spec.lenScale);
+      // Cuttlefish arms are short and stout (an octopus's arms are several times its mantle)
+      const armLen = isOcto ? 1 : 0.58;
+      ctx.scale(spec.curlDir * spec.lenScale * (isOcto ? 1 : 0.85), spec.lenScale * armLen);
 
       // Wide flaring muscular root (-25..+24) extending up to y = -18 deep inside the mantle/web skirt
       const armFill = new Path2D();
@@ -5633,17 +6080,29 @@ function fillRimAndStroke(
 
     // 2. Cuttlefish Undulating Lateral Fin Skirt (Sepia officinalis / pharaonis)
     if (!isOcto) {
+      // Narrow, translucent fin fringe running around the mantle edge with a travelling
+      // ripple (it used to be a wide purple hood behind the whole body)
       const skirtFin = new Path2D();
-      skirtFin.ellipse(0, -28, 154, 92, 0, 0, Math.PI * 2);
-      fillRimAndStroke(ctx, skirtFin, -154, -120, 154, 64, '#c084fc', '#9333ea', '#581c87', outline, 3.4);
+      const lobes = 16;
+      for (let k = 0; k <= 96; k++) {
+        const a = (k / 96) * Math.PI * 2;
+        const ripple = 6 * Math.sin(a * lobes - pose.waveRaysPhase * 2.4);
+        const fx = Math.cos(a) * (134 + ripple);
+        const fy = -34 + Math.sin(a) * (110 + ripple * 0.6);
+        if (k === 0) skirtFin.moveTo(fx, fy);
+        else skirtFin.lineTo(fx, fy);
+      }
+      skirtFin.closePath();
+      fillRimAndStroke(ctx, skirtFin, -134, -144, 134, 76, '#f3d9ff', '#c9a3e8', '#7e5a9e', outline, 2.6);
       ctx.save();
       ctx.clip(skirtFin);
-      ctx.strokeStyle = 'rgba(255,255,255,0.38)';
-      ctx.lineWidth = 1.7;
-      for (let sy = -90; sy <= 30; sy += 24) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+      ctx.lineWidth = 1.4;
+      for (let k = 0; k < 40; k++) {
+        const a = (k / 40) * Math.PI * 2;
         ctx.beginPath();
-        ctx.moveTo(-150, sy);
-        ctx.lineTo(150, sy);
+        ctx.moveTo(Math.cos(a) * 112, -34 + Math.sin(a) * 92);
+        ctx.lineTo(Math.cos(a) * 138, -34 + Math.sin(a) * 114);
         ctx.stroke();
       }
       ctx.restore();
@@ -5670,9 +6129,70 @@ function fillRimAndStroke(
 
     fillRimAndStroke(ctx, mantleP, -110, -134, 110, 72, cLight, cMid, cDark, outline, 3.7, mantleOpenStroke);
 
+    if (isOcto) {
+      // The coconut octopus carries a half coconut shell as portable shelter; its arms wrap
+      // over the rim (drawn before the front arms)
+      ctx.save();
+      ctx.translate(-6, 104 + Math.sin(pose.waveRaysPhase * 0.8) * 2);
+      const shell = new Path2D();
+      shell.ellipse(0, 0, 96, 50, 0, 0, Math.PI);
+      shell.lineTo(-96, 0);
+      shell.closePath();
+      fillRimAndStroke(ctx, shell, -96, 0, 96, 50, '#a8754a', '#6e4526', '#3d2412', '#1f1209', 3.2);
+      ctx.save();
+      ctx.clip(shell);
+      // Coarse husk fibres
+      ctx.strokeStyle = 'rgba(30, 16, 6, 0.4)';
+      ctx.lineWidth = 1.6;
+      for (let k = -9; k <= 9; k++) {
+        ctx.beginPath();
+        ctx.moveTo(k * 10, 0);
+        ctx.quadraticCurveTo(k * 9, 26, k * 6, 52);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // Pale inner flesh rim
+      ctx.fillStyle = '#f2e6cf';
+      ctx.strokeStyle = '#1f1209';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 96, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#8b5a33';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 82, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     // 4. Draw Front-Layer Tentacles deeply rooted into the lower mantle & umbrella web skirt!
     for (let i = 0; i < TENTACLE_SPECS.length; i++) {
       if (!TENTACLE_SPECS[i].isBack) drawTentacle(i);
+    }
+
+    if (!isOcto) {
+      // Two long feeding tentacles with flattened suckered clubs (8 arms + 2 tentacles)
+      for (const side of [-1, 1] as const) {
+        const sway = Math.sin(pose.waveRaysPhase * 1.3 + side) * 10;
+        const ex = side * 46 + sway;
+        const ey = 150;
+        ctx.strokeStyle = outline;
+        ctx.lineWidth = 7;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(side * 10, 40);
+        ctx.quadraticCurveTo(side * 30, 100, ex, ey);
+        ctx.stroke();
+        ctx.strokeStyle = cMid;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        const club = new Path2D();
+        club.ellipse(ex, ey + 8, 9, 15, side * 0.3, 0, Math.PI * 2);
+        fillRimAndStroke(ctx, club, ex - 9, ey - 6, ex + 9, ey + 22, cLight, cMid, cDark, outline, 2.4);
+        ctx.fillStyle = '#fdf4ff';
+        for (const dy of [2, 8, 14]) drawOvalSpot(ctx, ex, ey + dy, 2.4, 1.8, 0);
+      }
     }
 
     // 5. Mantle surface markings clipped to mantleP
@@ -6579,3 +7099,22 @@ function fillRimAndStroke(
     ctx.restore();
   }
 
+
+/* ============================================================================
+ * Shared style kit for the refined rigs in `rigs/*` (read-only re-exports).
+ * These helpers are also used by the frozen tiger, so they must NOT be edited.
+ * Refined rigs add new helpers in their own files instead.
+ * ========================================================================== */
+export {
+  clamp as kitClamp,
+  fillRimAndStroke as kitFillRimAndStroke,
+  withHexAlpha as kitWithHexAlpha,
+  drawSculptedPawLimb as kitDrawSculptedPawLimb,
+  drawEmbeddedTail as kitDrawEmbeddedTail,
+  getEffectiveLimbAngle as kitGetEffectiveLimbAngle,
+  drawToenails as kitDrawToenails,
+  drawLimbFolds as kitDrawLimbFolds,
+  drawHairLock as kitDrawHairLock,
+  drawHairFringeOnEllipse as kitDrawHairFringeOnEllipse,
+  drawLimbHairFringe as kitDrawLimbHairFringe,
+};

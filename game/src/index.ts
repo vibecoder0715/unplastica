@@ -21,6 +21,9 @@ import {
   validateAssetDropZone,
   getTerrainFloorY,
   canAnimalEatFood,
+  canAnimalGrazePlant,
+  getWaterSurfaceY,
+  isAnimalResting,
   rollSleepingTouchReaction,
   rollAwakeTapReaction,
 } from './game/worldConfig';
@@ -36,6 +39,7 @@ import {
   getLocalizedAssetName,
   getLocalizedZoneName,
   getLocalizedFoodName,
+  getLocalizedTowerName,
   getShortDescriptionWithBold,
   type GameLanguage,
 } from './game/i18n';
@@ -45,6 +49,10 @@ import {
   getAssetThumbnailDataUrl,
   getFoodThumbnailDataUrl,
   getDefaultPlacementY,
+  getAnimalRestY,
+  getAnimalVisualSize,
+  findPerchTree,
+  getPlantDrawSize,
   isNightTime,
 } from './game/worldRenderer';
 
@@ -196,25 +204,74 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   ];
 
   // Camera & 4x Vertical Viewport State (Sea Level = 0; Negative = Canopy Up; Positive = Deep Sea Down)
-  let viewportWidth = Math.max(320, window.innerWidth);
-  let viewportHeight = Math.max(480, window.innerHeight);
+  //
+  // The world is laid out in a fixed LOGICAL height (LOGICAL_VIEW_HEIGHT units) and scaled
+  // uniformly to the real container. Before, the canvas bitmap was sized from
+  // window.innerWidth/innerHeight clamped to at least 320 x 480 while CSS stretched it to
+  // the container, so on short or narrow phone screens (landscape, foldables, open keyboard)
+  // the whole scene, including the turtle, was squeezed non-uniformly. Terrain also changed
+  // shape with every resize because it was proportional to the raw window height.
+  const LOGICAL_VIEW_HEIGHT = 800;
+  const MIN_ZOOM = 0.4;
+  const MAX_ZOOM = 2.2;
+  let viewScale = 1; // CSS px per logical unit
+  let canvasCssLeft = 0;
+  let canvasCssTop = 0;
+  const initialRect = root.getBoundingClientRect();
+  const initialCssW = Math.max(1, initialRect.width || window.innerWidth);
+  const initialCssH = Math.max(1, initialRect.height || window.innerHeight);
+  viewScale = initialCssH / LOGICAL_VIEW_HEIGHT;
+  let viewportWidth = initialCssW / viewScale;
+  let viewportHeight = LOGICAL_VIEW_HEIGHT;
   const starterX = saveState.placedAnimals[0]?.x ?? 543600;
   let cameraX = clamp(starterX - viewportWidth * 0.5, 0, WORLD_WIDTH - viewportWidth);
   let targetCameraX = cameraX;
-  let cameraY = saveState.cameraY ?? 0;
+  // First visit: frame the starter animal instead of an empty patch of open water
+  const starterAnimal = saveState.placedAnimals[0];
+  let cameraY =
+    saveState.cameraY ??
+    (starterAnimal
+      ? clamp(
+          getDefaultPlacementY(starterAnimal.assetId, starterAnimal.zoneId, starterAnimal.x, LOGICAL_VIEW_HEIGHT) -
+            LOGICAL_VIEW_HEIGHT * 0.42,
+          0,
+          LOGICAL_VIEW_HEIGHT * 2.65,
+        )
+      : 0);
   let targetCameraY = cameraY;
   let cameraZoom = 1.0;
   let targetCameraZoom = 1.0;
 
-  function screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+  /** Converts a pointer's client (CSS) coordinates to logical canvas coordinates. */
+  function clientToLogical(clientX: number, clientY: number): { x: number; y: number } {
+    return { x: (clientX - canvasCssLeft) / viewScale, y: (clientY - canvasCssTop) / viewScale };
+  }
+
+  /** Converts pointer client coordinates to world coordinates. */
+  function screenToWorld(clientX: number, clientY: number): { x: number; y: number } {
+    const p = clientToLogical(clientX, clientY);
     return {
       x: clamp(
-        cameraX + viewportWidth * 0.5 + (screenX - viewportWidth * 0.5) / cameraZoom,
+        cameraX + viewportWidth * 0.5 + (p.x - viewportWidth * 0.5) / cameraZoom,
         40,
         WORLD_WIDTH - 40,
       ),
-      y: cameraY + viewportHeight * 0.5 + (screenY - viewportHeight * 0.5) / cameraZoom,
+      y: cameraY + viewportHeight * 0.5 + (p.y - viewportHeight * 0.5) / cameraZoom,
     };
+  }
+
+  /**
+   * Facing changes are rate-limited. The turtle-style 2.5D turn narrows the body while it
+   * turns, so flipping direction every frame (collision nudges, food just behind, finger
+   * jitter on a phone) made animals look repeatedly squeezed.
+   */
+  const lastFacingFlipSec = new Map<string, number>();
+  function setFacing(animal: PlacedAnimal, dir: 1 | -1): void {
+    if (animal.facing === dir) return;
+    const last = lastFacingFlipSec.get(animal.uid) ?? -Infinity;
+    if (totalElapsedSec - last < 1.0) return;
+    lastFacingFlipSec.set(animal.uid, totalElapsedSec);
+    animal.facing = dir;
   }
 
   let selectedAnimalUid: string | null = saveState.placedAnimals[0]?.uid ?? null;
@@ -432,11 +489,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     options?.onBalanceChange?.(saveState.greenbits);
     persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
     window.setTimeout(() => {
-      showToast(
-        `Collected +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} while you were away`,
-        3200,
-        true,
-      );
+      const offlineMsg =
+        currentLang === '中文'
+          ? `在您离开期间收获了 +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} 硬币`
+          : currentLang === 'Bahasa Melayu'
+          ? `Mengumpul +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} syiling semasa anda tiada`
+          : currentLang === 'தமிழ்'
+          ? `நீங்கள் இல்லாத போது +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} நாணயங்கள் பெறப்பட்டன`
+          : `Collected +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} while you were away`;
+      showToast(offlineMsg, 3500, true);
     }, 400);
   }
 
@@ -496,17 +557,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
             const wCode = Number(current.weather_code ?? 0);
             const wind = Number(current.wind_speed_10m ?? 0);
             saveState.currentWeather = mapWmoCodeToWeather(wCode, wind);
-            if (typeof current.is_day === 'number') {
-              const localHrs = isKLDefault ? getKualaLumpurDecimalHours() : getLocalDecimalHours();
-              // Keep exact solar hour aligned with live day/night state
-              if (current.is_day === 0 && !isNightTime(localHrs)) {
-                saveState.timeOfDayHours = 21.0;
-              } else if (current.is_day === 1 && isNightTime(localHrs)) {
-                saveState.timeOfDayHours = 12.5;
-              } else {
-                saveState.timeOfDayHours = localHrs;
-              }
-            }
+            // Follow the real local/KL clock time smoothly without jumping arbitrarily to 21:00 or 12:30 (Fix O4)
+            saveState.timeOfDayHours = isKLDefault ? getKualaLumpurDecimalHours() : getLocalDecimalHours();
           }
         }
       } catch {
@@ -592,14 +644,14 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         if (!item) return;
         cardEl.classList.add('is-held');
         startDraggingItem(item);
-      }, 230); // 230ms threshold allows smooth scrolling without accidental drags
+      }, 500); // 0.5s hold threshold activates drag; quick swipes/scrolls cancel before this fires
     });
 
     cardEl.addEventListener('pointermove', (e) => {
       if (!isHolding) return;
       const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
-      // If moved more than 7px before hold timer fires, user is scrolling the strip!
-      if (dist > 7) {
+      // If moved more than 8px before 0.5s hold timer fires, user is scrolling or swiping the strip!
+      if (dist > 8) {
         clearHold();
       }
     });
@@ -852,12 +904,21 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const validation = validateAssetDropZone(animal.assetId, zoneId, worldX);
     if (!validation.valid) {
       soundEngine.playRejectBoing();
+      const start = clientToLogical(screenX, screenY);
       rejectedDrops.push({
         assetId: animal.assetId,
-        startX: screenX,
-        startY: screenY,
-        targetBarX: clamp(animal.x - cameraX, 40, viewportWidth - 40),
-        targetBarY: clamp(animal.y - cameraY, 40, viewportHeight - 60),
+        startX: start.x,
+        startY: start.y,
+        targetBarX: clamp(
+          (animal.x - cameraX - viewportWidth * 0.5) * cameraZoom + viewportWidth * 0.5,
+          40,
+          viewportWidth - 40,
+        ),
+        targetBarY: clamp(
+          (animal.y - cameraY - viewportHeight * 0.5) * cameraZoom + viewportHeight * 0.5,
+          40,
+          viewportHeight - 60,
+        ),
         progress: 0,
         reason: validation.reason,
       });
@@ -866,10 +927,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     }
 
     const safeX = findNonOverlappingAnimalX(animal.assetId, worldX, zoneId, animal.uid);
-    const placeY = getDefaultPlacementY(animal.assetId, zoneId, safeX, viewportHeight);
-    const meta = ASSET_ECO_CONFIG[animal.assetId];
-    const canopyLift = meta?.canopyHabit === 'canopy' ? -120 : 0;
-    const targetGroundY = placeY + canopyLift;
+    // Canopy animals land in a tree if dropped on one, otherwise on the ground (no mid-air perch)
+    const targetGroundY = getAnimalRestY({ ...animal, x: safeX, zoneId }, saveState.placedPlants, viewportHeight);
     const releaseWorldY = screenToWorld(0, screenY).y;
     animal.zoneId = zoneId;
     animal.x = safeX;
@@ -884,8 +943,10 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
     renderEntityCard();
     syncHudDOM();
-    const displayName = animal.customName || ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
-    showToast(`Moved ${displayName} to ${getLocalizedZoneName(zoneId, currentLang)}`);
+    const rawName = ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
+    const displayName = animal.customName || getLocalizedAssetName(animal.assetId, rawName, currentLang);
+    const locZone = getLocalizedZoneName(zoneId, currentLang);
+    showToast(getGameString('movedTo', currentLang).replace('{name}', displayName).replace('{zone}', locZone));
   }
 
   function handleDropAssetOnWorld(
@@ -898,10 +959,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const validation = validateAssetDropZone(assetId, zoneId, worldX);
     if (!validation.valid) {
       soundEngine.playRejectBoing();
+      const start = clientToLogical(screenX, screenY);
       rejectedDrops.push({
         assetId,
-        startX: screenX,
-        startY: screenY,
+        startX: start.x,
+        startY: start.y,
         targetBarX: viewportWidth * 0.5,
         targetBarY: viewportHeight - 55,
         progress: 0,
@@ -926,13 +988,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       }
 
       const safeX = findNonOverlappingAnimalX(asset.id, worldX, zoneId);
-      const placeY = getDefaultPlacementY(asset.id, zoneId, safeX, viewportHeight);
-      const canopyLift = eco.canopyHabit === 'canopy' ? -120 : 0;
-      const targetGroundY = placeY + canopyLift;
+      const targetGroundY = getAnimalRestY(
+        { assetId: asset.id, x: safeX, zoneId },
+        saveState.placedPlants,
+        viewportHeight,
+      );
       const releaseWorldY = screenToWorld(0, screenY).y;
       const dropStartY = Math.min(releaseWorldY, targetGroundY - 135);
       const uid = `anim_${asset.code.toLowerCase()}_${Date.now()}`;
-      const night = isNightTime(saveState.timeOfDayHours);
+      const night = isAnimalResting(asset.id, saveState.timeOfDayHours);
       const nowMs = Date.now();
       const newAnimal: PlacedAnimal = {
         uid,
@@ -1002,7 +1066,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     renderDockCards();
     renderEntityCard();
     syncHudDOM();
-    showToast(`Placed ${asset.name} in ${getLocalizedZoneName(zoneId, currentLang)}`);
+    const placedDisplayName = getLocalizedAssetName(asset.id, asset.name, currentLang);
+    const placedZoneName = getLocalizedZoneName(zoneId, currentLang);
+    showToast(getGameString('placedIn', currentLang).replace('{name}', placedDisplayName).replace('{zone}', placedZoneName));
   }
 
   function handleDropFoodOnWorld(
@@ -1018,20 +1084,23 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     if (!foodSpec) return;
 
     let bestAnimal: PlacedAnimal | null = null;
-    let bestDist = 125;
+    let bestDist = Infinity;
     for (const a of saveState.placedAnimals) {
+      const reach = Math.max(70, 125 * getAnimalVisualSize(a.assetId));
       const d = Math.hypot(a.x - worldX, a.y - worldY);
-      if (d < bestDist) {
+      if (d < reach && d < bestDist) {
         bestDist = d;
         bestAnimal = a;
       }
     }
 
     if (bestAnimal) {
-      const displayName = bestAnimal.customName || ASSET_ECO_CONFIG[bestAnimal.assetId]?.name || 'Animal';
+      const rawName = ASSET_ECO_CONFIG[bestAnimal.assetId]?.name || 'Animal';
+      const displayName = bestAnimal.customName || getLocalizedAssetName(bestAnimal.assetId, rawName, currentLang);
+      const locFood = getLocalizedFoodName(foodSpec.id, foodSpec.name, currentLang);
       if (!canAnimalEatFood(bestAnimal.assetId, foodId)) {
         soundEngine.playRejectBoing();
-        showToast(`${displayName} does not eat ${foodSpec.name}`);
+        showToast(getGameString('doesNotEat', currentLang).replace('{name}', displayName).replace('{food}', locFood));
         return;
       }
       saveState.foodInventory[foodId] = Math.max(0, have - 1);
@@ -1041,8 +1110,18 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       return;
     }
 
+    // Food left on the ground must belong to that habitat (no durians on the coral reef,
+    // no honeycomb in the river)
+    if (!foodSpec.allowedZones.includes(zoneId)) {
+      soundEngine.playRejectBoing();
+      const locFood = getLocalizedFoodName(foodId, foodSpec.name, currentLang);
+      const locZone = getLocalizedZoneName(zoneId, currentLang);
+      showToast(getGameString('doesNotBelongIn', currentLang).replace('{food}', locFood).replace('{zone}', locZone), 2600);
+      return;
+    }
+
     saveState.foodInventory[foodId] = Math.max(0, have - 1);
-    const groundY = getTerrainFloorY(worldX, viewportHeight) - 18;
+    const groundY = getFoodRestY(foodId, worldX);
     saveState.droppedFoods.push({
       uid: `df_${Date.now()}_${Math.random()}`,
       foodId,
@@ -1058,6 +1137,42 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     soundEngine.playPluckPop();
     renderDockCards();
     persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+  }
+
+  /**
+   * Where a dropped food comes to rest: fruit floats at the water surface, plankton drifts in
+   * the water column, everything else sinks to the riverbed/seabed or lies on the ground.
+   */
+  function getFoodRestY(foodId: string, worldX: number): number {
+    const floorY = getTerrainFloorY(worldX, viewportHeight);
+    const waterY = getWaterSurfaceY(worldX, viewportHeight);
+    if (waterY === null) return floorY - 18;
+    const category = FOOD_CATALOG[foodId]?.category;
+    if (category === 'fruit') return waterY + 6;
+    if (category === 'plankton') return waterY + (floorY - waterY) * 0.3;
+    return floorY - 18;
+  }
+
+  /** Grazing an aquatic plant in place: the animal eats the plant itself, not a store item. */
+  function startAnimalGrazing(animal: PlacedAnimal, plant: PlacedPlant): void {
+    const eco = ASSET_ECO_CONFIG[plant.assetId];
+    const dropFood = eco?.producesFruitId;
+    plant.grazingBitesRemaining = Math.max(0, (plant.grazingBitesRemaining ?? 5) - 1);
+    plant.swayImpulse = 1;
+    if (dropFood && FOOD_CATALOG[dropFood]) {
+      startAnimalEating(animal, dropFood, false);
+      return;
+    }
+    animal.eatingStage = 'pickup';
+    animal.eatingTimerSec = 1.8;
+    animal.eatingFoodId = undefined;
+    animal.hunger = Math.min(100, animal.hunger + 30);
+    recordAnimalCareInteraction(animal, 10);
+    animal.currentEmotion = 'laugh';
+    animal.emotionTimerSec = 3.5;
+    animal.locoBlend = 0;
+    soundEngine.playEatMunch();
+    renderEntityCard();
   }
 
   function startAnimalEating(animal: PlacedAnimal, foodId: string, isGolden = false): void {
@@ -1156,12 +1271,12 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     }
 
     targetCameraX = clamp(
-      panStartCameraX - (dx * 1.15) / cameraZoom,
+      panStartCameraX - (dx * 1.15) / viewScale / cameraZoom,
       0,
       Math.max(0, WORLD_WIDTH - viewportWidth),
     );
     targetCameraY = clamp(
-      panStartCameraY - (dy * 1.05) / cameraZoom,
+      panStartCameraY - (dy * 1.05) / viewScale / cameraZoom,
       -viewportHeight * 0.85,
       viewportHeight * 2.65,
     );
@@ -1194,7 +1309,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
         if (initialPinchDistance > 10 && currentDist > 10) {
           const factor = currentDist / initialPinchDistance;
-          targetCameraZoom = clamp(initialPinchZoom * factor, 0.22, 2.2);
+          // Same limits as the renderer, so taps keep landing where the finger is
+          targetCameraZoom = clamp(initialPinchZoom * factor, MIN_ZOOM, MAX_ZOOM);
         }
       }
     },
@@ -1216,18 +1332,18 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       if (e.ctrlKey || e.metaKey) {
         // Trackpad / browser pinch gesture
         const zoomDelta = -e.deltaY * 0.005;
-        targetCameraZoom = clamp(targetCameraZoom + zoomDelta, 0.22, 2.2);
+        targetCameraZoom = clamp(targetCameraZoom + zoomDelta, MIN_ZOOM, MAX_ZOOM);
         return;
       }
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         targetCameraX = clamp(
-          targetCameraX + (e.deltaX * 1.2) / cameraZoom,
+          targetCameraX + (e.deltaX * 1.2) / viewScale / cameraZoom,
           0,
           Math.max(0, WORLD_WIDTH - viewportWidth),
         );
       } else {
         targetCameraY = clamp(
-          targetCameraY + (e.deltaY * 0.85) / cameraZoom,
+          targetCameraY + (e.deltaY * 0.85) / viewScale / cameraZoom,
           -viewportHeight * 0.85,
           viewportHeight * 2.65,
         );
@@ -1256,19 +1372,28 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   worldCanvas.addEventListener('pointercancel', endWorldPan);
 
   function findAnimalAtPoint(worldX: number, worldY: number): PlacedAnimal | null {
+    // Hit area follows the drawn body size, with a finger-sized minimum for small species
+    let best: PlacedAnimal | null = null;
+    let bestD = Infinity;
     for (let i = saveState.placedAnimals.length - 1; i >= 0; i--) {
       const a = saveState.placedAnimals[i];
-      if (Math.hypot(a.x - worldX, a.y - worldY) <= 78) {
-        return a;
+      const r = clamp(78 * getAnimalVisualSize(a.assetId), 38, 150);
+      const d = Math.hypot(a.x - worldX, a.y - worldY);
+      if (d <= r && d < bestD) {
+        best = a;
+        bestD = d;
       }
     }
-    return null;
+    return best;
   }
 
   function findPlantAtPoint(worldX: number, worldY: number): PlacedPlant | null {
+    // Tapping anywhere on the trunk or crown counts, not only a circle around the roots
     for (let i = saveState.placedPlants.length - 1; i >= 0; i--) {
       const p = saveState.placedPlants[i];
-      if (Math.hypot(p.x - worldX, p.y - worldY) <= 74) {
+      const { w, h } = getPlantDrawSize(p);
+      const halfW = Math.max(40, w * 0.35);
+      if (Math.abs(p.x - worldX) <= halfW && worldY <= p.y + 30 && worldY >= p.y - Math.max(74, h * 0.85)) {
         return p;
       }
     }
@@ -1283,7 +1408,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
    */
   function triggerAnimalEmoteWithAntiSpam(animal: PlacedAnimal, mode: 'tap' | 'pet'): void {
     const nowMs = Date.now();
-    const displayName = animal.customName || ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
+    const rawAnimalName = ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
+    const displayName = animal.customName || getLocalizedAssetName(animal.assetId, rawAnimalName, currentLang);
     const sinceLastEmoteMs = nowMs - (animal.lastEmoteTriggerMs ?? 0);
     const sinceLastTapMs = nowMs - (animal.lastTapMs ?? 0);
     animal.lastTapMs = nowMs;
@@ -1303,7 +1429,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         animal.emoteSpamCount = 0;
         soundEngine.playRejectBoing();
         renderEntityCard();
-        showToast(`${displayName} is angry`);
+        showToast(getGameString('isAngry', currentLang).replace('{name}', displayName));
       } else {
         renderEntityCard();
       }
@@ -1316,17 +1442,18 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     animal.locoBlend = 0;
     animal.vx = 0;
 
-    if (isNightTime(saveState.timeOfDayHours) && animal.emotionTimerSec <= 0) {
+    // Waking a resting animal (by its own schedule: nocturnal species sleep by day)
+    if (isAnimalResting(animal.assetId, saveState.timeOfDayHours) && animal.emotionTimerSec <= 0) {
       const reaction = rollSleepingTouchReaction(Math.random());
       animal.currentEmotion = reaction;
       animal.emotionTimerSec = 3.6;
       renderEntityCard();
       if (reaction === 'angry') {
         soundEngine.playRejectBoing();
-        showToast(`${displayName} is angry`);
+        showToast(getGameString('isAngry', currentLang).replace('{name}', displayName));
       } else {
         soundEngine.playWaveChirp();
-        showToast(`${displayName} is curious`);
+        showToast(getGameString('isCurious', currentLang).replace('{name}', displayName));
       }
       return;
     }
@@ -1338,7 +1465,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       soundEngine.playLaughGiggle();
       awardGreenbits(10, animal.x, animal.y - 48);
       renderEntityCard();
-      showToast(`${displayName} is happy`);
+      showToast(getGameString('isHappy', currentLang).replace('{name}', displayName));
       return;
     }
 
@@ -1348,7 +1475,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     recordAnimalCareInteraction(animal, 8);
     soundEngine.playWaveChirp();
     renderEntityCard();
-    showToast(reaction === 'waving' ? `${displayName} waves` : `${displayName} is curious`);
+    showToast(
+      reaction === 'waving'
+        ? getGameString('waves', currentLang).replace('{name}', displayName)
+        : getGameString('isCurious', currentLang).replace('{name}', displayName),
+    );
   }
 
   function handleWorldTap(worldX: number, worldY: number): void {
@@ -1370,7 +1501,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         renderDockCards();
         persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
         const fSpec = FOOD_CATALOG[df.foodId];
-        showToast(`Collected ${fSpec?.name ?? 'Food'}`);
+        const foodName = getLocalizedFoodName(df.foodId, fSpec?.name ?? 'Food', currentLang);
+        showToast(getGameString('collectedFood', currentLang).replace('{food}', foodName));
         return;
       }
     }
@@ -1401,13 +1533,18 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         hitPlant.fruitCount -= 1;
         const isGolden = hitPlant.hasGoldenFruit || Math.random() < 0.12;
         hitPlant.hasGoldenFruit = false;
-        const groundY = getTerrainFloorY(hitPlant.x, viewportHeight) - 16;
+        const dropX = hitPlant.x + (Math.random() - 0.5) * 44;
+        const groundY = getFoodRestY(eco.producesFruitId, dropX);
+        // Fruit falls from where it hangs in the crown; shoots and seagrass are picked at the base
+        const growsAtBase =
+          eco.producesFruitId === 'food_bamboo_shoots' || eco.producesFruitId === 'food_seaweed_kelp';
+        const startY = growsAtBase ? hitPlant.y - 14 : hitPlant.y - getPlantDrawSize(hitPlant).h * 0.5;
         saveState.droppedFoods.push({
           uid: `fruit_${Date.now()}_${Math.random()}`,
           foodId: eco.producesFruitId,
           zoneId: hitPlant.zoneId,
-          x: hitPlant.x + (Math.random() - 0.5) * 44,
-          y: hitPlant.y - 48,
+          x: dropX,
+          y: Math.min(startY, groundY - 4),
           vy: -65,
           groundY,
           isGolden,
@@ -1416,11 +1553,18 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         });
         soundEngine.playPluckPop();
         const foodSpec = FOOD_CATALOG[eco.producesFruitId];
-        showToast(`Harvested ${foodSpec?.name ?? 'fruit'} from ${asset?.name ?? 'plant'}`);
+        const foodName = getLocalizedFoodName(eco.producesFruitId, foodSpec?.name ?? 'fruit', currentLang);
+        const plantName = getLocalizedAssetName(hitPlant.assetId, asset?.name ?? 'plant', currentLang);
+        showToast(getGameString('harvestedFoodFrom', currentLang).replace('{food}', foodName).replace('{plant}', plantName));
       } else if (hitPlant.growthStage < 3) {
         soundEngine.playWaveChirp();
+        const plantName = getLocalizedAssetName(hitPlant.assetId, asset?.name ?? 'Plant', currentLang);
+        const growthStageText =
+          hitPlant.growthStage === 1
+            ? getGameString('growthSprouting', currentLang)
+            : getGameString('growthBlooming', currentLang);
         showToast(
-          `${asset?.name ?? 'Plant'} is growing (${hitPlant.growthStage === 1 ? 'Sprouting leaves' : 'Blooming flowers'})`,
+          getGameString('plantGrowing', currentLang).replace('{plant}', plantName).replace('{growth}', growthStageText),
         );
       } else {
         soundEngine.playWaveChirp();
@@ -1455,7 +1599,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     const asset = ROSTER_ASSETS.find((r) => r.id === animal.assetId);
     const loveLevel = computeAnimalLoveLevel(animal);
-    const night = isNightTime(saveState.timeOfDayHours);
+    const night = isAnimalResting(animal.assetId, saveState.timeOfDayHours);
     const conditionText = getAnimalConditionText(animal, night);
     const fullnessPct = Math.max(0, Math.min(100, Math.round(animal.hunger)));
 
@@ -1600,7 +1744,16 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     heading.style.textAlign = 'center';
 
     const prompt = document.createElement('p');
-    prompt.innerHTML = `${getGameString('buyConfirmPrompt', currentLang)} <strong>${itemName}</strong> for <span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">${GB_LOGO_HTML} ${price}</span>?`;
+    const priceSpan = `<span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">${GB_LOGO_HTML} ${price}</span>`;
+    const promptText =
+      currentLang === '中文'
+        ? `确定要使用 ${priceSpan} 兑换 <strong>${itemName}</strong> 吗？`
+        : currentLang === 'Bahasa Melayu'
+        ? `Adakah anda pasti mahu membeli <strong>${itemName}</strong> dengan harga ${priceSpan}?`
+        : currentLang === 'தமிழ்'
+        ? `${priceSpan} செலுத்தி <strong>${itemName}</strong> வாங்க விரும்புகிறீர்களா?`
+        : `Are you sure you want to buy <strong>${itemName}</strong> for ${priceSpan}?`;
+    prompt.innerHTML = promptText;
     prompt.style.margin = '0 0 20px';
     prompt.style.textAlign = 'center';
 
@@ -1677,7 +1830,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     link.href = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.textContent = 'Click me!';
+    link.textContent = getGameString('learnMore', currentLang);
 
     card.append(header, text, link);
     backdrop.appendChild(card);
@@ -1839,7 +1992,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           buyBtn.type = 'button';
           buyBtn.className = 'buy-btn';
           buyBtn.disabled = saveState.greenbits < food.price;
-          buyBtn.innerHTML = `<span>Buy (</span>${GB_LOGO_HTML}<span>${food.price})</span>`;
+          buyBtn.innerHTML = `<span>${getGameString('buyPrefix', currentLang)} (</span>${GB_LOGO_HTML}<span>${food.price})</span>`;
           buyBtn.addEventListener('click', () => {
             if (saveState.greenbits < food.price) {
               showToast(getGameString('notEnoughGreenbits', currentLang));
@@ -1928,7 +2081,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           buyBtn.type = 'button';
           buyBtn.className = 'buy-btn';
           buyBtn.disabled = saveState.greenbits < price;
-          buyBtn.innerHTML = `<span>Buy (</span>${GB_LOGO_HTML}<span>${price})</span>`;
+          buyBtn.innerHTML = `<span>${getGameString('buyPrefix', currentLang)} (</span>${GB_LOGO_HTML}<span>${price})</span>`;
           buyBtn.addEventListener('click', () => {
             if (saveState.greenbits < price) {
               showToast(getGameString('notEnoughGreenbits', currentLang));
@@ -2091,13 +2244,14 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     listPanel.className = 'tower-list-panel';
 
     for (const tower of TELEPORT_TOWERS) {
+      const locTowerName = getLocalizedTowerName(tower.id, tower.name, currentLang);
       // Pin button on the square map
       const pinBtn = document.createElement('button');
       pinBtn.type = 'button';
       pinBtn.className = `tower-pin-btn ${tower.id === preselectedTowerId ? 'active' : ''}`;
       pinBtn.style.left = `${tower.mapNormX * 100}%`;
       pinBtn.style.top = `${tower.mapNormY * 100}%`;
-      pinBtn.title = tower.name;
+      pinBtn.title = locTowerName;
       pinBtn.innerHTML = TOWER_SVG_ICON;
       pinBtn.addEventListener('click', () => {
         backdrop.remove();
@@ -2114,7 +2268,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
       const nameEl = document.createElement('div');
       nameEl.className = 'tower-list-name';
-      nameEl.textContent = tower.name;
+      nameEl.textContent = locTowerName;
 
       info.appendChild(nameEl);
 
@@ -2338,12 +2492,16 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     const loadCanvas = document.createElement('canvas');
     loadCanvas.className = 'teleport-loading-canvas';
-    loadCanvas.width = 340;
-    loadCanvas.height = 250;
+    const dpr = Math.min(3, window.devicePixelRatio || 2);
+    loadCanvas.width = Math.round(340 * dpr);
+    loadCanvas.height = Math.round(250 * dpr);
+    loadCanvas.style.width = '340px';
+    loadCanvas.style.height = '250px';
 
+    const locTowerName = getLocalizedTowerName(tower.id, tower.name, currentLang);
     const title = document.createElement('div');
     title.className = 'teleport-loading-title';
-    title.textContent = `Teleporting to ${tower.name}`;
+    title.textContent = getGameString('teleportingTo', currentLang).replace('{name}', locTowerName);
 
     const track = document.createElement('div');
     track.className = 'teleport-progress-track';
@@ -2368,8 +2526,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       Math.max(0, WORLD_WIDTH - viewportWidth),
     );
     cameraX = targetCameraX;
+    // Underwater towers frame the actual water column at that spot (surface to seabed),
+    // so arriving at a reef or the deep sea shows the habitat rather than empty water
+    const towerWaterY = getWaterSurfaceY(tower.worldX, viewportHeight);
+    const underwaterCameraY =
+      towerWaterY !== null && tower.worldYOffset > 0
+        ? (towerWaterY + getTerrainFloorY(tower.worldX, viewportHeight)) * 0.5 - viewportHeight * 0.5
+        : tower.worldYOffset;
     targetCameraY = clamp(
-      tower.worldYOffset,
+      underwaterCameraY,
       -viewportHeight * 0.85,
       viewportHeight * 2.65,
     );
@@ -2386,14 +2551,18 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       fill.style.width = `${Math.round(progress * 100)}%`;
 
       if (lCtx) {
+        lCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        lCtx.imageSmoothingEnabled = true;
+        lCtx.imageSmoothingQuality = 'high';
         lCtx.clearRect(0, 0, 340, 250);
-        // Swirling bioluminescent eco-current rings around the Green Sea Turtle
-        for (let i = 0; i < 12; i++) {
-          const bx = ((340 - ((elapsed * 0.28 + i * 32) % 360)) + 360) % 360 - 10;
-          const by = 45 + ((i * 37) % 160) + Math.sin(elapsed * 0.006 + i) * 10;
-          lCtx.fillStyle = i % 2 === 0 ? 'rgba(174, 246, 130, 0.45)' : 'rgba(56, 189, 248, 0.42)';
+        // Refined micro-current bioluminescent motes around the Green Sea Turtle
+        for (let i = 0; i < 14; i++) {
+          const bx = ((340 - ((elapsed * 0.28 + i * 26) % 360)) + 360) % 360 - 10;
+          const by = 48 + ((i * 31) % 155) + Math.sin(elapsed * 0.006 + i) * 8;
+          const dotRadius = 1.3 + (i % 3) * 0.5; // delicate 1.3px - 2.3px micro-motes
+          lCtx.fillStyle = i % 2 === 0 ? 'rgba(174, 246, 130, 0.65)' : 'rgba(56, 189, 248, 0.60)';
           lCtx.beginPath();
-          lCtx.arc(bx, by, 3.5 + (i % 3) * 1.8, 0, Math.PI * 2);
+          lCtx.arc(bx, by, dotRadius, 0, Math.PI * 2);
           lCtx.fill();
         }
 
@@ -2432,12 +2601,22 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
   const handleResize = () => {
     const prevCenterWorldX = cameraX + viewportWidth * 0.5;
-    viewportWidth = Math.max(320, window.innerWidth);
-    viewportHeight = Math.max(420, window.innerHeight);
+    // Size from the real canvas box (the container), not the window, and keep the bitmap
+    // aspect identical to the CSS box so nothing is ever stretched.
+    const rect = worldCanvas.getBoundingClientRect();
+    const cssW = Math.max(1, rect.width || root.clientWidth || window.innerWidth);
+    const cssH = Math.max(1, rect.height || root.clientHeight || window.innerHeight);
+    canvasCssLeft = rect.left;
+    canvasCssTop = rect.top;
+    viewScale = cssH / LOGICAL_VIEW_HEIGHT;
+    viewportHeight = LOGICAL_VIEW_HEIGHT;
+    viewportWidth = cssW / viewScale;
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    worldCanvas.width = Math.round(viewportWidth * dpr);
-    worldCanvas.height = Math.round(viewportHeight * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    worldCanvas.width = Math.round(cssW * dpr);
+    worldCanvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr * viewScale, 0, 0, dpr * viewScale, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     targetCameraX = clamp(
       prevCenterWorldX - viewportWidth * 0.5,
       0,
@@ -2448,6 +2627,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
   handleResize();
   window.addEventListener('resize', handleResize);
+  // Mobile browser bars, the on-screen keyboard and layout changes resize the container
+  // without always firing window 'resize'
+  const containerResizeObserver =
+    typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => handleResize()) : null;
+  containerResizeObserver?.observe(root);
   renderDockCards();
   renderEntityCard();
   syncHudDOM();
@@ -2470,6 +2654,10 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     for (const plant of saveState.placedPlants) {
       plant.swayImpulse *= Math.pow(0.2, dt);
       const eco = ASSET_ECO_CONFIG[plant.assetId];
+      // Grazed aquatic plants regrow one bite about every 40 seconds (max 5)
+      if (eco?.isAquaticFoodSource && (plant.grazingBitesRemaining ?? 0) < 5) {
+        plant.grazingBitesRemaining = Math.min(5, (plant.grazingBitesRemaining ?? 0) + dt / 40);
+      }
 
       if (plant.growthStage < 3) {
         // Grow from Stage 1 (0..49) -> Stage 2 (50..99) -> Stage 3 (100)
@@ -2489,14 +2677,22 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       }
     }
 
-    // 2. Update Dropped Foods (gravity & bounce onto ground/seafloor)
+    // 2. Update Dropped Foods (gravity in air; buoyancy and drag in water, so food sinks
+    //    slowly to a terminal speed instead of falling through water as fast as through air)
     for (const df of saveState.droppedFoods) {
       if (df.y < df.groundY) {
-        df.vy += 380 * dt;
+        const waterY = getWaterSurfaceY(df.x, viewportHeight);
+        const submerged = waterY !== null && df.y > waterY;
+        if (submerged) {
+          df.vy += 120 * dt;
+          df.vy = Math.min(df.vy, 70) * Math.pow(0.4, dt);
+        } else {
+          df.vy += 380 * dt;
+        }
         df.y += df.vy * dt;
         if (df.y >= df.groundY) {
           df.y = df.groundY;
-          df.vy = -df.vy * 0.32;
+          df.vy = submerged ? 0 : -df.vy * 0.32;
           if (Math.abs(df.vy) < 18) df.vy = 0;
         }
       }
@@ -2516,23 +2712,27 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     rejectedDrops = rejectedDrops.filter((rej) => rej.progress < 1);
 
     // 5. Update Placed Animals (Stop-on-Site Emotes, 6h Biological Hunger, Foraging & Collision Avoidance)
-    const night = isNightTime(saveState.timeOfDayHours);
     const animals = saveState.placedAnimals;
 
     for (const animal of animals) {
       // Animal Drop & Downward Gravity Simulation
       if (animal.isFalling) {
-        const baseDepthY = getDefaultPlacementY(animal.assetId, animal.zoneId, animal.x, viewportHeight);
-        const meta = ASSET_ECO_CONFIG[animal.assetId];
-        const canopyLift = meta?.canopyHabit === 'canopy' ? -120 : 0;
-        const groundY = baseDepthY + canopyLift;
-        const isAquaticZone = animal.zoneId === 'sea' || animal.zoneId === 'river';
-        const gravAccel = isAquaticZone ? 1050 : 1620;
-        animal.vy = (animal.vy ?? 0) + gravAccel * dt;
+        const groundY = getAnimalRestY(animal, saveState.placedPlants, viewportHeight);
+        const fallWaterY = getWaterSurfaceY(animal.x, viewportHeight);
+        const submerged = fallWaterY !== null && animal.y > fallWaterY;
+        // In water an animal sinks gently to its depth (buoyancy + drag) and never bounces
+        if (submerged) {
+          animal.vy = Math.min(140, ((animal.vy ?? 0) + 260 * dt) * Math.pow(0.25, dt));
+        } else {
+          animal.vy = (animal.vy ?? 0) + 1620 * dt;
+        }
         animal.y += (animal.vy ?? 0) * dt;
         if (animal.y >= groundY) {
           animal.y = groundY;
-          if ((animal.vy ?? 0) > 220) {
+          if (submerged) {
+            animal.vy = 0;
+            animal.isFalling = false;
+          } else if ((animal.vy ?? 0) > 220) {
             animal.vy = -(animal.vy ?? 0) * 0.24;
             animal.fallImpactSec = 0.35;
             soundEngine.playPluckPop();
@@ -2574,8 +2774,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const prevHunger = animal.hunger;
       animal.hunger = Math.max(0, animal.hunger - dt * HUNGER_DECAY_PER_SEC);
       if (prevHunger > 22 && animal.hunger <= 22) {
-        const displayName = animal.customName || ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
-        showToast(`${displayName} is hungry`);
+        const rawName = ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
+        const displayName = animal.customName || getLocalizedAssetName(animal.assetId, rawName, currentLang);
+        showToast(getGameString('isHungry', currentLang).replace('{name}', displayName));
       }
 
       // Emote timer decay & stop-walking-on-site blend
@@ -2583,8 +2784,14 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         animal.emotionTimerSec = Math.max(0, animal.emotionTimerSec - dt);
       }
 
+      // Each species keeps its own clock: nocturnal animals forage at night, cathemeral
+      // animals (tiger, elephant, sharks, dolphins...) are never forced asleep, and sessile
+      // animals (giant clam) never walk.
+      const eco = ASSET_ECO_CONFIG[animal.assetId];
+      const speedFactor = eco?.moveSpeedFactor ?? 1;
+      const resting = isAnimalResting(animal.assetId, saveState.timeOfDayHours);
       const isStoppedOnSite =
-        animal.emotionTimerSec > 0 || animal.eatingStage !== 'none' || night;
+        animal.emotionTimerSec > 0 || animal.eatingStage !== 'none' || resting || speedFactor <= 0;
       const targetLoco = isStoppedOnSite ? 0 : 1;
       animal.locoBlend =
         (animal.locoBlend ?? 1) + (targetLoco - (animal.locoBlend ?? 1)) * Math.min(1, dt * 8);
@@ -2600,6 +2807,19 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
             canAnimalEatFood(animal.assetId, df.foodId),
         );
 
+        // Grazers only go for plants they actually eat (a shark no longer "grazes" seagrass
+        // and receives fish from it), and only while the plant has bites left.
+        const grazePlant =
+          animal.hunger < 42 && (animal.zoneId === 'sea' || animal.zoneId === 'river')
+            ? saveState.placedPlants.find(
+                (p) =>
+                  p.zoneId === animal.zoneId &&
+                  Math.abs(p.x - animal.x) < 900 &&
+                  (p.grazingBitesRemaining ?? 0) >= 1 &&
+                  canAnimalGrazePlant(animal.assetId, p.assetId),
+              )
+            : undefined;
+
         if (targetDrop) {
           const dx = targetDrop.x - animal.x;
           if (Math.abs(dx) < 32) {
@@ -2608,40 +2828,39 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
             );
             startAnimalEating(animal, targetDrop.foodId, targetDrop.isGolden);
           } else {
-            const speed = 44 * animal.locoBlend;
+            const speed = 44 * speedFactor * animal.locoBlend;
             animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-            animal.facing = dx >= 0 ? 1 : -1;
+            if (Math.abs(dx) > 12) setFacing(animal, dx >= 0 ? 1 : -1);
           }
-        } else if (
-          animal.hunger < 42 &&
-          (animal.zoneId === 'sea' || animal.zoneId === 'river')
-        ) {
-          const aquaticPlant = saveState.placedPlants.find(
-            (p) => p.zoneId === animal.zoneId && Math.abs(p.x - animal.x) < 900,
-          );
-          if (aquaticPlant) {
-            const dx = aquaticPlant.x - animal.x;
-            if (Math.abs(dx) < 36) {
-              const eco = ASSET_ECO_CONFIG[animal.assetId];
-              const grazeFood = eco?.favoriteFoodId ?? 'food_seaweed_kelp';
-              startAnimalEating(animal, grazeFood, false);
-            } else {
-              const speed = 36 * animal.locoBlend;
-              animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-              animal.facing = dx >= 0 ? 1 : -1;
-            }
+        } else if (grazePlant) {
+          const dx = grazePlant.x - animal.x;
+          if (Math.abs(dx) < 36) {
+            startAnimalGrazing(animal, grazePlant);
+          } else {
+            const speed = 36 * speedFactor * animal.locoBlend;
+            animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
+            if (Math.abs(dx) > 12) setFacing(animal, dx >= 0 ? 1 : -1);
           }
         } else {
           const dx = animal.targetX - animal.x;
           if (Math.abs(dx) < 16) {
-            // Pick a new nearby wander waypoint within a comfortable local radius
-            const patrolSpan = 420;
-            const nextTarget = animal.x + (Math.random() - 0.5) * patrolSpan * 2;
+            // Pick a new nearby wander waypoint. Slow species patrol a smaller area, and
+            // canopy animals that are in (or near) a tree keep to its crown instead of
+            // walking off into thin air.
+            const patrolSpan = 420 * clamp(speedFactor, 0.2, 1.3);
+            let nextTarget = animal.x + (Math.random() - 0.5) * patrolSpan * 2;
+            if (eco?.canopyHabit === 'canopy') {
+              const tree = findPerchTree(animal, saveState.placedPlants, 700);
+              if (tree) {
+                const crownHalf = getPlantDrawSize(tree).w * 0.24;
+                nextTarget = tree.x + (Math.random() - 0.5) * 2 * crownHalf;
+              }
+            }
             animal.targetX = clamp(nextTarget, minX, maxX);
           } else {
-            const speed = 22 * animal.locoBlend;
+            const speed = 22 * speedFactor * animal.locoBlend;
             animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-            animal.facing = dx >= 0 ? 1 : -1;
+            setFacing(animal, dx >= 0 ? 1 : -1);
           }
         }
       }
@@ -2672,28 +2891,31 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           const overlap = desiredSep - dist;
           const push = Math.min(overlap * 0.5, 95 * dt);
 
-          const aPinned = a.emotionTimerSec > 0 || a.eatingStage !== 'none';
-          const bPinned = b.emotionTimerSec > 0 || b.eatingStage !== 'none';
+          // Sessile animals (giant clam) are never pushed; they are treated as pinned
+          const aPinned =
+            a.emotionTimerSec > 0 || a.eatingStage !== 'none' || (ecoA?.moveSpeedFactor ?? 1) <= 0;
+          const bPinned =
+            b.emotionTimerSec > 0 || b.eatingStage !== 'none' || (ecoB?.moveSpeedFactor ?? 1) <= 0;
 
           if (aPinned && !bPinned) {
             b.x = clamp(b.x + dir * push * 2, minX, maxX);
             b.targetX = clamp(b.x + dir * 220, minX, maxX);
-            b.facing = dir;
+            setFacing(b, dir);
           } else if (!aPinned && bPinned) {
             a.x = clamp(a.x - dir * push * 2, minX, maxX);
             a.targetX = clamp(a.x - dir * 220, minX, maxX);
-            a.facing = oppDir;
+            setFacing(a, oppDir);
           } else if (!aPinned && !bPinned) {
             a.x = clamp(a.x - dir * push, minX, maxX);
             b.x = clamp(b.x + dir * push, minX, maxX);
             // Politely steer waypoints away from each other so they don't keep walking into each other
             if ((a.targetX - a.x) * dir > 0) {
               a.targetX = clamp(a.x - dir * (160 + Math.random() * 140), minX, maxX);
-              a.facing = oppDir;
+              setFacing(a, oppDir);
             }
             if ((b.targetX - b.x) * dir < 0) {
               b.targetX = clamp(b.x + dir * (160 + Math.random() * 140), minX, maxX);
-              b.facing = dir;
+              setFacing(b, dir);
             }
           }
         }
@@ -2724,8 +2946,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           ? {
               kind: activeDrag.kind,
               id: activeDrag.id,
-              screenX: activeDrag.pointerX,
-              screenY: activeDrag.pointerY,
+              screenX: clientToLogical(activeDrag.pointerX, activeDrag.pointerY).x,
+              screenY: clientToLogical(activeDrag.pointerX, activeDrag.pointerY).y,
             }
           : null,
         selectedAnimalUid,
@@ -2759,6 +2981,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     window.removeEventListener('pointermove', onWindowPointerMove);
     window.removeEventListener('pointerup', onWindowPointerUp);
     window.removeEventListener('resize', handleResize);
+    containerResizeObserver?.disconnect();
     window.removeEventListener('unplastica-sync-game-balance', handleExternalBalanceSync);
     window.removeEventListener('unplastica-sync-game-language', handleLangSync);
     root.innerHTML = '';

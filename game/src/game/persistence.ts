@@ -2,7 +2,9 @@ import {
   ASSET_ECO_CONFIG,
   BASE_WORLD_WIDTH,
   createDefaultSanctuaryPlants,
+  FOOD_CATALOG,
   createInitialSaveState,
+  getPlantPlacementProblem,
   getZoneSpec,
   WORLD_SCALE_X,
   WORLD_WIDTH,
@@ -75,6 +77,55 @@ function migrateWorldX(rawX: number | undefined, fallbackX: number, version: num
   return Math.max(120, Math.min(WORLD_WIDTH - 120, rawX));
 }
 
+/**
+ * Old combined food items that were split into real, single foods.
+ * A player who owned one "Rambutan & Papaya" keeps one rambutan AND one papaya.
+ */
+const LEGACY_FOOD_SPLITS: Record<string, string[]> = {
+  food_rambutan_papaya: ['food_rambutan_fruit', 'food_papaya_fruit'],
+  food_papaya_rambutan: ['food_rambutan_fruit', 'food_papaya_fruit'],
+  food_bamboo_honey_pellet: ['food_bamboo_shoots', 'food_wild_honeycomb'],
+  food_bamboo_honey: ['food_bamboo_shoots', 'food_wild_honeycomb'],
+};
+
+function migrateFoodInventory(raw: Record<string, number> | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [id, count] of Object.entries(raw ?? {})) {
+    const n = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+    const targets = LEGACY_FOOD_SPLITS[id] ?? [id];
+    for (const t of targets) {
+      if (!FOOD_CATALOG[t]) continue;
+      out[t] = (out[t] ?? 0) + n;
+    }
+  }
+  return out;
+}
+
+function migrateFoodId(id: string | undefined): string | undefined {
+  if (!id) return id;
+  const mapped = LEGACY_FOOD_SPLITS[id]?.[0] ?? id;
+  return FOOD_CATALOG[mapped] ? mapped : undefined;
+}
+
+/**
+ * Default scenery plants are regenerated from the current layout (for example the bamboo
+ * that used to stand at the bottom of the river), keeping their growth by species.
+ */
+function refreshDefaultScenery<T extends { assetId: string; isDefaultScenery?: boolean; growthStage: 1 | 2 | 3; growthProgress: number; fruitCount: number }>(
+  plants: T[],
+): T[] {
+  const userPlants = plants.filter((p) => !p.isDefaultScenery);
+  const savedDefaults = plants.filter((p) => p.isDefaultScenery);
+  if (savedDefaults.length === 0) return plants;
+  const fresh = createDefaultSanctuaryPlants().map((d) => {
+    const prev = savedDefaults.find((p) => p.assetId === d.assetId);
+    return prev
+      ? { ...d, growthStage: prev.growthStage, growthProgress: prev.growthProgress, fruitCount: prev.fruitCount }
+      : d;
+  });
+  return [...(fresh as unknown as T[]), ...userPlants];
+}
+
 export function getSaveStorageKey(userId?: string): string {
   return userId ? `${SAVE_STORAGE_KEY}_${userId}` : SAVE_STORAGE_KEY;
 }
@@ -114,67 +165,73 @@ export function loadSaveState(
     const sanitizedAnimals =
       Array.isArray(parsed.placedAnimals) && parsed.placedAnimals.length > 0
         ? parsed.placedAnimals
-            .filter((a) => a && typeof a.assetId === 'string' && ASSET_ECO_CONFIG[a.assetId])
-            .map((a, idx) => {
-              const zoneSpec = getZoneSpec(a.zoneId ?? 'sea');
-              const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
-              const migratedX = migrateWorldX(a.x, defaultCenter, saveVersion);
-              const migratedTargetX = migrateWorldX(a.targetX, migratedX + 140, saveVersion);
-              const rawHunger = Number.isFinite(a.hunger) ? a.hunger : 85;
-              return {
-                ...base.placedAnimals[0],
-                ...a,
-                uid: a.uid || `anim_restored_${idx}`,
-                x: migratedX,
-                y: Number.isFinite(a.y) ? a.y : 380,
-                targetX: migratedTargetX,
-                targetY: Number.isFinite(a.targetY) ? a.targetY : 380,
-                vx: 0,
-                vy: 0,
-                facing: (a.facing === -1 ? -1 : 1) as 1 | -1,
-                hunger: Math.max(0, Math.min(100, rawHunger - offlineHungerDrop)),
-                happiness: Number.isFinite(a.happiness) ? Math.max(0, Math.min(100, a.happiness)) : 90,
-                bondXp: Number.isFinite(a.bondXp) ? a.bondXp : 100,
-                careStartTimestampMs: a.careStartTimestampMs || Date.now(),
-                careDaysCount: a.careDaysCount || 1,
-                lastCareDayStamp: a.lastCareDayStamp || new Date().toISOString().slice(0, 10),
-                emotionTimerSec: Number.isFinite(a.emotionTimerSec) ? a.emotionTimerSec : 0,
-                lastEmoteTriggerMs: 0,
-                emoteSpamCount: 0,
-                locoBlend: 1,
-                eatingStage: a.eatingStage ?? 'none',
-                eatingTimerSec: Number.isFinite(a.eatingTimerSec) ? a.eatingTimerSec : 0,
-                blinkCountdownSec: Number.isFinite(a.blinkCountdownSec) ? a.blinkCountdownSec : 2.0,
-                blinkActiveSec: Number.isFinite(a.blinkActiveSec) ? a.blinkActiveSec : 0,
-              };
-            })
+          .filter((a) => a && typeof a.assetId === 'string' && ASSET_ECO_CONFIG[a.assetId])
+          .map((a, idx) => {
+            const zoneSpec = getZoneSpec(a.zoneId ?? 'sea');
+            const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
+            const migratedX = migrateWorldX(a.x, defaultCenter, saveVersion);
+            const migratedTargetX = migrateWorldX(a.targetX, migratedX + 140, saveVersion);
+            const rawHunger = Number.isFinite(a.hunger) ? a.hunger : 85;
+            return {
+              ...base.placedAnimals[0],
+              ...a,
+              uid: a.uid || `anim_restored_${idx}`,
+              x: migratedX,
+              y: Number.isFinite(a.y) ? a.y : 380,
+              targetX: migratedTargetX,
+              targetY: Number.isFinite(a.targetY) ? a.targetY : 380,
+              vx: 0,
+              vy: 0,
+              facing: (a.facing === -1 ? -1 : 1) as 1 | -1,
+              hunger: Math.max(0, Math.min(100, rawHunger - offlineHungerDrop)),
+              happiness: Number.isFinite(a.happiness) ? Math.max(0, Math.min(100, a.happiness)) : 90,
+              bondXp: Number.isFinite(a.bondXp) ? a.bondXp : 100,
+              careStartTimestampMs: a.careStartTimestampMs || Date.now(),
+              careDaysCount: a.careDaysCount || 1,
+              lastCareDayStamp: a.lastCareDayStamp || new Date().toISOString().slice(0, 10),
+              emotionTimerSec: Number.isFinite(a.emotionTimerSec) ? a.emotionTimerSec : 0,
+              lastEmoteTriggerMs: 0,
+              emoteSpamCount: 0,
+              locoBlend: 1,
+              eatingStage: a.eatingStage ?? 'none',
+              eatingFoodId: migrateFoodId(a.eatingFoodId),
+              eatingTimerSec: Number.isFinite(a.eatingTimerSec) ? a.eatingTimerSec : 0,
+              blinkCountdownSec: Number.isFinite(a.blinkCountdownSec) ? a.blinkCountdownSec : 2.0,
+              blinkActiveSec: Number.isFinite(a.blinkActiveSec) ? a.blinkActiveSec : 0,
+            };
+          })
         : base.placedAnimals;
 
     const sanitizedPlants =
       Array.isArray(parsed.placedPlants) && parsed.placedPlants.length > 0
         ? parsed.placedPlants
-            .filter((p) => p && typeof p.assetId === 'string' && ASSET_ECO_CONFIG[p.assetId])
-            .map((p, idx) => {
-              const zoneSpec = getZoneSpec(p.zoneId ?? 'forest');
-              const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
-              return {
-                ...p,
-                uid: p.uid || `plant_restored_${idx}`,
-                x: migrateWorldX(p.x, defaultCenter, saveVersion),
-                y: Number.isFinite(p.y) ? p.y : 380,
-                growthStage: (p.growthStage === 1 || p.growthStage === 2 || p.growthStage === 3
-                  ? p.growthStage
-                  : 1) as 1 | 2 | 3,
-                growthProgress: Number.isFinite(p.growthProgress) ? p.growthProgress : 25,
-                fruitCount: Number.isFinite(p.fruitCount) ? p.fruitCount : 0,
-                hasGoldenFruit: Boolean(p.hasGoldenFruit),
-                fruitRegenTimerSec: Number.isFinite(p.fruitRegenTimerSec) ? p.fruitRegenTimerSec : 28,
-                swayImpulse: Number.isFinite(p.swayImpulse) ? p.swayImpulse : 0,
-                grazingBitesRemaining: Number.isFinite(p.grazingBitesRemaining)
-                  ? p.grazingBitesRemaining
-                  : 4,
-              };
-            })
+          .filter((p) => p && typeof p.assetId === 'string' && ASSET_ECO_CONFIG[p.assetId])
+          .map((p, idx) => {
+            const zoneSpec = getZoneSpec(p.zoneId ?? 'forest');
+            const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
+            let finalX = migrateWorldX(p.x, defaultCenter, saveVersion);
+            // Open Item O8: Safely migrate historical/invalid placements (e.g. bamboo in water) to valid zone center
+            if (getPlantPlacementProblem(p.assetId, finalX)) {
+              finalX = defaultCenter;
+            }
+            return {
+              ...p,
+              uid: p.uid || `plant_restored_${idx}`,
+              x: finalX,
+              y: Number.isFinite(p.y) ? p.y : 380,
+              growthStage: (p.growthStage === 1 || p.growthStage === 2 || p.growthStage === 3
+                ? p.growthStage
+                : 1) as 1 | 2 | 3,
+              growthProgress: Number.isFinite(p.growthProgress) ? p.growthProgress : 25,
+              fruitCount: Number.isFinite(p.fruitCount) ? p.fruitCount : 0,
+              hasGoldenFruit: Boolean(p.hasGoldenFruit),
+              fruitRegenTimerSec: Number.isFinite(p.fruitRegenTimerSec) ? p.fruitRegenTimerSec : 28,
+              swayImpulse: Number.isFinite(p.swayImpulse) ? p.swayImpulse : 0,
+              grazingBitesRemaining: Number.isFinite(p.grazingBitesRemaining)
+                ? p.grazingBitesRemaining
+                : 4,
+            };
+          })
         : createDefaultSanctuaryPlants();
 
     const state: SaveState = {
@@ -197,19 +254,20 @@ export function loadSaveState(
         animal_28_green_sea_turtle: 1,
         ...(parsed.ownedAssets ?? {}),
       },
-      foodInventory: {
-        ...base.foodInventory,
-        ...(parsed.foodInventory ?? {}),
-      },
+      foodInventory: parsed.foodInventory
+        ? migrateFoodInventory(parsed.foodInventory)
+        : { ...base.foodInventory },
       placedAnimals: sanitizedAnimals.length > 0 ? sanitizedAnimals : base.placedAnimals,
-      placedPlants: sanitizedPlants,
+      placedPlants: refreshDefaultScenery(sanitizedPlants),
       droppedFoods: Array.isArray(parsed.droppedFoods)
         ? parsed.droppedFoods
-            .filter((df) => df && Number.isFinite(df.x) && Number.isFinite(df.y))
-            .map((df) => ({
-              ...df,
-              x: migrateWorldX(df.x, 543600, saveVersion),
-            }))
+          .filter((df) => df && Number.isFinite(df.x) && Number.isFinite(df.y))
+          .map((df) => ({
+            ...df,
+            foodId: migrateFoodId(df.foodId) ?? '',
+            x: migrateWorldX(df.x, 543600, saveVersion),
+          }))
+          .filter((df) => df.foodId !== '')
         : [],
       discoveredEcoDex: Array.isArray(parsed.discoveredEcoDex)
         ? parsed.discoveredEcoDex

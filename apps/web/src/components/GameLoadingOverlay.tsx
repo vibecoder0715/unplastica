@@ -10,12 +10,14 @@ import { FOOD_CATALOG } from "@game/game/worldConfig";
 import { loadSaveState } from "@game/game/persistence";
 import { ROSTER_ASSETS } from "@game/roster/catalog";
 import { soundEngine } from "@game/game/sound";
+import { type Language, getLanguage } from "../lib/i18n";
 
 interface GameLoadingOverlayProps {
+  language?: Language;
   onComplete: () => void;
 }
 
-export function GameLoadingOverlay({ onComplete }: GameLoadingOverlayProps) {
+export function GameLoadingOverlay({ language, onComplete }: GameLoadingOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -24,6 +26,16 @@ export function GameLoadingOverlay({ onComplete }: GameLoadingOverlayProps) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    // High-DPR razor-sharp buffer configuration
+    const dpr = Math.min(3, window.devicePixelRatio || 2);
+    canvas.width = Math.round(340 * dpr);
+    canvas.height = Math.round(250 * dpr);
+    canvas.style.width = "340px";
+    canvas.style.height = "250px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     let animId = 0;
     let cancelled = false;
@@ -131,14 +143,15 @@ export function GameLoadingOverlay({ onComplete }: GameLoadingOverlayProps) {
 
       ctx.clearRect(0, 0, 340, 250);
 
-      // Swirling bioluminescent eco-current rings around the Green Sea Turtle (matches game loading scene)
-      for (let i = 0; i < 12; i++) {
-        const bx = ((340 - ((elapsed * 0.28 + i * 32) % 360)) + 360) % 360 - 10;
-        const by = 45 + ((i * 37) % 160) + Math.sin(elapsed * 0.006 + i) * 10;
+      // Refined micro-current bioluminescent motes around the Green Sea Turtle
+      for (let i = 0; i < 14; i++) {
+        const bx = ((340 - ((elapsed * 0.28 + i * 26) % 360)) + 360) % 360 - 10;
+        const by = 48 + ((i * 31) % 155) + Math.sin(elapsed * 0.006 + i) * 8;
+        const dotRadius = 1.3 + (i % 3) * 0.5; // delicate 1.3px - 2.3px micro-motes
         ctx.fillStyle =
-          i % 2 === 0 ? "rgba(174, 246, 130, 0.45)" : "rgba(56, 189, 248, 0.42)";
+          i % 2 === 0 ? "rgba(174, 246, 130, 0.65)" : "rgba(56, 189, 248, 0.60)";
         ctx.beginPath();
-        ctx.arc(bx, by, 3.5 + (i % 3) * 1.8, 0, Math.PI * 2);
+        ctx.arc(bx, by, dotRadius, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -176,6 +189,29 @@ export function GameLoadingOverlay({ onComplete }: GameLoadingOverlayProps) {
     };
   }, [onComplete]);
 
+  const activeLang = language || getLanguage();
+  const localizedContent = {
+    English: {
+      title: "Entering Sanctuary…",
+      subtitle: "Loading initial assets for the game",
+    },
+    "Bahasa Melayu": {
+      title: "Memasuki Santuari…",
+      subtitle: "Memuatkan aset awal untuk permainan",
+    },
+    "中文": {
+      title: "正在进入生态天地…",
+      subtitle: "正在加载游戏初始生态资源",
+    },
+    "தமிழ்": {
+      title: "சரணாலயத்திற்குள் நுழைகிறது…",
+      subtitle: "விளையாட்டின் தொடக்க ஆதாரங்களை ஏற்றுகிறது",
+    },
+  }[activeLang] || {
+    title: "Entering Sanctuary…",
+    subtitle: "Loading initial assets for the game",
+  };
+
   return (
     <div
       className="teleport-loading-overlay game-launch-overlay"
@@ -188,7 +224,7 @@ export function GameLoadingOverlay({ onComplete }: GameLoadingOverlayProps) {
         height={250}
         className="teleport-loading-canvas"
       />
-      <div className="teleport-loading-title">Entering Sanctuary…</div>
+      <div className="teleport-loading-title">{localizedContent.title}</div>
       <div
         className="teleport-loading-subtitle"
         style={{
@@ -197,7 +233,7 @@ export function GameLoadingOverlay({ onComplete }: GameLoadingOverlayProps) {
           fontFamily: "Space Grotesk, sans-serif",
         }}
       >
-        Loading initial assets for the game
+        {localizedContent.subtitle}
       </div>
       <div className="teleport-progress-track">
         <div

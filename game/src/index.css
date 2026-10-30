@@ -365,7 +365,11 @@
 .store-tab-btn,
 .buy-btn,
 .primary-button,
-.text-button {
+.text-button,
+.teleport-go-btn,
+.pet-card-teleport-btn,
+.confirm-modal-btn,
+.entity-recall-btn {
   min-width: max-content;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1251,15 +1255,17 @@
 
 .teleport-loading-title {
   font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--leaf-glow);
+  text-align: center;
+  padding: 0 16px;
 }
 
 .teleport-progress-track {
-  width: 240px;
-  height: 7px;
+  width: 220px;
+  height: 5px;
   background: rgba(250, 250, 237, 0.16);
   border-radius: 999px;
   overflow: hidden;
@@ -1350,7 +1356,49 @@
   .dock-card-title {
     font-size: 10px;
   }
+}
 
+/* Open Item O1: Compact dock for landscape phones (e.g. 740 x 360) so it leaves >80% screen space */
+@media (max-height: 440px) and (orientation: landscape) {
+  .bottom-dock {
+    padding: 2px 8px 4px;
+    border-radius: 12px 12px 0 0;
+  }
+  .dock-collapse-bar {
+    height: 12px;
+  }
+  .dock-toggle-btn {
+    top: -18px;
+    height: 20px;
+    width: 44px;
+    font-size: 10px;
+  }
+  .dock-strip {
+    padding: 16px 4px 2px;
+    gap: 6px;
+  }
+  .dock-card {
+    width: 64px;
+    height: 68px;
+    padding: 3px;
+    border-radius: 10px;
+  }
+  .dock-card-thumb {
+    width: 42px;
+    height: 36px;
+    margin-top: 2px;
+  }
+  .dock-card-title {
+    font-size: 8.5px;
+  }
+  .dock-card-count {
+    top: 2px;
+    right: 3px;
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 600px) {
   .modal-backdrop {
     padding: 8px;
   }

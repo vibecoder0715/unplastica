@@ -1102,13 +1102,101 @@ img { max-width: 100%; }
   text-decoration-color: #86efac;
 }
 .camera-dialog { width: min(calc(100vw - 28px), 580px); }
-.camera-dialog .dialog-close {
-  z-index: 60;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--line);
+
+/* Earn Page Camera Dialog: Strictly Light Mode UI even in Dark Mode */
+.camera-dialog,
+:root[data-theme="dark"] .camera-dialog {
+  color-scheme: light !important;
+  background: #ffffff !important;
+  color: #07190e !important;
+  border: 1.5px solid #c8ded0 !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28) !important;
 }
+
+:root[data-theme="dark"] .camera-dialog h2,
+:root[data-theme="dark"] .camera-dialog h3,
+:root[data-theme="dark"] .camera-dialog p,
+:root[data-theme="dark"] .camera-dialog label,
+:root[data-theme="dark"] .camera-dialog span {
+  color: #07190e;
+}
+
+:root[data-theme="dark"] .camera-dialog .consent-row {
+  color: #274032 !important;
+}
+
+:root[data-theme="dark"] .camera-dialog .consent-row span {
+  color: #274032 !important;
+}
+
+:root[data-theme="dark"] .camera-dialog .secondary-button {
+  background: #f0fdf4 !important;
+  color: #002c17 !important;
+  border: 1px solid #c8ded0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+:root[data-theme="dark"] .camera-dialog .secondary-button:hover {
+  background: #e1f5e8 !important;
+  border-color: #2eaf6a !important;
+}
+
+:root[data-theme="dark"] .camera-dialog .primary-button {
+  background: linear-gradient(135deg, #18864b 0%, #2eaf6a 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(46, 175, 106, 0.35) !important;
+}
+
+:root[data-theme="dark"] .camera-dialog .primary-button:disabled {
+  background: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] .camera-dialog .ai-detection-pill.verified {
+  background: rgba(22, 163, 74, 0.15) !important;
+  color: #16a34a !important;
+  border-color: rgba(22, 163, 74, 0.3) !important;
+}
+
+:root[data-theme="dark"] .camera-dialog .ai-detection-pill.flagged {
+  background: rgba(220, 38, 38, 0.12) !important;
+  color: #dc2626 !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+}
+
+:root[data-theme="dark"] .camera-dialog .ai-detection-pill.detecting {
+  background: rgba(2, 132, 199, 0.15) !important;
+  color: #0284c7 !important;
+  border-color: rgba(2, 132, 199, 0.3) !important;
+}
+
+/* Item 3: Increase alpha and prominence for 'x' button inside camera mode */
+.camera-dialog .dialog-close,
+:root[data-theme="dark"] .camera-dialog .dialog-close {
+  z-index: 60;
+  width: 42px;
+  height: 42px;
+  background: #ffffff !important;
+  color: #07190e !important;
+  border: 1.5px solid rgba(0, 0, 0, 0.18) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35) !important;
+  opacity: 1 !important;
+  border-radius: 50% !important;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.camera-dialog .dialog-close:hover,
+:root[data-theme="dark"] .camera-dialog .dialog-close:hover {
+  background: #f0fdf4 !important;
+  transform: scale(1.08);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.42) !important;
+}
+
 .camera-dialog > p { margin: 0 0 14px; }
 .camera-preview { position: relative; width: 100%; aspect-ratio: 1 / 1.05; min-height: 420px; max-height: 65vh; border: 1px solid var(--line); border-radius: 18px; display: grid; place-items: center; overflow: hidden; color: var(--muted); background: #07190e; }
 .camera-preview video, .camera-preview img { width: 100%; height: 100%; object-fit: cover; }
@@ -2104,15 +2192,17 @@ img { max-width: 100%; }
 
 .teleport-loading-title {
   font-family: "Outfit", sans-serif;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: #aef682;
+  text-align: center;
+  padding: 0 16px;
 }
 
 .teleport-progress-track {
-  width: 240px;
-  height: 7px;
+  width: 220px;
+  height: 5px;
   background: rgba(250, 250, 237, 0.16);
   border-radius: 999px;
   overflow: hidden;
@@ -2138,3 +2228,25 @@ img { max-width: 100%; }
 /* Dark mode: keep profile initials readable on a luminous avatar disc */
 :root[data-theme="dark"] .profile-avatar { color: #052e16; background: linear-gradient(135deg, #bef264, #4ade80); border-color: rgba(190, 242, 100, 0.55); box-shadow: 0 0 0 4px rgba(190, 242, 100, 0.14), 0 10px 28px rgba(74, 222, 128, 0.28); }
 
+
+/* Dynamic horizontal button sizing for all localized languages (English, Malay, Chinese, Tamil) */
+.primary-button,
+.secondary-button,
+.text-button,
+.submit-proof,
+.tab-btn,
+.campus-action-btn,
+.install-btn,
+.show-manual-btn,
+.settings-action-btn,
+.buy-btn,
+.teleport-go-btn,
+.pet-card-teleport-btn,
+.modal-close-btn,
+.confirm-modal-btn,
+.entity-recall-btn,
+.dock-card-drag-pop {
+  min-width: max-content;
+  white-space: nowrap;
+  box-sizing: border-box;
+}

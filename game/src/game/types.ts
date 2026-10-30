@@ -6,12 +6,36 @@ export type WeatherType = 'sunny' | 'windy' | 'cloudy' | 'rain' | 'fog' | 'rainb
 
 export type TimePhase = 'dawn' | 'day' | 'dusk' | 'night';
 
+/**
+ * Food categories follow what the animals really eat.
+ * - fruit: fleshy fruit (durian, mangosteen, banana, rambutan, papaya, figs, coconut)
+ * - seaweed: seagrass and other aquatic plants
+ * - plankton: drifting microscopic food for filter feeders
+ * - river_treat: small fish and prawns for fish and crustacean eaters
+ * - bamboo: bamboo shoots and leaves
+ * - honey: wild honeycomb
+ * - insects: ants, termites and other small invertebrates
+ */
 export type FoodCategory =
   | 'fruit'
   | 'seaweed'
   | 'plankton'
-  | 'omnivore_pellet'
-  | 'river_treat';
+  | 'river_treat'
+  | 'bamboo'
+  | 'honey'
+  | 'insects';
+
+/** When an animal is naturally awake. Cathemeral animals are active in short bouts day and night. */
+export type ActivityPattern = 'diurnal' | 'nocturnal' | 'cathemeral';
+
+/**
+ * Where a plant can physically grow.
+ * - land: needs dry ground (never under water)
+ * - floating: leaves float on fresh water
+ * - submerged: grows fully under fresh water
+ * - shallow_marine: needs shallow, sunlit sea water (seagrass)
+ */
+export type PlantPlacement = 'land' | 'floating' | 'submerged' | 'shallow_marine';
 
 export interface HabitatZoneSpec {
   id: HabitatZoneId;
@@ -63,6 +87,19 @@ export interface AssetEcoMetadata {
   isAquaticFoodSource?: boolean;
   aquaticFoodCategory?: 'seaweed' | 'plankton';
   defaultScale: number;
+  /**
+   * On-screen size relative to the Green Sea Turtle (1.0), compressed from real body length
+   * so a clownfish is visibly smaller than a whale shark. Plants: relative height of the plant.
+   */
+  visualSize: number;
+  /** Animals only: when the species is awake. */
+  activityPattern?: ActivityPattern;
+  /** Animals only: walking or swimming speed factor. 0 means sessile (never moves). */
+  moveSpeedFactor?: number;
+  /** Plants only: where the plant can physically grow. */
+  plantPlacement?: PlantPlacement;
+  /** Plants only: trees with a crown that canopy animals can climb and perch in. */
+  isPerchTree?: boolean;
   collisionRadius: number;
   canopyHabit?: 'ground' | 'canopy' | 'pelagic' | 'benthic';
   conservationStatus: string;

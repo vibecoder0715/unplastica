@@ -1051,6 +1051,7 @@ export default function App() {
       {page !== "login" && page !== "game" && <BottomNav page={page} onNavigate={(target) => target === "earn" ? requestLogin("earn") : navigate(target)} />}
       {enteringGame && (
         <GameLoadingOverlay
+          language={language}
           onComplete={() => {
             setEnteringGame(false);
             navigate("game");

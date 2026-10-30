@@ -1,4 +1,5 @@
 import type { TurtlePose } from '../turtle/types';
+import { REFINED_PLANT_RIGS } from './flora';
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -1038,6 +1039,179 @@ function drawDetailedLeaf(
     ctx.restore();
   }
 
+  /** Arrow-shaped (hastate) kangkung leaf with two basal lobes, midrib and side veins. */
+  function drawHastateLeaf(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    angle: number,
+    length: number,
+  ): void {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    const w = length * 0.34;
+    const leaf = new Path2D();
+    leaf.moveTo(0, 0);
+    leaf.quadraticCurveTo(length * 0.05, -w * 0.9, -length * 0.16, -w * 1.15); // left basal lobe
+    leaf.quadraticCurveTo(length * 0.16, -w * 0.95, length * 0.45, -w * 0.62);
+    leaf.quadraticCurveTo(length * 0.8, -w * 0.3, length, 0); // tip
+    leaf.quadraticCurveTo(length * 0.8, w * 0.3, length * 0.45, w * 0.62);
+    leaf.quadraticCurveTo(length * 0.16, w * 0.95, -length * 0.16, w * 1.15); // right basal lobe
+    leaf.quadraticCurveTo(length * 0.05, w * 0.9, 0, 0);
+    leaf.closePath();
+    fillRimAndStroke(ctx, leaf, -length * 0.16, -w * 1.15, length, w * 1.15, '#bbf7a6', '#4d9a2e', '#245c16', '#142914', 2.2);
+    ctx.strokeStyle = 'rgba(236, 252, 203, 0.7)';
+    ctx.lineWidth = Math.max(1.1, length * 0.025);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(length * 0.96, 0);
+    for (const t of [0.22, 0.42, 0.62]) {
+      ctx.moveTo(length * t, 0);
+      ctx.quadraticCurveTo(length * (t + 0.08), -w * 0.3, length * (t + 0.14), -w * 0.55);
+      ctx.moveTo(length * t, 0);
+      ctx.quadraticCurveTo(length * (t + 0.08), w * 0.3, length * (t + 0.14), w * 0.55);
+    }
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-length * 0.12, -w * 0.9);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-length * 0.12, w * 0.9);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * P30 Water spinach (kangkung): floating hollow runner stems at the water line (local y
+   * about 128, just above the anchor at 162), white adventitious roots hanging from the
+   * nodes into the water, hastate leaves on arching petioles, and white-to-lilac funnel
+   * flowers (morning glory family) when flowering.
+   */
+  function drawWaterSpinach(ctx: CanvasRenderingContext2D, sway: number): void {
+    const surfaceY = 128;
+    const stems: Array<Array<[number, number]>> = [
+      [
+        [-150, surfaceY + 4],
+        [-90, surfaceY - 2],
+        [-30, surfaceY + 3],
+        [30, surfaceY - 1],
+        [92, surfaceY + 2],
+        [150, surfaceY - 3],
+      ],
+      [
+        [-120, surfaceY + 10],
+        [-60, surfaceY + 7],
+        [0, surfaceY + 11],
+        [60, surfaceY + 8],
+        [118, surfaceY + 12],
+      ],
+    ];
+
+    // Roots trailing down from the nodes into the water
+    ctx.strokeStyle = 'rgba(236, 233, 220, 0.75)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    for (const stem of stems) {
+      for (const [nx, ny] of stem) {
+        for (const off of [-5, 3]) {
+          ctx.beginPath();
+          ctx.moveTo(nx + off, ny + 3);
+          ctx.quadraticCurveTo(nx + off + sway * 10, ny + 22, nx + off - sway * 6, ny + 40);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Hollow runner stems: pale green tube with a darker edge and slightly swollen nodes
+    for (const stem of stems) {
+      ctx.strokeStyle = '#2f6b1f';
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      stem.forEach(([px, py], i) => {
+        const sx = px + sway * 6;
+        if (i === 0) ctx.moveTo(sx, py);
+        else ctx.lineTo(sx, py);
+      });
+      ctx.stroke();
+      ctx.strokeStyle = '#9fd47a';
+      ctx.lineWidth = 5.5;
+      ctx.stroke();
+      for (const [nx, ny] of stem) {
+        ctx.fillStyle = '#6fae4a';
+        ctx.strokeStyle = '#2f6b1f';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.ellipse(nx + sway * 6, ny, 6, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    // Leaves on arching petioles rising from the nodes, alternating sides
+    const leafNodes: Array<[number, number, number, number]> = [
+      [-150, surfaceY + 4, -2.05, 74],
+      [-90, surfaceY - 2, -1.25, 82],
+      [-30, surfaceY + 3, -1.9, 78],
+      [30, surfaceY - 1, -1.15, 86],
+      [92, surfaceY + 2, -1.95, 76],
+      [150, surfaceY - 3, -1.2, 70],
+      [-60, surfaceY + 7, -1.55, 64],
+      [60, surfaceY + 8, -1.6, 66],
+    ];
+    for (const [nx, ny, ang, len] of leafNodes) {
+      const bx = nx + sway * 6;
+      const tipX = bx + Math.cos(ang) * len * 0.55 + sway * 14;
+      const tipY = ny + Math.sin(ang) * len * 0.55;
+      ctx.strokeStyle = '#4d8a2c';
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.moveTo(bx, ny);
+      ctx.quadraticCurveTo(bx, tipY + 10, tipX, tipY);
+      ctx.stroke();
+      drawHastateLeaf(ctx, tipX, tipY, ang + sway * 0.12, len * 0.62);
+    }
+
+    // Funnel-shaped flowers on short stalks at the leaf axils
+    if (activePlantGrowthStage >= 2) {
+      for (const [fx, fy, rot] of [
+        [-62, surfaceY - 44, -0.35],
+        [36, surfaceY - 52, 0.25],
+        [118, surfaceY - 36, 0.45],
+      ] as const) {
+        const cx2 = fx + sway * 16;
+        ctx.save();
+        ctx.translate(cx2, fy);
+        ctx.rotate(rot);
+        ctx.strokeStyle = '#4d8a2c';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(0, 30);
+        ctx.lineTo(0, 10);
+        ctx.stroke();
+        const tube = new Path2D();
+        tube.moveTo(-4, 12);
+        tube.quadraticCurveTo(-6, -2, -20, -14);
+        tube.quadraticCurveTo(0, -22, 20, -14);
+        tube.quadraticCurveTo(6, -2, 4, 12);
+        tube.closePath();
+        fillRimAndStroke(ctx, tube, -20, -22, 20, 12, '#ffffff', '#f3e8ff', '#d8b4fe', '#4c1d95', 1.8);
+        // Mauve throat and the pleat lines of a morning-glory corolla
+        ctx.fillStyle = 'rgba(192, 132, 252, 0.85)';
+        ctx.beginPath();
+        ctx.ellipse(0, -14, 9, 3.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(167, 139, 250, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (const px of [-12, -6, 0, 6, 12]) {
+          ctx.moveTo(px * 0.3, 8);
+          ctx.lineTo(px, -15);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
   export interface PlantRenderOptions {
     yaw?: number;
     pitch?: number;
@@ -1109,6 +1283,22 @@ function drawDetailedLeaf(
 
     // 3D Sculpted Island / Seabed Plinth Base beneath every plant
     draw3DPlantIslandBase(ctx, assetId, sway);
+
+    // Refined vector plant rigs (game/src/roster/flora/*) take over species one by one.
+    const refinedPlant = REFINED_PLANT_RIGS[assetId];
+    if (refinedPlant) {
+      refinedPlant(ctx, {
+        assetId,
+        pose,
+        sway,
+        yaw,
+        pitch,
+        growthStage: activePlantGrowthStage,
+        fruitCount: activePlantFruitCount,
+      });
+      ctx.restore();
+      return;
+    }
 
     switch (assetId) {
       /* ========================================================================
@@ -2702,10 +2892,8 @@ function drawDetailedLeaf(
           ctx.stroke();
           ctx.restore();
         }
-        // Subtle marine seagrass blossom & bristled seed capsule at base
-        drawFlowerClusterBlock(ctx, -34 + sway * 12, 118, 0.52, -0.2, '#fef9c3', '#fde047', '#eab308', '#ca8a04');
-        drawFlowerClusterBlock(ctx, 38 + sway * 12, 116, 0.52, 0.2, '#fef9c3', '#fde047', '#eab308', '#ca8a04');
-        // Marine seagrass blossom & bristled seed capsule at base when flowering/fruiting
+        // Marine seagrass blossom & bristled seed capsule at base, only when flowering/fruiting
+        // (they were also drawn unconditionally, so even saplings were in flower)
         if (activePlantGrowthStage >= 2) {
           drawFlowerClusterBlock(ctx, -34 + sway * 12, 118, 0.52, -0.2, '#fef9c3', '#fde047', '#eab308', '#ca8a04');
           drawFlowerClusterBlock(ctx, 38 + sway * 12, 116, 0.52, 0.2, '#fef9c3', '#fde047', '#eab308', '#ca8a04');
@@ -2923,7 +3111,14 @@ function drawDetailedLeaf(
        * Branched hollow jointed semi-aquatic mother stems, hastate arrowhead leaves
        * with rich venation, seed capsules, and multi-block morning glory blooms.
        * ====================================================================== */
-      case 'plant_30_water_spinach':
+      case 'plant_30_water_spinach': {
+        // Ipomoea aquatica is a creeping herb: hollow stems run along the water surface,
+        // root at the nodes, and raise arrow-shaped (hastate) leaves on long petioles.
+        // It was drawn as a woody tree with a trunk before.
+        drawWaterSpinach(ctx, sway);
+        break;
+      }
+
       default: {
         drawWoodyTrunkAndBranches(ctx, sway, 175, 18, 10, '#86efac', '#22c55e', '#15803d', false, [
           [-0.45, -0.58, -78, -42, 12],
