@@ -744,12 +744,84 @@ export function MascotWidget({ language }: MascotWidgetProps) {
     }
   }, [langKey, dialogueIndex, dialogueMode, verifiedPoints, isOpen, buildVerifySuccessNode, buildVerifyFailNode]);
 
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [tiltAngle, setTiltAngle] = useState(0);
+  const [isPatted, setIsPatted] = useState(false);
+  const [showHeart, setShowHeart] = useState(false);
+  const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number }>({
+    clientX: 0,
+    clientY: 0,
+    startX: 0,
+    startY: 0,
+  });
+  const hasMovedRef = useRef(false);
+
   const toggleOpen = () => {
     if (!isOpen) {
       setIsOpen(true);
+      setDragOffset({ x: 0, y: 0 });
+      setTiltAngle(0);
       triggerRandomMascotTalk();
     } else {
       setIsOpen(false);
+      setDragOffset({ x: 0, y: 0 });
+      setTiltAngle(0);
+    }
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+    dragStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startX: dragOffset.x,
+      startY: dragOffset.y,
+    };
+    hasMovedRef.current = false;
+    setIsDragging(true);
+    setIsPatted(true);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartRef.current.clientX;
+    const dy = e.clientY - dragStartRef.current.clientY;
+    if (Math.hypot(dx, dy) > 6) {
+      hasMovedRef.current = true;
+    }
+    const newX = dragStartRef.current.startX + dx;
+    const newY = dragStartRef.current.startY + dy;
+    const clampedX = Math.max(-window.innerWidth + 200, Math.min(40, newX));
+    const clampedY = Math.max(-window.innerHeight + 240, Math.min(40, newY));
+    setDragOffset({ x: clampedX, y: clampedY });
+    setTiltAngle(Math.max(-18, Math.min(18, dx * 0.14)));
+    if (emotion !== "wondered" && emotion !== "waving") {
+      setEmotion("wondered");
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    setIsPatted(false);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+
+    if (!hasMovedRef.current) {
+      triggerRandomMascotTalk();
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 900);
+    } else {
+      setTiltAngle(0);
+      setEmotion("laugh");
+      setTimeout(() => {
+        setDragOffset({ x: 0, y: 0 });
+      }, 150);
     }
   };
 
@@ -763,7 +835,7 @@ export function MascotWidget({ language }: MascotWidgetProps) {
             position: "fixed",
             bottom: "max(84px, env(safe-area-inset-bottom) + 72px)",
             right: 16,
-            maxWidth: 340,
+            maxWidth: 360,
             width: "calc(100vw - 32px)",
             zIndex: 9995,
             pointerEvents: "none",
@@ -838,50 +910,71 @@ export function MascotWidget({ language }: MascotWidgetProps) {
                 fontSize: 11,
                 color: "#8eb399",
                 opacity: 0.85,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
               }}
             >
-              <span>
-                {langKey === "bm"
-                  ? "Ketik penyu untuk sembang!"
-                  : langKey === "zh"
-                    ? "点击海龟跟我互动！"
-                    : "Tap turtle to talk!"}
-              </span>
-              <span style={{ fontSize: 10, opacity: 0.6 }}>🐢</span>
+              {langKey === "bm"
+                ? "Ketik penyu untuk sembang!"
+                : langKey === "zh"
+                  ? "点击海龟跟我互动！"
+                  : "Tap turtle to talk!"}
             </div>
           </div>
 
-          {/* Turtle standing freely in the app (No box/container!) */}
+          {/* Turtle standing freely in the app (No box/container! 40% larger + dynamic dragging/touching interaction) */}
           <div
-            title="Tap me!"
-            onClick={triggerRandomMascotTalk}
+            title="Touch or drag me!"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             style={{
+              position: "relative",
               pointerEvents: "auto",
-              cursor: "pointer",
+              cursor: isDragging ? "grabbing" : "grab",
+              touchAction: "none",
               padding: "2px",
               filter:
-                "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 18px rgba(174, 246, 130, 0.45))",
-              transition: "transform 0.15s ease",
-              marginRight: 10,
-              transform: "translateY(2px)",
+                "drop-shadow(0 14px 28px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 20px rgba(174, 246, 130, 0.5))",
+              transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) rotate(${tiltAngle}deg) scale(${isDragging ? 1.08 : isPatted ? 0.94 : 1})`,
+              transition: isDragging ? "none" : "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              marginRight: 6,
+              userSelect: "none",
+              WebkitUserSelect: "none",
             }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.95)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
           >
-            <TurtleCanvas
-              emotion={emotion}
-              direction="right"
-              width={132}
-              height={118}
-            />
+            {/* Cute floating reaction heart on touch */}
+            {showHeart && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: -10,
+                  right: 28,
+                  fontSize: 22,
+                  pointerEvents: "none",
+                  animation: "mascotHeartFloat 0.9s ease-out forwards",
+                  zIndex: 20,
+                }}
+              >
+                💚
+              </div>
+            )}
+            <div
+              style={{
+                animation: isDragging ? "none" : "mascotTalkingBounce 1.5s ease-in-out infinite",
+              }}
+            >
+              <TurtleCanvas
+                emotion={emotion}
+                direction="right"
+                width={185}
+                height={165}
+              />
+            </div>
           </div>
         </div>
       )}
 
-      {/* Super Cute Front-Facing Sea Turtle Head Button - freely floating in app without box/disc */}
+      {/* Super Cute Front-Facing Sea Turtle Head Button - diminishes when dialog is open */}
       <button
         type="button"
         className="mascot-launcher-button"
@@ -905,17 +998,25 @@ export function MascotWidget({ language }: MascotWidgetProps) {
           overflow: "visible",
           filter:
             "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))",
-          transition: "transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s ease",
+          transform: isOpen ? "scale(0) translateY(24px)" : "scale(1) translateY(0)",
+          opacity: isOpen ? 0 : 1,
+          pointerEvents: isOpen ? "none" : "auto",
+          transition: "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, filter 0.2s ease",
+          animation: isOpen ? "none" : "mascotPopOut 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "scale(1.14) translateY(-3px)";
-          e.currentTarget.style.filter =
-            "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 24px rgba(174, 246, 130, 0.9))";
+          if (!isOpen) {
+            e.currentTarget.style.transform = "scale(1.14) translateY(-3px)";
+            e.currentTarget.style.filter =
+              "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 24px rgba(174, 246, 130, 0.9))";
+          }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "scale(1)";
-          e.currentTarget.style.filter =
-            "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))";
+          if (!isOpen) {
+            e.currentTarget.style.transform = "scale(1) translateY(0)";
+            e.currentTarget.style.filter =
+              "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))";
+          }
         }}
       >
         <TurtleFrontHeadCanvas emotion={emotion} isOpen={isOpen} />

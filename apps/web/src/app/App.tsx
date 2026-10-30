@@ -1056,7 +1056,7 @@ export default function App() {
           }}
         />
       )}
-      {page !== "game" && !enteringGame && <MascotWidget language={language} />}
+      {page !== "game" && !enteringGame && !showManualTour && <MascotWidget language={language} />}
       {showManualTour && !showUsernamePrompt && page !== "login" && (
         <MascotManualTour
           language={language}

@@ -349,7 +349,7 @@ export function MascotManualTour({
       >
         <div
           style={{
-            maxWidth: 540,
+            maxWidth: 580,
             width: "100%",
             display: "flex",
             alignItems: "flex-end",
@@ -358,21 +358,21 @@ export function MascotManualTour({
             pointerEvents: "auto",
           }}
         >
-          {/* Animated Mascot Rig: Standing freely in the app (no card, no border, pure mascot) */}
+          {/* Animated Mascot Rig: Standing freely in the app (40% larger, talking & interacting animation) */}
           <div
             style={{
               flexShrink: 0,
               filter:
-                "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.45))",
+                "drop-shadow(0 14px 28px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 20px rgba(174, 246, 130, 0.5))",
               transform: "translateY(8px)",
-              animation: "mascotSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+              animation: "mascotSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1), mascotTalkingBounce 1.5s ease-in-out infinite",
             }}
           >
             <TurtleCanvas
               emotion={step.emotion}
               direction={step.direction}
-              width={128}
-              height={116}
+              width={180}
+              height={162}
             />
           </div>
 
