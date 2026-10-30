@@ -332,6 +332,7 @@ export function MascotManualTour({
       )}
 
       {/* Floating Mascot Dialogue Bottom Container */}
+      {/* Interactive Mascot Tour: Turtle freely standing in the app talking (NO enclosing box around turtle!) */}
       <div
         className="mascot-tour-card-wrapper"
         style={{
@@ -343,135 +344,140 @@ export function MascotManualTour({
           justifyContent: "center",
           padding: "0 16px",
           zIndex: 9999,
-          pointerEvents: "auto",
+          pointerEvents: "none",
         }}
       >
         <div
-          className="mascot-bubble-card"
           style={{
-            maxWidth: 520,
+            maxWidth: 540,
             width: "100%",
-            background: "rgba(8, 28, 18, 0.94)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            border: "1.5px solid rgba(174, 246, 130, 0.38)",
-            borderRadius: 24,
-            padding: "16px 20px",
-            boxShadow: "0 16px 40px rgba(0, 0, 0, 0.55), 0 0 30px rgba(86, 217, 133, 0.18)",
             display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            position: "relative",
+            alignItems: "flex-end",
+            gap: 14,
+            flexDirection: step.direction === "left" ? "row-reverse" : "row",
+            pointerEvents: "auto",
           }}
         >
-          {/* Header row with step counter & Quit button */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: "#aef682",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              Step {currentStepIdx + 1} of {TOUR_STEPS.length}
-            </span>
-            <button
-              type="button"
-              onClick={onComplete}
-              style={{
-                background: "rgba(255, 255, 255, 0.08)",
-                border: "1px solid rgba(255, 255, 255, 0.18)",
-                borderRadius: 999,
-                color: "#c8ded0",
-                fontSize: 12,
-                fontWeight: 600,
-                padding: "4px 12px",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
-            >
-              {quitLabel}
-            </button>
-          </div>
-
-          {/* Center row with animated turtle canvas and speech text bubble */}
+          {/* Animated Mascot Rig: Standing freely in the app (no card, no border, pure mascot) */}
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              flexDirection: step.direction === "left" ? "row-reverse" : "row",
+              flexShrink: 0,
+              filter:
+                "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.45))",
+              transform: "translateY(8px)",
+              animation: "mascotSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
           >
-            {/* Animated Mascot Rig */}
-            <div style={{ flexShrink: 0 }}>
-              <TurtleCanvas
-                emotion={step.emotion}
-                direction={step.direction}
-                width={110}
-                height={100}
-              />
+            <TurtleCanvas
+              emotion={step.emotion}
+              direction={step.direction}
+              width={128}
+              height={116}
+            />
+          </div>
+
+          {/* Organic Floating Speech Bubble */}
+          <div
+            className="mascot-speech-bubble"
+            style={{
+              flex: 1,
+              background: "rgba(10, 32, 20, 0.96)",
+              backdropFilter: "blur(24px)",
+              WebkitBackdropFilter: "blur(24px)",
+              border: "1.5px solid rgba(174, 246, 130, 0.42)",
+              borderRadius: 22,
+              padding: "16px 18px",
+              boxShadow:
+                "0 18px 44px rgba(0, 0, 0, 0.6), 0 0 28px rgba(86, 217, 133, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.15)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              position: "relative",
+              animation: "mascotSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
+            {/* Header row with step counter & Quit button */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "#aef682",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Step {currentStepIdx + 1} of {TOUR_STEPS.length}
+              </span>
+              <button
+                type="button"
+                onClick={onComplete}
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(255, 255, 255, 0.18)",
+                  borderRadius: 999,
+                  color: "#c8ded0",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "4px 12px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {quitLabel}
+              </button>
             </div>
 
-            {/* Speech bubble */}
+            {/* Speech message text */}
             <div
-              className="mascot-speech-bubble"
               style={{
-                flex: 1,
-                background: "rgba(16, 44, 28, 0.9)",
-                border: "1.2px solid rgba(174, 246, 130, 0.28)",
-                borderRadius: 16,
-                padding: "12px 16px",
                 color: "#fcfdfa",
                 fontSize: 15,
-                lineHeight: 1.45,
+                lineHeight: 1.5,
                 fontWeight: 500,
-                position: "relative",
               }}
             >
               {step.text[langKey](GREENBIT_COIN)}
             </div>
-          </div>
 
-          {/* Action buttons row */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
-            {currentStepIdx > 0 && (
+            {/* Action buttons row */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 2 }}>
+              {currentStepIdx > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  style={{
+                    background: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    borderRadius: 12,
+                    color: "#d4ede0",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: "7px 16px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {backLabel}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={handleBack}
+                onClick={handleNext}
                 style={{
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  background: "linear-gradient(135deg, #aef682 0%, #34d399 100%)",
+                  border: "none",
                   borderRadius: 12,
-                  color: "#d4ede0",
+                  color: "#032311",
                   fontSize: 13,
-                  fontWeight: 600,
-                  padding: "8px 16px",
+                  fontWeight: 700,
+                  padding: "7px 20px",
                   cursor: "pointer",
+                  boxShadow: "0 4px 14px rgba(174, 246, 130, 0.35)",
                 }}
               >
-                {backLabel}
+                {nextLabel}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handleNext}
-              style={{
-                background: "linear-gradient(135deg, #aef682 0%, #34d399 100%)",
-                border: "none",
-                borderRadius: 12,
-                color: "#032311",
-                fontSize: 13,
-                fontWeight: 700,
-                padding: "8px 20px",
-                cursor: "pointer",
-                boxShadow: "0 4px 14px rgba(174, 246, 130, 0.35)",
-              }}
-            >
-              {nextLabel}
-            </button>
+            </div>
           </div>
         </div>
       </div>

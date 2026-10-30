@@ -75,8 +75,8 @@ function TurtleFrontHeadCanvas({ emotion, isOpen }: TurtleFrontHeadCanvasProps) 
     const blinkDur = 170;
 
     const render = (now: number) => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-      const size = 54;
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const size = 62;
       const targetW = Math.round(size * dpr);
       if (canvas.width !== targetW || canvas.height !== targetW) {
         canvas.width = targetW;
@@ -514,8 +514,8 @@ function TurtleFrontHeadCanvas({ emotion, isOpen }: TurtleFrontHeadCanvasProps) 
     <canvas
       ref={canvasRef}
       style={{
-        width: 50,
-        height: 50,
+        width: 62,
+        height: 62,
         display: "block",
         pointerEvents: "none",
       }}
@@ -755,107 +755,133 @@ export function MascotWidget({ language }: MascotWidgetProps) {
 
   return (
     <>
-      {/* Pop-out Mascot Dialog Card */}
+      {/* Pop-out Mascot: Turtle freely standing in the app talking (no card/box enclosing turtle!) */}
       {isOpen && (
         <div
           className="mascot-floating-popup"
           style={{
             position: "fixed",
-            bottom: "max(96px, env(safe-area-inset-bottom) + 82px)",
-            right: 20,
+            bottom: "max(84px, env(safe-area-inset-bottom) + 72px)",
+            right: 16,
             maxWidth: 340,
-            width: "calc(100vw - 40px)",
+            width: "calc(100vw - 32px)",
             zIndex: 9995,
-            background: "rgba(6, 25, 16, 0.95)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            border: "1.5px solid rgba(174, 246, 130, 0.35)",
-            borderRadius: 22,
-            padding: "16px 18px",
-            boxShadow: "0 18px 45px rgba(0, 0, 0, 0.6), 0 0 30px rgba(86, 217, 133, 0.2)",
+            pointerEvents: "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 6,
             animation: "mascotSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
-          {/* Close mini button */}
-          <button
-            type="button"
-            onClick={() => setIsOpen(false)}
-            aria-label="Close Mascot"
+          {/* Organic Floating Speech Bubble */}
+          <div
             style={{
-              position: "absolute",
-              top: 10,
-              right: 12,
-              background: "rgba(255, 255, 255, 0.08)",
-              border: "none",
-              borderRadius: "50%",
-              width: 26,
-              height: 26,
-              color: "#c8ded0",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 14,
+              position: "relative",
+              pointerEvents: "auto",
+              background: "rgba(6, 25, 16, 0.94)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              border: "1.5px solid rgba(174, 246, 130, 0.38)",
+              borderRadius: 20,
+              padding: "14px 18px",
+              paddingTop: "16px",
+              boxShadow: "0 18px 45px rgba(0, 0, 0, 0.65), 0 0 28px rgba(86, 217, 133, 0.25)",
+              width: "100%",
             }}
           >
-            ✕
-          </button>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-            {/* Turtle Canvas - tapping body triggers new random line */}
-            <div
-              title="Tap me!"
-              onClick={triggerRandomMascotTalk}
+            {/* Close mini button */}
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              aria-label="Close Mascot"
               style={{
+                position: "absolute",
+                top: 8,
+                right: 10,
+                background: "rgba(255, 255, 255, 0.08)",
+                border: "none",
+                borderRadius: "50%",
+                width: 24,
+                height: 24,
+                color: "#c8ded0",
                 cursor: "pointer",
-                padding: "4px",
-                borderRadius: 16,
-                transition: "transform 0.15s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 13,
+                transition: "background 0.2s ease",
               }}
-              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
-              onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.18)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)")}
             >
-              <TurtleCanvas
-                emotion={emotion}
-                direction="right"
-                width={130}
-                height={115}
-              />
-            </div>
+              ✕
+            </button>
 
-            {/* Speech bubble */}
             <div
               onClick={triggerRandomMascotTalk}
               style={{
                 cursor: "pointer",
-                background: "rgba(16, 44, 28, 0.9)",
-                border: "1px solid rgba(174, 246, 130, 0.28)",
-                borderRadius: 14,
-                padding: "10px 14px",
                 color: "#fcfdfa",
                 fontSize: 13.5,
-                lineHeight: 1.4,
-                textAlign: "center",
+                lineHeight: 1.45,
                 fontWeight: 500,
-                width: "100%",
-                boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                paddingRight: 22,
               }}
             >
               {activeText}
             </div>
 
-            <span style={{ fontSize: 11, color: "#8eb399", opacity: 0.85 }}>
-              {langKey === "bm"
-                ? "Ketik penyu untuk sembang!"
-                : langKey === "zh"
-                  ? "点击海龟跟我互动！"
-                  : "Tap turtle to talk!"}
-            </span>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: "#8eb399",
+                opacity: 0.85,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span>
+                {langKey === "bm"
+                  ? "Ketik penyu untuk sembang!"
+                  : langKey === "zh"
+                    ? "点击海龟跟我互动！"
+                    : "Tap turtle to talk!"}
+              </span>
+              <span style={{ fontSize: 10, opacity: 0.6 }}>🐢</span>
+            </div>
+          </div>
+
+          {/* Turtle standing freely in the app (No box/container!) */}
+          <div
+            title="Tap me!"
+            onClick={triggerRandomMascotTalk}
+            style={{
+              pointerEvents: "auto",
+              cursor: "pointer",
+              padding: "2px",
+              filter:
+                "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 18px rgba(174, 246, 130, 0.45))",
+              transition: "transform 0.15s ease",
+              marginRight: 10,
+              transform: "translateY(2px)",
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.95)")}
+            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          >
+            <TurtleCanvas
+              emotion={emotion}
+              direction="right"
+              width={132}
+              height={118}
+            />
           </div>
         </div>
       )}
 
-      {/* Super Cute Front-Facing Sea Turtle Head Button */}
+      {/* Super Cute Front-Facing Sea Turtle Head Button - freely floating in app without box/disc */}
       <button
         type="button"
         className="mascot-launcher-button"
@@ -863,30 +889,33 @@ export function MascotWidget({ language }: MascotWidgetProps) {
         aria-label="Open Sea Turtle Mascot"
         style={{
           position: "fixed",
-          bottom: "max(88px, env(safe-area-inset-bottom) + 76px)",
-          right: 20,
-          width: 60,
-          height: 60,
-          borderRadius: "50%",
+          bottom: "max(84px, env(safe-area-inset-bottom) + 72px)",
+          right: 18,
+          width: 66,
+          height: 66,
           padding: 0,
-          border: "2.5px solid #aef682",
-          background: "radial-gradient(circle at 35% 30%, #1d6b3b 0%, #0d3d20 65%, #062211 100%)",
-          boxShadow: "0 8px 22px rgba(0, 0, 0, 0.45), 0 0 20px rgba(174, 246, 130, 0.5), inset 0 1.5px 2px rgba(255, 255, 255, 0.35)",
+          border: "none",
+          background: "transparent",
+          boxShadow: "none",
           cursor: "pointer",
           zIndex: 9990,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          overflow: "hidden",
-          transition: "transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease",
+          overflow: "visible",
+          filter:
+            "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))",
+          transition: "transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s ease",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "scale(1.09) translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 10px 26px rgba(0, 0, 0, 0.5), 0 0 26px rgba(174, 246, 130, 0.72), inset 0 1.5px 2px rgba(255, 255, 255, 0.45)";
+          e.currentTarget.style.transform = "scale(1.14) translateY(-3px)";
+          e.currentTarget.style.filter =
+            "drop-shadow(0 12px 24px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 24px rgba(174, 246, 130, 0.9))";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = "scale(1)";
-          e.currentTarget.style.boxShadow = "0 8px 22px rgba(0, 0, 0, 0.45), 0 0 20px rgba(174, 246, 130, 0.5), inset 0 1.5px 2px rgba(255, 255, 255, 0.35)";
+          e.currentTarget.style.filter =
+            "drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px rgba(174, 246, 130, 0.65))";
         }}
       >
         <TurtleFrontHeadCanvas emotion={emotion} isOpen={isOpen} />

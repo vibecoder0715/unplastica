@@ -6,7 +6,6 @@ import { Icon, type IconName } from "../components/Icon";
 import { isSupabaseConfigured, supabase, uploadProfileAvatar } from "../lib/supabase";
 import { formatPoints } from "../lib/format";
 import { getLanguage, translate, type Language } from "../lib/i18n";
-import { SanctuaryAnimalBackdrop } from "../components/SanctuaryAnimalBackdrop";
 import { GameLoadingOverlay } from "../components/GameLoadingOverlay";
 import { GamePage } from "../components/GamePage";
 import { MascotWidget } from "../components/MascotWidget";
@@ -1258,7 +1257,6 @@ function HomePage({ onEnter }: { onEnter: () => void }) {
       <h1>{t("home.title1")}<br /><span>{t("home.title2")}</span></h1>
     </section>
     <section className="sanctuary" id="sanctuary-section">
-      <SanctuaryAnimalBackdrop />
       <h2>{t("home.sanctuary")}</h2>
       <button
         className="sanctuary-enter-button"

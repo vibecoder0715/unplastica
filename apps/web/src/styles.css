@@ -247,7 +247,14 @@
 
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; min-height: 100%; margin: 0; }
-html { background: var(--canvas); scroll-padding-top: var(--header-height); }
+html {
+  background: var(--canvas);
+  scroll-padding-top: var(--header-height);
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
 body {
   min-width: 320px;
   min-height: 100vh;
@@ -255,7 +262,11 @@ body {
   color: var(--ink);
   font-size: calc(16px * var(--desktop-type-scale, 1));
   background: var(--canvas);
-  overscroll-behavior-y: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
   -webkit-tap-highlight-color: transparent;
 }
 body.modal-open { overflow: hidden; }

@@ -130,10 +130,14 @@ export function getAssetThumbnailDataUrl(assetId: string): string {
 
   try {
     const c = document.createElement('canvas');
-    c.width = 220;
-    c.height = 185;
+    const dpr = 2.5; // Significantly increase resolution for assets / stickers
+    c.width = Math.round(220 * dpr);
+    c.height = Math.round(185 * dpr);
     const cCtx = c.getContext('2d');
     if (!cCtx) return PLACEHOLDER_THUMB_URL;
+    cCtx.scale(dpr, dpr);
+    cCtx.imageSmoothingEnabled = true;
+    cCtx.imageSmoothingQuality = 'high';
 
     const meta = ASSET_ECO_CONFIG[assetId];
     const controller = new TurtleRigController();
@@ -154,7 +158,7 @@ export function getAssetThumbnailDataUrl(assetId: string): string {
       });
     }
 
-    const url = c.toDataURL();
+    const url = c.toDataURL('image/png');
     thumbnailCache.set(assetId, url);
     return url;
   } catch {
@@ -171,13 +175,17 @@ export function getFoodThumbnailDataUrl(foodId: string): string {
 
   try {
     const c = document.createElement('canvas');
-    c.width = 120;
-    c.height = 104;
+    const dpr = 2.5; // Significantly increase resolution for food icons / stickers
+    c.width = Math.round(120 * dpr);
+    c.height = Math.round(104 * dpr);
     const cCtx = c.getContext('2d');
     if (!cCtx) return PLACEHOLDER_THUMB_URL;
+    cCtx.scale(dpr, dpr);
+    cCtx.imageSmoothingEnabled = true;
+    cCtx.imageSmoothingQuality = 'high';
 
     drawFoodIcon(cCtx, foodId, 60, 54, 30, false);
-    const url = c.toDataURL();
+    const url = c.toDataURL('image/png');
     foodThumbCache.set(foodId, url);
     return url;
   } catch {
@@ -592,6 +600,7 @@ export interface WorldRenderParams {
   viewportHeight: number;
   cameraX: number;
   cameraY?: number;
+  zoom?: number;
   state: SaveState;
   elapsedSec: number;
   floatingCoins: FloatingGreenbit[];
@@ -994,12 +1003,16 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
     ctx.restore();
   }
 
-  // Translate into 2D World Space (-cameraX, -cameraY)
+  // Translate into 2D World Space (-cameraX, -cameraY) with smooth pinch zoom scaling
+  const zoom = Math.max(0.4, Math.min(2.5, params.zoom ?? 1.0));
   ctx.save();
-  ctx.translate(-cameraX, -cameraY);
+  ctx.translate(viewportWidth * 0.5, viewportHeight * 0.5);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-viewportWidth * 0.5 - cameraX, -viewportHeight * 0.5 - cameraY);
 
-  const visStartX = Math.max(0, cameraX - 240);
-  const visEndX = Math.min(WORLD_WIDTH, cameraX + viewportWidth + 240);
+  const halfWorldW = (viewportWidth * 0.5) / zoom;
+  const visStartX = Math.max(0, cameraX + viewportWidth * 0.5 - halfWorldW - 320);
+  const visEndX = Math.min(WORLD_WIDTH, cameraX + viewportWidth * 0.5 + halfWorldW + 320);
   const worldBottomY = Math.max(viewportHeight * 4.4, cameraY + viewportHeight + 480);
 
   // 5. Distant Parallax Rainforest Mountain Ridges & Emergent Canopy Silhouette (Frustum-Culled!)

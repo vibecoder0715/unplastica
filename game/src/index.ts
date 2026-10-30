@@ -180,6 +180,19 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   let targetCameraX = cameraX;
   let cameraY = saveState.cameraY ?? 0;
   let targetCameraY = cameraY;
+  let cameraZoom = 1.0;
+  let targetCameraZoom = 1.0;
+
+  function screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+    return {
+      x: clamp(
+        cameraX + viewportWidth * 0.5 + (screenX - viewportWidth * 0.5) / cameraZoom,
+        40,
+        WORLD_WIDTH - 40,
+      ),
+      y: cameraY + viewportHeight * 0.5 + (screenY - viewportHeight * 0.5) / cameraZoom,
+    };
+  }
 
   let selectedAnimalUid: string | null = saveState.placedAnimals[0]?.uid ?? null;
   let activeStoreTab: StoreTab = 'animals';
@@ -585,8 +598,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       return;
     }
 
-    const worldX = clamp(cameraX + e.clientX, 60, WORLD_WIDTH - 60);
-    const worldY = cameraY + e.clientY;
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+    const worldX = clamp(worldPt.x, 60, WORLD_WIDTH - 60);
+    const worldY = worldPt.y;
     const zoneId = getZoneAtWorldX(worldX);
 
     if (item.kind === 'reposition_animal' && item.placedUid) {
@@ -666,7 +680,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const meta = ASSET_ECO_CONFIG[animal.assetId];
     const canopyLift = meta?.canopyHabit === 'canopy' ? -120 : 0;
     const targetGroundY = placeY + canopyLift;
-    const releaseWorldY = cameraY + screenY;
+    const releaseWorldY = screenToWorld(0, screenY).y;
     animal.zoneId = zoneId;
     animal.x = safeX;
     animal.y = Math.min(releaseWorldY, targetGroundY - 135);
@@ -725,7 +739,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const placeY = getDefaultPlacementY(asset.id, zoneId, safeX, viewportHeight);
       const canopyLift = eco.canopyHabit === 'canopy' ? -120 : 0;
       const targetGroundY = placeY + canopyLift;
-      const releaseWorldY = cameraY + screenY;
+      const releaseWorldY = screenToWorld(0, screenY).y;
       const dropStartY = Math.min(releaseWorldY, targetGroundY - 135);
       const uid = `anim_${asset.code.toLowerCase()}_${Date.now()}`;
       const night = isNightTime(saveState.timeOfDayHours);
@@ -883,9 +897,12 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   // WORLD CANVAS 2D PANNING (X & Y), DIRECT ANIMAL DRAG & DROP, + ANTI-SPAM EMOTES
   // ============================================================================
   let pressedAnimalOnCanvas: PlacedAnimal | null = null;
+  let isPinching = false;
+  let initialPinchDistance = 0;
+  let initialPinchZoom = 1.0;
 
   worldCanvas.addEventListener('pointerdown', (e) => {
-    if (activeDrag) return;
+    if (activeDrag || isPinching) return;
     isPanningWorld = true;
     panStartX = e.clientX;
     panStartY = e.clientY;
@@ -894,7 +911,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     pointerMovedDistance = 0;
     lastScratchAnimalUid = null;
     scratchAccumulatedPx = 0;
-    pressedAnimalOnCanvas = findAnimalAtPoint(cameraX + e.clientX, cameraY + e.clientY);
+    const pt = screenToWorld(e.clientX, e.clientY);
+    pressedAnimalOnCanvas = findAnimalAtPoint(pt.x, pt.y);
     try {
       worldCanvas.setPointerCapture(e.pointerId);
     } catch {
@@ -903,7 +921,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   });
 
   worldCanvas.addEventListener('pointermove', (e) => {
-    if (!isPanningWorld || activeDrag) return;
+    if (!isPanningWorld || activeDrag || isPinching) return;
     const dx = e.clientX - panStartX;
     const dy = e.clientY - panStartY;
     pointerMovedDistance = Math.max(pointerMovedDistance, Math.hypot(dx, dy));
@@ -931,10 +949,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       return;
     }
 
-    const worldX = cameraX + e.clientX;
-    const worldY = cameraY + e.clientY;
-
-    const hitAnimal = findAnimalAtPoint(worldX, worldY);
+    const worldPt = screenToWorld(e.clientX, e.clientY);
+    const hitAnimal = findAnimalAtPoint(worldPt.x, worldPt.y);
     if (hitAnimal && Math.abs(e.movementX) + Math.abs(e.movementY) > 2 && pointerMovedDistance < 42) {
       if (lastScratchAnimalUid === hitAnimal.uid) {
         scratchAccumulatedPx += Math.hypot(e.movementX, e.movementY);
@@ -950,31 +966,78 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     }
 
     targetCameraX = clamp(
-      panStartCameraX - dx * 1.15,
+      panStartCameraX - (dx * 1.15) / cameraZoom,
       0,
       Math.max(0, WORLD_WIDTH - viewportWidth),
     );
     targetCameraY = clamp(
-      panStartCameraY - dy * 1.05,
+      panStartCameraY - (dy * 1.05) / cameraZoom,
       -viewportHeight * 0.85,
       viewportHeight * 2.65,
     );
   });
 
-  // Mouse wheel vertical/horizontal exploration
+  // 2-Finger Touch Pinch-to-Zoom (diminish or expand the game world)
+  worldCanvas.addEventListener(
+    'touchstart',
+    (e) => {
+      if (e.touches.length === 2) {
+        isPinching = true;
+        isPanningWorld = false;
+        pressedAnimalOnCanvas = null;
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        initialPinchDistance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        initialPinchZoom = targetCameraZoom;
+      }
+    },
+    { passive: false },
+  );
+
+  worldCanvas.addEventListener(
+    'touchmove',
+    (e) => {
+      if (e.touches.length === 2 && isPinching) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        if (initialPinchDistance > 10 && currentDist > 10) {
+          const factor = currentDist / initialPinchDistance;
+          targetCameraZoom = clamp(initialPinchZoom * factor, 0.45, 2.2);
+        }
+      }
+    },
+    { passive: false },
+  );
+
+  const endPinchGesture = () => {
+    isPinching = false;
+    initialPinchDistance = 0;
+  };
+  worldCanvas.addEventListener('touchend', endPinchGesture);
+  worldCanvas.addEventListener('touchcancel', endPinchGesture);
+
+  // Mouse wheel vertical/horizontal exploration + trackpad pinch zoom
   worldCanvas.addEventListener(
     'wheel',
     (e) => {
       e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        // Trackpad / browser pinch gesture
+        const zoomDelta = -e.deltaY * 0.005;
+        targetCameraZoom = clamp(targetCameraZoom + zoomDelta, 0.45, 2.2);
+        return;
+      }
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         targetCameraX = clamp(
-          targetCameraX + e.deltaX * 1.2,
+          targetCameraX + (e.deltaX * 1.2) / cameraZoom,
           0,
           Math.max(0, WORLD_WIDTH - viewportWidth),
         );
       } else {
         targetCameraY = clamp(
-          targetCameraY + e.deltaY * 0.85,
+          targetCameraY + (e.deltaY * 0.85) / cameraZoom,
           -viewportHeight * 0.85,
           viewportHeight * 2.65,
         );
@@ -994,7 +1057,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     }
 
     if (pointerMovedDistance < 10) {
-      handleWorldTap(cameraX + e.clientX, cameraY + e.clientY);
+      const pt = screenToWorld(e.clientX, e.clientY);
+      handleWorldTap(pt.x, pt.y);
     }
   };
 
@@ -1771,7 +1835,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const prevCenterWorldX = cameraX + viewportWidth * 0.5;
     viewportWidth = Math.max(320, window.innerWidth);
     viewportHeight = Math.max(420, window.innerHeight);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
     worldCanvas.width = Math.round(viewportWidth * dpr);
     worldCanvas.height = Math.round(viewportHeight * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -2043,6 +2107,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameTime) / 1000));
       lastFrameTime = now;
 
+      cameraZoom += (targetCameraZoom - cameraZoom) * Math.min(1, dt * 10);
       stepSimulation(dt);
 
       renderEcosystemWorld({
@@ -2051,6 +2116,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         viewportHeight,
         cameraX,
         cameraY,
+        zoom: cameraZoom,
         state: saveState,
         elapsedSec: totalElapsedSec,
         floatingCoins: floatingGreenbits,

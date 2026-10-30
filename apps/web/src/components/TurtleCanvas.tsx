@@ -47,6 +47,13 @@ export function TurtleCanvas({
 
     let animId: number;
     let lastTime = performance.now();
+    const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 3);
+    const targetW = Math.round(width * dpr);
+    const targetH = Math.round(height * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
 
     const loop = (now: number) => {
       const dt = Math.min((now - lastTime) / 1000, 0.08);
@@ -54,6 +61,8 @@ export function TurtleCanvas({
 
       if (rigRef.current) {
         const pose = rigRef.current.update(dt);
+        ctx.save();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
         renderTurtle(
           ctx,
@@ -65,6 +74,7 @@ export function TurtleCanvas({
           undefined,
           { skipClear: true, framingScale: 0.9 }
         );
+        ctx.restore();
       }
       animId = requestAnimationFrame(loop);
     };
@@ -76,11 +86,14 @@ export function TurtleCanvas({
   return (
     <canvas
       ref={canvasRef}
-      width={width}
-      height={height}
       className={className}
       onClick={onClick}
-      style={{ display: "block", cursor: onClick ? "pointer" : "default" }}
+      style={{
+        width,
+        height,
+        display: "block",
+        cursor: onClick ? "pointer" : "default",
+      }}
     />
   );
 }
