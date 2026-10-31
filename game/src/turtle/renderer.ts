@@ -58,8 +58,7 @@ export function renderTurtle(
 
   // Apply continuous horizontal direction turn (facing: +1 right, -1 left)
   const dirSign = pose.facing >= 0 ? 1 : -1;
-  const turnSquash = 0.22 + 0.78 * Math.abs(pose.facing);
-  ctx.scale(dirSign * turnSquash, 1);
+  ctx.scale(dirSign, 1);
 
   if (is3D) {
     const cosYaw = Math.cos(activeTurtleYaw * 0.34);
@@ -2647,8 +2646,7 @@ function drawShellScute(
         ctx.scale(scale, scale);
 
         const dirSign = pose.facing >= 0 ? 1 : -1;
-        const turnSquash = 0.22 + 0.78 * Math.abs(pose.facing);
-        ctx.scale(dirSign * turnSquash, 1);
+        ctx.scale(dirSign, 1);
 
         drawAmbientShadow(ctx, pose);
 

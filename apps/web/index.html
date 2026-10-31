@@ -90,8 +90,8 @@
               }
             }
           }
-          var storedTheme = localStorage.getItem("theme");
-          var isDark = storedTheme === "dark" || (!storedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var storedTheme = localStorage.getItem("unplastica-theme") || localStorage.getItem("theme");
+          var isDark = storedTheme === "dark" || ((!storedTheme || storedTheme === "system") && window.matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
         } catch (_) {}
       })();

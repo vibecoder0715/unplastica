@@ -39,7 +39,7 @@ const guestProfile: Profile = {
   tagline: "",
   avatar_path: null,
   avatar_url: null,
-  preferences: { theme: "light", language: "English", notifications: true },
+  preferences: { theme: "system", language: "English", notifications: false },
 };
 const habitImages: Record<HabitCode, string> = {
   box_cutlery: "/assets/habits/box-cutlery.png",
@@ -150,8 +150,8 @@ function readPage(): Page {
   return "home";
 }
 function getTheme(): Theme {
-  const value = localStorage.getItem("unplastica-theme");
-  return value === "dark" || value === "system" || value === "light" ? value : "light";
+  const value = localStorage.getItem("unplastica-theme") || localStorage.getItem("theme");
+  return value === "dark" || value === "light" ? value : "system";
 }
 function pagePath(page: Page) {
   return page === "home" ? "/" : page === "settings" ? "/settings" : "/" + page;
@@ -355,6 +355,11 @@ export default function App() {
     window.setTimeout(() => setToast(""), 4000);
   }, []);
   const navigate = useCallback((next: Page) => {
+    if ((next === "game" || next === "earn") && !userRef.current) {
+      pendingPage.current = next;
+      setShowLoginGate(true);
+      return;
+    }
     if (location.pathname !== pagePath(next)) history.pushState({}, "", pagePath(next));
     setPage(next);
     if (next !== "events") setEventSubpage(null);
@@ -439,9 +444,9 @@ export default function App() {
   useEffect(() => {
     const pop = () => {
       const next = readPage();
-      if (next === "earn" && !userRef.current) {
+      if ((next === "earn" || next === "game") && !userRef.current) {
         history.replaceState({}, "", "/");
-        pendingPage.current = "earn";
+        pendingPage.current = next;
         setPage("home");
         localStorage.setItem("unplastica-current-page", "home");
         setShowLoginGate(true);
@@ -571,6 +576,7 @@ export default function App() {
     };
     applyTheme();
     localStorage.setItem("unplastica-theme", theme);
+    localStorage.setItem("theme", theme);
     const media = matchMedia("(prefers-color-scheme: dark)");
     media.addEventListener("change", applyTheme);
     return () => media.removeEventListener("change", applyTheme);
@@ -974,7 +980,17 @@ export default function App() {
         />
       )}
       <main className={"page page-" + page}>
-        {page === "home" && <HomePage onEnter={() => setEnteringGame(true)} />}
+        {page === "home" && (
+          <HomePage
+            onEnter={() => {
+              if (guest) {
+                requestLogin("game");
+                return;
+              }
+              setEnteringGame(true);
+            }}
+          />
+        )}
         {page === "game" && (
           <GamePage
             balance={balance}
@@ -994,7 +1010,13 @@ export default function App() {
           selected={selectedHabit}
           dailyUsage={dailyUsage}
           boxCutleryCooldownMs={boxCutleryCooldownMs}
-          onSelect={setSelectedHabit}
+          onSelect={(code) => {
+            if (guest) {
+              requestLogin("earn");
+              return;
+            }
+            setSelectedHabit(code);
+          }}
           onInfo={setInfoHabit}
           onCamera={() => {
             if (guest) { requestLogin("earn"); return; }
@@ -2119,65 +2141,69 @@ function SettingsPage(props: {
     )}
 
     <section className="preferences" id="preferences-section"><h3>{t("settings.preferences")}</h3>
-      <div className="setting-card manual-trigger-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span className="setting-icon"><Icon name="play" /></span>
-          <strong>{t("settings.showManual")}</strong>
-        </div>
-        <button
-          type="button"
-          className="primary-button show-manual-btn"
-          style={{ minHeight: 36, padding: "0 18px", fontSize: 14 }}
-          onClick={() => {
-            props.onShowManual?.();
-          }}
-        >
-          {t("settings.showManualAction")}
-        </button>
-      </div>
-      <div className="setting-card setting-toggle"><span className="setting-icon"><Icon name="bell" /></span><strong>{t("settings.notifications")}</strong><button className={"switch " + (props.notifications ? "on" : "")} role="switch" aria-checked={props.notifications} aria-label={t("settings.notifications")} disabled={toggleBusy} onClick={async () => {
-        const next = !props.notifications;
-        if (next) {
-          if (!("Notification" in window)) {
-            props.notify(t("settings.notificationsNotSupported"));
-            return;
-          }
-          let permission = Notification.permission;
-          if (permission === "denied") {
-            props.notify(t("settings.notificationsBlocked"));
-            return;
-          }
-          if (permission === "default") {
-            setToggleBusy(true);
-            try {
-              permission = await Notification.requestPermission();
-            } catch (err) {
-              console.error("Notification permission error:", err);
-            } finally {
-              setToggleBusy(false);
+      {!props.guest && (
+        <>
+          <div className="setting-card manual-trigger-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span className="setting-icon"><Icon name="play" /></span>
+              <strong>{t("settings.showManual")}</strong>
+            </div>
+            <button
+              type="button"
+              className="primary-button show-manual-btn"
+              style={{ minHeight: 36, padding: "0 18px", fontSize: 14 }}
+              onClick={() => {
+                props.onShowManual?.();
+              }}
+            >
+              {t("settings.showManualAction")}
+            </button>
+          </div>
+          <div className="setting-card setting-toggle"><span className="setting-icon"><Icon name="bell" /></span><strong>{t("settings.notifications")}</strong><button className={"switch " + (props.notifications ? "on" : "")} role="switch" aria-checked={props.notifications} aria-label={t("settings.notifications")} disabled={toggleBusy} onClick={async () => {
+            const next = !props.notifications;
+            if (next) {
+              if (!("Notification" in window)) {
+                props.notify(t("settings.notificationsNotSupported"));
+                return;
+              }
+              let permission = Notification.permission;
+              if (permission === "denied") {
+                props.notify(t("settings.notificationsBlocked"));
+                return;
+              }
+              if (permission === "default") {
+                setToggleBusy(true);
+                try {
+                  permission = await Notification.requestPermission();
+                } catch (err) {
+                  console.error("Notification permission error:", err);
+                } finally {
+                  setToggleBusy(false);
+                }
+              }
+              if (permission !== "granted") {
+                props.notify(t("settings.notificationsPermissionDenied"));
+                return;
+              }
+              setToggleBusy(true);
+              try {
+                await props.onNotification(true);
+                props.notify(t("settings.notificationsEnabled"));
+              } finally {
+                setToggleBusy(false);
+              }
+            } else {
+              setToggleBusy(true);
+              try {
+                await props.onNotification(false);
+                props.notify(t("settings.notificationsDisabled"));
+              } finally {
+                setToggleBusy(false);
+              }
             }
-          }
-          if (permission !== "granted") {
-            props.notify(t("settings.notificationsPermissionDenied"));
-            return;
-          }
-          setToggleBusy(true);
-          try {
-            await props.onNotification(true);
-            props.notify(t("settings.notificationsEnabled"));
-          } finally {
-            setToggleBusy(false);
-          }
-        } else {
-          setToggleBusy(true);
-          try {
-            await props.onNotification(false);
-            props.notify(t("settings.notificationsDisabled"));
-          } finally {
-            setToggleBusy(false);
-          }
-        }
-      }}><span /></button></div>
+          }}><span /></button></div>
+        </>
+      )}
       <div className="setting-card setting-select" style={{ position: "relative" }}>
         <div className="setting-title" style={{ display: "flex", alignItems: "center" }}>
           <span className="setting-icon"><Icon name="globe" /></span>

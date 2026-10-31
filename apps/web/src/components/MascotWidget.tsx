@@ -1106,6 +1106,13 @@ export function MascotWidget({ language }: MascotWidgetProps) {
   const [dialogueIndex, setDialogueIndex] = useState(0);
   const [dialogueMode, setDialogueMode] = useState<"random" | "verify-success" | "verify-fail">("random");
   const [verifiedPoints, setVerifiedPoints] = useState<number>(10);
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const langKey = language === "Bahasa Melayu" ? "bm" : language === "中文" ? "zh" : language === "தமிழ்" ? "ta" : "en";
 
@@ -1314,16 +1321,16 @@ export function MascotWidget({ language }: MascotWidgetProps) {
           className="mascot-floating-popup"
           style={{
             position: "fixed",
-            bottom: "max(84px, env(safe-area-inset-bottom) + 72px)",
-            right: 16,
-            maxWidth: 360,
-            width: "calc(100vw - 32px)",
+            bottom: isDesktop ? "32px" : "max(84px, env(safe-area-inset-bottom) + 72px)",
+            right: isDesktop ? 32 : 16,
+            maxWidth: isDesktop ? 440 : 360,
+            width: isDesktop ? "440px" : "calc(100vw - 32px)",
             zIndex: 9995,
             pointerEvents: "none",
             display: "flex",
             flexDirection: "column",
             alignItems: "flex-end",
-            gap: 12,
+            gap: isDesktop ? 16 : 12,
             transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)`,
             transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
             animation: "mascotSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -1337,8 +1344,8 @@ export function MascotWidget({ language }: MascotWidgetProps) {
               pointerEvents: "auto",
               background: "#ffffff",
               border: "2.5px solid #111827",
-              borderRadius: 28,
-              padding: "16px 20px 18px",
+              borderRadius: isDesktop ? 32 : 28,
+              padding: isDesktop ? "20px 24px 22px" : "16px 20px 18px",
               boxShadow: "0 18px 45px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.15)",
               width: "100%",
             }}
@@ -1401,10 +1408,10 @@ export function MascotWidget({ language }: MascotWidgetProps) {
               style={{
                 cursor: "pointer",
                 color: "#111827",
-                fontSize: 14,
-                lineHeight: 1.48,
+                fontSize: isDesktop ? 16 : 14,
+                lineHeight: isDesktop ? 1.55 : 1.48,
                 fontWeight: 600,
-                paddingRight: 20,
+                paddingRight: isDesktop ? 26 : 20,
               }}
             >
               {activeText}
@@ -1413,7 +1420,7 @@ export function MascotWidget({ language }: MascotWidgetProps) {
             <div
               style={{
                 marginTop: 8,
-                fontSize: 11,
+                fontSize: isDesktop ? 12.5 : 11,
                 fontWeight: 600,
                 color: "#15803d",
                 opacity: 0.9,
@@ -1427,7 +1434,7 @@ export function MascotWidget({ language }: MascotWidgetProps) {
             </div>
           </div>
 
-          {/* Turtle standing freely in the app (No box/container! 40% larger + dynamic dragging/touching interaction) */}
+          {/* Turtle standing freely in the app (No box/container! Sized prominently on PC UI) */}
           <div
             title="Touch or drag me!"
             onPointerDown={handlePointerDown}
@@ -1473,8 +1480,8 @@ export function MascotWidget({ language }: MascotWidgetProps) {
               <TurtleCanvas
                 emotion={emotion}
                 direction="right"
-                width={185}
-                height={165}
+                width={isDesktop ? 260 : 185}
+                height={isDesktop ? 230 : 165}
               />
             </div>
           </div>
@@ -1489,10 +1496,10 @@ export function MascotWidget({ language }: MascotWidgetProps) {
         aria-label="Open Sea Turtle Mascot"
         style={{
           position: "fixed",
-          bottom: "max(84px, env(safe-area-inset-bottom) + 72px)",
-          right: 18,
-          width: 66,
-          height: 66,
+          bottom: isDesktop ? "32px" : "max(84px, env(safe-area-inset-bottom) + 72px)",
+          right: isDesktop ? 32 : 18,
+          width: isDesktop ? 80 : 66,
+          height: isDesktop ? 80 : 66,
           padding: 0,
           border: "none",
           background: "transparent",

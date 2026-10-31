@@ -1022,8 +1022,7 @@ function fillRimAndStroke(
 
     // Continuous horizontal direction turn (facing: +1 right, -1 left)
     const dirSign = pose.facing >= 0 ? 1 : -1;
-    const turnSquash = 0.22 + 0.78 * Math.abs(pose.facing);
-    ctx.scale(dirSign * turnSquash, 1);
+    ctx.scale(dirSign, 1);
 
     // Ground contact shadow for walking land animals vs floating water shadow for swimming animals
     const effectiveBodyX = isLandStanding ? pose.bodyX * 0.45 + walkSurge : pose.bodyX + swimSurge;

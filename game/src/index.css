@@ -1678,29 +1678,64 @@
 }
 
 .you-are-here-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: #111827;
-  color: #aef682;
+  gap: 5px;
+  background: #ffffff !important;
+  color: #000000 !important;
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 800;
-  padding: 3px 9px;
+  padding: 4px 11px;
   border-radius: 999px;
-  border: 1.5px solid #aef682;
+  border: 2px solid #000000 !important;
   white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-  margin-bottom: 2px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  margin-bottom: 7px;
+}
+
+.you-are-here-pill svg {
+  stroke: #000000 !important;
+  width: 14px;
+  height: 14px;
+}
+
+/* Chat bubble downward pointer tail pointing down to the current location dot */
+.you-are-here-pill::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid #000000;
+}
+
+.you-are-here-pill::before {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #ffffff;
+  z-index: 1;
 }
 
 .you-are-here-pulse-dot {
   width: 10px;
   height: 10px;
-  background: #aef682;
-  border: 2px solid #111827;
+  background: #000000 !important;
+  border: 2.5px solid #ffffff !important;
   border-radius: 50%;
-  box-shadow: 0 0 10px #aef682;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
 }
 
 /* ENTITY CARD RECALL BUTTON */
@@ -1723,4 +1758,101 @@
 .entity-recall-btn:hover {
   background: var(--surface-low);
   border-color: var(--forest-dark);
+}
+
+/* PC / Desktop UI Enhancements */
+@media (min-width: 1024px) {
+  .hud-top {
+    top: 18px;
+    left: 24px;
+    right: 24px;
+    gap: 12px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .greenbits-pill {
+    padding: 7px 18px 7px 8px;
+    font-size: 15.5px;
+  }
+
+  .greenbits-coin-img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .hud-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    min-height: 42px;
+  }
+
+  .entity-card {
+    top: 72px;
+    right: 24px;
+    width: 250px;
+    padding: 16px 18px;
+    border-radius: 20px;
+    box-shadow: 0 16px 40px rgba(0, 44, 23, 0.22);
+  }
+
+  .bottom-dock {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 960px;
+    border-radius: 26px 26px 0 0;
+    padding: 8px 18px 14px;
+  }
+
+  .bottom-dock.collapsed {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 960px;
+    height: 10px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .dock-strip {
+    padding: 38px 8px 6px;
+    gap: 12px;
+  }
+
+  .dock-card {
+    width: 104px;
+    height: 112px;
+    padding: 8px;
+    border-radius: 16px;
+  }
+
+  .dock-card-thumb {
+    width: 72px;
+    height: 56px;
+    margin-top: 6px;
+  }
+
+  .dock-card-title {
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  .teleport-map-layout {
+    grid-template-columns: 460px 1fr;
+    gap: 24px;
+    max-width: 860px;
+  }
+
+  .teleport-map-board {
+    width: 460px;
+    height: 460px;
+  }
+
+  .modal-sheet {
+    max-width: 760px;
+    border-radius: 28px;
+    padding: 24px 28px;
+  }
 }
