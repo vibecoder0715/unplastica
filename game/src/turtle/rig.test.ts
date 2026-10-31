@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import {TurtleRigController} from './rig.ts';
 import type {MotionType} from './types.ts';
 import {ROSTER_ASSETS} from '../roster/catalog.ts';
