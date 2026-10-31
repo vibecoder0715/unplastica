@@ -1480,8 +1480,8 @@ export function MascotWidget({ language }: MascotWidgetProps) {
               <TurtleCanvas
                 emotion={emotion}
                 direction="right"
-                width={isDesktop ? 260 : 185}
-                height={isDesktop ? 230 : 165}
+                width={isDesktop ? 290 : 200}
+                height={isDesktop ? 260 : 180}
               />
             </div>
           </div>

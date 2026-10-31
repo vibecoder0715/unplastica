@@ -620,10 +620,10 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    if (ready && page === "earn" && !user) {
+    if (ready && (page === "earn" || page === "game") && !user) {
       history.replaceState({}, "", "/");
       setPage("home");
-      pendingPage.current = "earn";
+      pendingPage.current = page;
       setShowLoginGate(true);
     }
   }, [ready, page, user]);

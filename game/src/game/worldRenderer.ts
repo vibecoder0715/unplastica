@@ -138,6 +138,139 @@ export function drawVectorGreenbitsCoin(ctx: CanvasRenderingContext2D, radius = 
   ctx.restore();
 }
 
+/**
+ * Renders an unmistakable, floating comic overhead emotion badge above an animal in sanctuary.
+ */
+export function drawOverheadEmotionBadge(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  emotion: string,
+  alpha: number,
+  elapsedSec: number,
+): void {
+  if (alpha <= 0.01 || emotion === 'normal' || emotion === 'idle') return;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.translate(x, y);
+
+  const bob = Math.sin(elapsedSec * 4.5) * 2.5;
+  ctx.translate(0, bob);
+
+  const r = 18;
+  // Speech bubble pointer tail pointing down
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#002c17';
+  ctx.lineWidth = 2.4;
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0.38, Math.PI * 2 - 0.38);
+  ctx.lineTo(0, r + 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Vector icon based on emotion
+  if (emotion === 'laugh') {
+    // Laughing hearts / sparkles
+    ctx.fillStyle = '#f43f5e';
+    ctx.strokeStyle = '#881337';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(0, 5);
+    ctx.bezierCurveTo(-9, -1, -8, -8, 0, -4);
+    ctx.bezierCurveTo(8, -8, 9, -1, 0, 5);
+    ctx.fill();
+    ctx.stroke();
+  } else if (emotion === 'waving') {
+    // Golden waving arcs
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.arc(0, 0, 7 + i * 4, -0.9 + i * 0.2, 0.3 + i * 0.2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.arc(-2, 2, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (emotion === 'wondered') {
+    // Bright cyan question mark
+    ctx.fillStyle = '#0284c7';
+    ctx.font = '800 20px "Outfit", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', 0, 1);
+  } else if (emotion === 'angry') {
+    // Red 💢 anger cross mark
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-7, -7);
+    ctx.quadraticCurveTo(0, -2, 7, -7);
+    ctx.moveTo(-7, 7);
+    ctx.quadraticCurveTo(0, 2, 7, 7);
+    ctx.moveTo(-7, -7);
+    ctx.quadraticCurveTo(-2, 0, -7, 7);
+    ctx.moveTo(7, -7);
+    ctx.quadraticCurveTo(2, 0, 7, 7);
+    ctx.stroke();
+  } else if (emotion === 'crying') {
+    // Blue teardrop
+    ctx.fillStyle = '#0284c7';
+    ctx.strokeStyle = '#0369a1';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(0, -8);
+    ctx.quadraticCurveTo(7, 0, 0, 7);
+    ctx.quadraticCurveTo(-7, 0, 0, -8);
+    ctx.fill();
+    ctx.stroke();
+  } else if (emotion === 'sleepy') {
+    // Purple Zzz
+    ctx.fillStyle = '#7c3aed';
+    ctx.font = '800 14px "Outfit", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Zzz', 0, 1);
+  } else if (emotion === 'blush') {
+    // Pink twin hearts
+    ctx.fillStyle = '#ec4899';
+    ctx.beginPath();
+    ctx.moveTo(-2, 4);
+    ctx.bezierCurveTo(-7, 0, -6, -5, -2, -2);
+    ctx.bezierCurveTo(2, -5, 3, 0, -2, 4);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(4, -1);
+    ctx.bezierCurveTo(1, -4, 2, -8, 4, -6);
+    ctx.bezierCurveTo(7, -8, 8, -4, 4, -1);
+    ctx.fill();
+  } else if (emotion === 'congratulate') {
+    // Golden star
+    ctx.fillStyle = '#eab308';
+    ctx.strokeStyle = '#854d0e';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    for (let s = 0; s < 5; s++) {
+      const a1 = (s * Math.PI * 2) / 5 - Math.PI / 2;
+      const a2 = a1 + Math.PI / 5;
+      if (s === 0) ctx.moveTo(Math.cos(a1) * 8, Math.sin(a1) * 8);
+      else ctx.lineTo(Math.cos(a1) * 8, Math.sin(a1) * 8);
+      ctx.lineTo(Math.cos(a2) * 4, Math.sin(a2) * 4);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 /** Legacy stub: coin is now 100% pure Canvas2D vector graphics */
 export function getGreenbitsCoinImage(): HTMLImageElement | null {
   return null;
@@ -2310,6 +2443,18 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
             ctx.font = '700 15px "Outfit", sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('Full +', animal.x, animal.y - 74 * Math.max(0.6, bodySize));
+          }
+        }
+
+        // Active Emotion Overhead Comic Badge (100% obvious visual reaction)
+        if (animal.emotionTimerSec > 0 && animal.eatingStage === 'none') {
+          const pop = Math.min(1, (3.6 - animal.emotionTimerSec) * 4);
+          const fade = Math.min(1, animal.emotionTimerSec * 3);
+          const alpha = pop * fade;
+          if (alpha > 0.05) {
+            const bx = animal.x + animal.facing * 36 * Math.max(0.6, bodySize);
+            const by = animal.y - 88 * Math.max(0.6, bodySize);
+            drawOverheadEmotionBadge(ctx, bx, by, animal.currentEmotion, alpha, elapsedSec);
           }
         }
 

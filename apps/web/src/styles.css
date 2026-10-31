@@ -382,12 +382,10 @@ img { max-width: 100%; }
 .wordmark-visible .brand-wordmark { opacity: 1; transform: scale(1) translateY(0); pointer-events: auto; }
 :root[data-theme="dark"] .brand-image-light { display: none !important; }
 :root[data-theme="dark"] .brand-image-dark { display: block !important; }
+:root:not([data-theme="dark"]) .brand-image-light,
 :root[data-theme="light"] .brand-image-light { display: block !important; }
+:root:not([data-theme="dark"]) .brand-image-dark,
 :root[data-theme="light"] .brand-image-dark { display: none !important; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .brand-image-light { display: none !important; }
-  :root:not([data-theme="light"]) .brand-image-dark { display: block !important; }
-}
 .balance-pill {
   min-width: 104px;
   height: 42px;
@@ -1055,6 +1053,20 @@ img { max-width: 100%; }
   color: #f0fdf4 !important;
 }
 
+:root[data-theme="dark"] .dialog input,
+:root[data-theme="dark"] .auth-dialog input,
+:root[data-theme="dark"] .settings-edit-card input {
+  background: #143323 !important;
+  color: #f8faf5 !important;
+  border-color: rgba(190, 242, 100, 0.35) !important;
+}
+
+:root[data-theme="dark"] .dialog input::placeholder,
+:root[data-theme="dark"] .auth-dialog input::placeholder,
+:root[data-theme="dark"] .settings-edit-card input::placeholder {
+  color: rgba(220, 252, 231, 0.55) !important;
+}
+
 :root[data-theme="dark"] .dialog > p,
 :root[data-theme="dark"] .login-required-dialog > p,
 :root[data-theme="dark"] .auth-dialog > p {
@@ -1100,10 +1112,12 @@ img { max-width: 100%; }
 }
 
 /* Ensure bright dialogs display the dark-wordmark logo */
+:root:not([data-theme="dark"]) .dialog .brand-image-light,
 :root[data-theme="light"] .dialog .brand-image-light,
 .camera-dialog .brand-image-light {
   display: block !important;
 }
+:root:not([data-theme="dark"]) .dialog .brand-image-dark,
 :root[data-theme="light"] .dialog .brand-image-dark,
 .camera-dialog .brand-image-dark {
   display: none !important;

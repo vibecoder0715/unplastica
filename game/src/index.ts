@@ -2846,8 +2846,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           if (Math.abs(dx) < 16) {
             // Pick a new nearby wander waypoint. Slow species patrol a smaller area, and
             // canopy animals that are in (or near) a tree keep to its crown instead of
-            // walking off into thin air.
-            const patrolSpan = 420 * clamp(speedFactor, 0.2, 1.3);
+            // walking off into thin air. Sea turtles glide across a wide peaceful span.
+            const patrolSpan = (animal.assetId.includes('sea_turtle') ? 560 : 420) * clamp(speedFactor, 0.2, 1.3);
             let nextTarget = animal.x + (Math.random() - 0.5) * patrolSpan * 2;
             if (eco?.canopyHabit === 'canopy') {
               const tree = findPerchTree(animal, saveState.placedPlants, 700);
@@ -2858,7 +2858,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
             }
             animal.targetX = clamp(nextTarget, minX, maxX);
           } else {
-            const speed = 22 * speedFactor * animal.locoBlend;
+            const baseSpeed = animal.assetId === 'animal_28_green_sea_turtle' ? 14 : 22;
+            const speed = baseSpeed * speedFactor * animal.locoBlend;
             animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
             setFacing(animal, dx >= 0 ? 1 : -1);
           }

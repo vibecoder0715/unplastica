@@ -29,6 +29,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>Unplastica — Play to reduce plastic in Malaysia</title>
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem("unplastica-theme") || localStorage.getItem("theme") || "system";
+          var isDark = t === "dark" || (t === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = isDark ? "dark" : "light";
+        } catch (e) {}
+      })();
+    </script>
     <style>
       html, body {
         margin: 0;

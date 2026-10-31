@@ -130,8 +130,6 @@ export class TurtleRigController {
     if (this.motion !== newMotion) {
       this.motion = newMotion;
       this.motionTime = 0;
-    } else {
-      this.motionTime = 0.02;
     }
   }
 
@@ -179,7 +177,7 @@ export class TurtleRigController {
 
     // Smoothly interpolate facing direction (+1 right, -1 left)
     const targetFacing = this.direction === 'right' ? 1 : -1;
-    const facingSpeed = 1 - Math.exp(-clampedDt * 11);
+    const facingSpeed = 1 - Math.exp(-clampedDt * 22);
     this.pose.facing = lerp(this.pose.facing, targetFacing, facingSpeed);
     if (Math.abs(this.pose.facing - targetFacing) < 0.002) {
       this.pose.facing = targetFacing;
@@ -451,41 +449,41 @@ export class TurtleRigController {
   private computeTargetPose(t: number, mt: number): TurtlePose {
     const p = createDefaultPose(this.pose.facing);
 
-    // Base continuous swimming buoyancy, walking cadence & breathing (always alive!)
-    const swimBob = Math.sin(t * 2.5);
-    const swimSway = Math.cos(t * 1.9);
-    const breathWave = Math.sin(t * 3.2);
-    const locoCycle = Math.sin(t * 4.4);
-    const locoCos = Math.cos(t * 4.4);
+    // Base continuous swimming buoyancy, walking cadence & breathing (graceful sea turtle pace)
+    const swimBob = Math.sin(t * 1.8);
+    const swimSway = Math.cos(t * 1.3);
+    const breathWave = Math.sin(t * 2.2);
+    const locoCycle = Math.sin(t * 2.1);
+    const locoCos = Math.cos(t * 2.1);
 
     p.breath = breathWave;
     p.bodyX = swimSway * 3.5;
-    p.bodyY = swimBob * 6.0;
-    p.bodyRot = Math.sin(t * 1.9) * 0.022;
+    p.bodyY = swimBob * 5.0;
+    p.bodyRot = Math.sin(t * 1.3) * 0.022;
     p.bodyScaleX = 1 + breathWave * 0.011;
     p.bodyScaleY = 1 - breathWave * 0.009;
     p.waveRaysPhase = t * 4.8;
 
-    p.shellRot = Math.sin(t * 2.5 - 0.5) * 0.018;
-    p.shellOffsetY = Math.sin(t * 2.5 - 0.4) * 2.0;
+    p.shellRot = Math.sin(t * 1.8 - 0.5) * 0.018;
+    p.shellOffsetY = Math.sin(t * 1.8 - 0.4) * 2.0;
 
     // Hind flippers / hind legs trailing kick with natural phase delay
-    p.hindNearAngle = Math.sin(t * 4.4 + Math.PI) * 0.24;
-    p.hindFarAngle = Math.sin(t * 4.4) * 0.24;
+    p.hindNearAngle = Math.sin(t * 2.1 + Math.PI) * 0.22;
+    p.hindFarAngle = Math.sin(t * 2.1) * 0.22;
 
     switch (this.motion) {
       case 'idle': {
         // Active natural walking/swimming locomotion with gentle smile and rhythmic limbs
-        const idleCycle = Math.sin(t * 2.4);
-        p.bodyX = Math.cos(t * 2.2) * 3.2;
+        const idleCycle = Math.sin(t * 1.8);
+        p.bodyX = Math.cos(t * 1.5) * 3.2;
         p.bodyY = idleCycle * 4.2;
-        p.bodyRot = Math.sin(t * 2.2) * 0.022;
+        p.bodyRot = Math.sin(t * 1.5) * 0.022;
 
-        p.headX = Math.sin(t * 2.4) * 2.2;
-        p.headY = Math.sin(t * 2.4 - 0.3) * 2.6;
-        p.headRot = Math.sin(t * 2.2) * 0.028;
-        p.headLookX = Math.sin(t * 1.1) * 0.05;
-        p.headLookY = Math.cos(t * 1.4) * 0.03;
+        p.headX = Math.sin(t * 1.8) * 2.2;
+        p.headY = Math.sin(t * 1.8 - 0.3) * 2.6;
+        p.headRot = Math.sin(t * 1.5) * 0.028;
+        p.headLookX = Math.sin(t * 1.0) * 0.05;
+        p.headLookY = Math.cos(t * 1.2) * 0.03;
 
         // Both front limbs swing in alternating walking/swimming rhythm
         p.nearFlipperDownAmount = 1.0;
@@ -498,15 +496,15 @@ export class TurtleRigController {
         p.farFlipperAngle = -locoCycle * 0.24;
         p.farFlipperBend = -locoCos * 0.12;
 
-        p.eyeGazeX = Math.sin(t * 1.1) * 0.05;
+        p.eyeGazeX = Math.sin(t * 1.0) * 0.05;
         p.eyeGazeY = -0.01;
         p.pupilScale = 1.0;
-        p.browRaise = 0.12 + idleCycle * 0.03;
+        p.browRaise = 0.14 + idleCycle * 0.04;
 
-        p.mouthOpen = 0.22 + Math.sin(t * 2.2) * 0.04;
-        p.mouthSmile = 0.88;
-        p.mouthWidth = 0.92;
-        p.blushAlpha = 0.14;
+        p.mouthOpen = 0.22 + Math.sin(t * 1.6) * 0.04;
+        p.mouthSmile = 0.92;
+        p.mouthWidth = 0.94;
+        p.blushAlpha = 0.18;
 
         p.waveRaysAlpha = 0;
         p.waveRaysPhase = t * 4.8;

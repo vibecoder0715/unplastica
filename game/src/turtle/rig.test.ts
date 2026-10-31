@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {TurtleRigController} from './rig';
-import {MotionType} from './types';
-import {ROSTER_ASSETS} from '../roster/catalog';
+import {TurtleRigController} from './rig.ts';
+import type {MotionType} from './types.ts';
+import {ROSTER_ASSETS} from '../roster/catalog.ts';
 
 test('TurtleRigController initializes in idle motion facing right', () => {
   const rig = new TurtleRigController();
