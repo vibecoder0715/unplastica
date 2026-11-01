@@ -305,7 +305,7 @@ export async function sendVerificationSuccessNotification(
 
 export default function App() {
   const [page, setPage] = useState<Page>(readPage);
-  const [scrolled, setScrolled] = useState(() => window.scrollY > 32);
+  const [scrolled, setScrolled] = useState(() => window.scrollY > 12);
   const [theme, setTheme] = useState<Theme>(getTheme);
   const [language, setLanguage] = useState<Language>(getLanguage);
   const [, setSession] = useState<Session | null>(null);
@@ -598,9 +598,19 @@ export default function App() {
     localStorage.setItem("unplastica-language", language);
   }, [language]);
   useEffect(() => {
-    const update = () => setScrolled(window.scrollY > 32);
+    let rafId = 0;
+    const update = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const isScrolled = window.scrollY > 12;
+        setScrolled((prev) => (prev !== isScrolled ? isScrolled : prev));
+      });
+    };
     window.addEventListener("scroll", update, { passive: true });
-    return () => window.removeEventListener("scroll", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      cancelAnimationFrame(rafId);
+    };
   }, []);
   useEffect(() => {
     setInstallEnvironment(detectInstallEnvironment());

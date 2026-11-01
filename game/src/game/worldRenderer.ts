@@ -174,53 +174,61 @@ export function drawOverheadEmotionBadge(
   ctx.fill();
   ctx.stroke();
 
-  // Vector icon based on emotion
+  // Vector icon based on emotion (aligned directly to the center of the bubble sphere)
+  ctx.save();
+  ctx.translate(0, -3);
+
   if (emotion === 'laugh') {
     // Laughing hearts / sparkles
     ctx.fillStyle = '#f43f5e';
     ctx.strokeStyle = '#881337';
     ctx.lineWidth = 1.3;
     ctx.beginPath();
-    ctx.moveTo(0, 5);
-    ctx.bezierCurveTo(-9, -1, -8, -8, 0, -4);
-    ctx.bezierCurveTo(8, -8, 9, -1, 0, 5);
+    ctx.moveTo(0, 4);
+    ctx.bezierCurveTo(-8, -2, -7, -7, 0, -3);
+    ctx.bezierCurveTo(7, -7, 8, -2, 0, 4);
     ctx.fill();
     ctx.stroke();
   } else if (emotion === 'waving') {
-    // Golden waving arcs
+    // Golden radio/broadcast wave signal (concentric upward radiating arcs + solid base dot, perfectly centered)
+    const dotY = 4.2;
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(0, dotY, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 2.3;
     ctx.lineCap = 'round';
-    for (let i = -1; i <= 1; i++) {
+
+    // 3 concentric wave arcs radiating upwards symmetrically
+    const radii = [6.2, 10.2, 14.2];
+    for (const rad of radii) {
       ctx.beginPath();
-      ctx.arc(0, 0, 7 + i * 4, -0.9 + i * 0.2, 0.3 + i * 0.2);
+      ctx.arc(0, dotY, rad, -Math.PI * 0.74, -Math.PI * 0.26);
       ctx.stroke();
     }
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath();
-    ctx.arc(-2, 2, 3.5, 0, Math.PI * 2);
-    ctx.fill();
   } else if (emotion === 'wondered') {
     // Bright cyan question mark
     ctx.fillStyle = '#0284c7';
     ctx.font = '800 20px "Outfit", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('?', 0, 1);
+    ctx.fillText('?', 0, 0);
   } else if (emotion === 'angry') {
     // Red 💢 anger cross mark
     ctx.strokeStyle = '#ef4444';
     ctx.lineWidth = 2.8;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(-7, -7);
-    ctx.quadraticCurveTo(0, -2, 7, -7);
-    ctx.moveTo(-7, 7);
-    ctx.quadraticCurveTo(0, 2, 7, 7);
-    ctx.moveTo(-7, -7);
-    ctx.quadraticCurveTo(-2, 0, -7, 7);
-    ctx.moveTo(7, -7);
-    ctx.quadraticCurveTo(2, 0, 7, 7);
+    ctx.moveTo(-6, -6);
+    ctx.quadraticCurveTo(0, -2, 6, -6);
+    ctx.moveTo(-6, 6);
+    ctx.quadraticCurveTo(0, 2, 6, 6);
+    ctx.moveTo(-6, -6);
+    ctx.quadraticCurveTo(-2, 0, -6, 6);
+    ctx.moveTo(6, -6);
+    ctx.quadraticCurveTo(2, 0, 6, 6);
     ctx.stroke();
   } else if (emotion === 'crying') {
     // Blue teardrop
@@ -228,30 +236,30 @@ export function drawOverheadEmotionBadge(
     ctx.strokeStyle = '#0369a1';
     ctx.lineWidth = 1.3;
     ctx.beginPath();
-    ctx.moveTo(0, -8);
-    ctx.quadraticCurveTo(7, 0, 0, 7);
-    ctx.quadraticCurveTo(-7, 0, 0, -8);
+    ctx.moveTo(0, -7);
+    ctx.quadraticCurveTo(6, 0, 0, 6);
+    ctx.quadraticCurveTo(-6, 0, 0, -7);
     ctx.fill();
     ctx.stroke();
   } else if (emotion === 'sleepy') {
     // Purple Zzz
     ctx.fillStyle = '#7c3aed';
-    ctx.font = '800 14px "Outfit", sans-serif';
+    ctx.font = '800 13px "Outfit", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Zzz', 0, 1);
+    ctx.fillText('Zzz', 0, 0);
   } else if (emotion === 'blush') {
     // Pink twin hearts
     ctx.fillStyle = '#ec4899';
     ctx.beginPath();
-    ctx.moveTo(-2, 4);
-    ctx.bezierCurveTo(-7, 0, -6, -5, -2, -2);
-    ctx.bezierCurveTo(2, -5, 3, 0, -2, 4);
+    ctx.moveTo(-3, 3);
+    ctx.bezierCurveTo(-7, 0, -6, -4, -3, -1);
+    ctx.bezierCurveTo(0, -4, 1, 0, -3, 3);
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(4, -1);
-    ctx.bezierCurveTo(1, -4, 2, -8, 4, -6);
-    ctx.bezierCurveTo(7, -8, 8, -4, 4, -1);
+    ctx.moveTo(3, -1);
+    ctx.bezierCurveTo(0, -4, 1, -7, 3, -5);
+    ctx.bezierCurveTo(6, -7, 7, -4, 3, -1);
     ctx.fill();
   } else if (emotion === 'congratulate') {
     // Golden star
@@ -271,6 +279,7 @@ export function drawOverheadEmotionBadge(
     ctx.stroke();
   }
 
+  ctx.restore();
   ctx.restore();
 }
 

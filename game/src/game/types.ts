@@ -228,4 +228,6 @@ export interface SaveState {
   soundMuted: boolean;
   weatherLocationLabel?: string;
   cameraY?: number;
+  dailyEarnedGreenbits?: number;
+  lastEarnDayStamp?: string;
 }

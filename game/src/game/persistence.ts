@@ -430,6 +430,11 @@ export function loadSaveState(
         Array.isArray(parsed.dailyQuests) && parsed.dailyQuests.length > 0
           ? parsed.dailyQuests
           : base.dailyQuests,
+      dailyEarnedGreenbits:
+        typeof parsed.dailyEarnedGreenbits === 'number' && Number.isFinite(parsed.dailyEarnedGreenbits)
+          ? Math.max(0, parsed.dailyEarnedGreenbits)
+          : 0,
+      lastEarnDayStamp: typeof parsed.lastEarnDayStamp === 'string' ? parsed.lastEarnDayStamp : '',
       lastSavedTimestampMs: Date.now(),
     };
 
@@ -445,7 +450,7 @@ export function loadSaveState(
     }
     const offlineGreenbitsEarned =
       cappedOfflineMins >= 2
-        ? Math.min(600, Math.round(cappedOfflineMins * passivePerMin * 0.35))
+        ? Math.min(25, Math.round(cappedOfflineMins * passivePerMin * 0.05))
         : 0;
 
     return {

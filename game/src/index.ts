@@ -587,8 +587,41 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     void syncRealTimeWeatherAndClock();
   }, 600000);
 
+  // Pure backend daily pacing and 5-10 greenbits per action mechanism (quiet backend work, no UI messaging)
+  function calculatePacedActionGreenbits(requestedAmount: number): number {
+    const todayStamp = new Date().toISOString().slice(0, 10);
+    if (saveState.lastEarnDayStamp !== todayStamp) {
+      saveState.lastEarnDayStamp = todayStamp;
+      saveState.dailyEarnedGreenbits = 0;
+    }
+    const currentDaily = saveState.dailyEarnedGreenbits ?? 0;
+    const DAILY_ACTION_CAP = 120; // Paced daily limit from active gameplay actions
+
+    if (currentDaily >= DAILY_ACTION_CAP) {
+      return 0;
+    }
+
+    // Paced between 5 and 10 per action, scaling organically with requested action weight
+    const base = Math.min(10, Math.max(5, Math.round(requestedAmount * 0.5)));
+    const jitter = Math.floor(Math.random() * 3) - 1; // -1, 0, +1
+    let award = Math.min(10, Math.max(5, base + jitter));
+
+    // Remaining allowance for today
+    const remaining = DAILY_ACTION_CAP - currentDaily;
+    award = Math.min(award, remaining);
+
+    saveState.dailyEarnedGreenbits = currentDaily + award;
+    return award;
+  }
+
   function awardGreenbits(amount: number, worldX?: number, worldY?: number): void {
-    saveState.greenbits += amount;
+    const pacedAmount = calculatePacedActionGreenbits(amount);
+    if (pacedAmount <= 0) {
+      // Quietly reached daily action allowance; silent backend handling without intrusive toasts
+      persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+      return;
+    }
+    saveState.greenbits += pacedAmount;
     options?.onBalanceChange?.(saveState.greenbits);
     soundEngine.playCoinChime();
     if (worldX !== undefined && worldY !== undefined) {
@@ -597,7 +630,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         x: worldX,
         y: worldY,
         vy: -42,
-        amount,
+        amount: pacedAmount,
         alpha: 1,
         collected: false,
       });
@@ -2507,7 +2540,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           <div class="pet-card-fullness-track">
             <div class="pet-card-fullness-fill" style="width: ${fullnessPct}%; background: ${fullnessPct <= 25 ? '#ef4444' : fullnessPct <= 55 ? '#f59e0b' : '#22c55e'};"></div>
           </div>
-          <span class="pet-card-fullness-val">${fullnessPct}%</span>
         `;
 
         const teleBtn = document.createElement('button');

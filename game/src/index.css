@@ -1779,8 +1779,8 @@
 }
 
 .pet-card-fullness-track {
-  width: 80px;
-  max-width: 110px;
+  width: 96px;
+  max-width: 140px;
   height: 7px;
   background: #e2e8f0;
   border-radius: 999px;
