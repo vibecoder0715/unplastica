@@ -147,13 +147,24 @@ export function loadSaveState(
         offlineMinutes: 0,
       };
     }
-    const localParsed = raw ? (JSON.parse(raw) as Partial<SaveState>) : {};
+    const sanitizeKeys = (obj: any): any => {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) return obj.map(sanitizeKeys);
+      const clean: Record<string, any> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+        clean[k] = sanitizeKeys(v);
+      }
+      return clean;
+    };
+    const localParsed = raw ? (sanitizeKeys(JSON.parse(raw)) as Partial<SaveState>) : {};
+    const safeCloud = cloudState ? sanitizeKeys(cloudState) : null;
     const localTs = Number(localParsed.lastSavedTimestampMs || 0);
-    const cloudTs = Number(cloudState?.lastSavedTimestampMs || 0);
+    const cloudTs = Number(safeCloud?.lastSavedTimestampMs || 0);
     const parsed: Partial<SaveState> =
-      cloudState && cloudTs >= localTs
-        ? { ...localParsed, ...cloudState }
-        : { ...(cloudState ?? {}), ...localParsed };
+      safeCloud && cloudTs >= localTs
+        ? { ...localParsed, ...safeCloud }
+        : { ...(safeCloud ?? {}), ...localParsed };
     const base = createInitialSaveState();
     const saveVersion = typeof parsed.version === 'number' ? parsed.version : 1;
 

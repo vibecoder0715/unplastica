@@ -4,7 +4,7 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(\\.env.*|\\.git.*|config\\.json.*|\\.aws.*)",
+      "source": "/(\\.env.*|\\.git.*|config\\.json.*|\\.aws.*|client_secret_.*|.*\\.pem|.*\\.key|.*\\.sql|.*\\.bak)",
       "destination": "/api/blocked"
     },
     {
