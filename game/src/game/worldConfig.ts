@@ -1841,32 +1841,19 @@ export function canAnimalEatFood(animalAssetId: string, foodId: string): boolean
  * Generates curated default natural flora around the major biome hubs (20-40% natural density, never crowded)
  */
 export function createDefaultSanctuaryPlants(): PlacedPlant[] {
+  // Reduced sparse landmark flora (only 5 natural landmarks across the 600,000px world)
+  // All other flora species must be purchased with greenbits in the store by the player!
   const specs: Array<{ assetId: string; zoneId: HabitatZoneId; x: number; stage: 1 | 2 | 3 }> = [
-    // Rainforest Canopy & Grove hubs
+    // 1. Rainforest Canopy: One emergent ancient Tualang tree
     { assetId: 'plant_02_tualang_tree', zoneId: 'forest', x: 41650, stage: 2 },
-    { assetId: 'plant_09_birds_nest_fern', zoneId: 'forest', x: 42350, stage: 1 },
-    { assetId: 'plant_03_durian_tree', zoneId: 'forest', x: 85150, stage: 1 },
-    { assetId: 'plant_11_hibiscus', zoneId: 'forest', x: 85680, stage: 2 },
-    { assetId: 'plant_05_banana_plant', zoneId: 'forest', x: 86120, stage: 1 },
-    { assetId: 'plant_01_rafflesia', zoneId: 'forest', x: 141700, stage: 2 },
-    { assetId: 'plant_04_mangosteen_tree', zoneId: 'forest', x: 142320, stage: 1 },
-    // River Pond hubs
+    // 2. Rainforest Understory: One wild ground Rafflesia bloom
+    { assetId: 'plant_01_rafflesia', zoneId: 'forest', x: 141700, stage: 1 },
+    // 3. River Basin: One native freshwater sacred Lotus
     { assetId: 'plant_26_lotus', zoneId: 'river', x: 201720, stage: 2 },
-    { assetId: 'plant_27_water_lily', zoneId: 'river', x: 202280, stage: 2 },
-    // Bamboo clump on the dry river bank (it used to stand at the bottom of the deepest channel)
-    { assetId: 'plant_07_bamboo', zoneId: 'forest', x: 168600, stage: 1 },
-    { assetId: 'plant_25_water_hyacinth', zoneId: 'river', x: 247820, stage: 2 },
-    { assetId: 'plant_29_hornwort', zoneId: 'river', x: 291750, stage: 1 },
-    // Mud Shore hubs
+    // 4. Mudflat: One stilt-rooted Red Mangrove
     { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 355720, stage: 1 },
-    { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 391220, stage: 1 },
-    { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 391820, stage: 1 },
-    // Coral Sea hubs (around starter turtle at 543,600)
-    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 494720, stage: 1 },
+    // 5. Coral Sea: One native Turtle Grass patch near the starter turtle
     { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 543280, stage: 1 },
-    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 543940, stage: 1 },
-    // Seagrass needs sunlight, so this meadow sits on the shallow reef flat, not the abyss at 593,720
-    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 520500, stage: 1 },
   ];
 
   return specs.map((s, idx) => ({

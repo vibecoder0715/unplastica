@@ -165,9 +165,9 @@ export function drawOverheadEmotionBadge(
   ctx.lineJoin = 'round';
 
   ctx.beginPath();
-  // Arc sweeps 310° from left of bottom clockwise to right of bottom
-  ctx.arc(0, 0, r, Math.PI * 0.5 + 0.28, Math.PI * 0.5 - 0.28);
-  // Sharp triangular pointer tail pointing straight down toward the animal's head
+  // Guaranteed clockwise arc from bottom-left to bottom-right across top of bubble
+  ctx.arc(0, 0, r, Math.PI * 0.5 + 0.32, Math.PI * 2.5 - 0.32, false);
+  // Pointer tail pointing straight down toward the animal's head
   ctx.lineTo(0, r + 7);
   ctx.closePath();
   ctx.fill();
@@ -2183,15 +2183,15 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
               meta.producesFruitId === 'food_bamboo_shoots' || meta.producesFruitId === 'food_seaweed_kelp';
             const fruitOffsets: Array<[number, number]> = growsAtBase
               ? [
-                  [-30 * stageScale * plantSize, -10],
-                  [28 * stageScale * plantSize, -8],
-                  [4, -12],
-                ]
+                [-30 * stageScale * plantSize, -10],
+                [28 * stageScale * plantSize, -8],
+                [4, -12],
+              ]
               : [
-                  [-26 * stageScale, -drawH * 0.44],
-                  [24 * stageScale, -drawH * 0.42],
-                  [0, -drawH * 0.54],
-                ];
+                [-26 * stageScale, -drawH * 0.44],
+                [24 * stageScale, -drawH * 0.42],
+                [0, -drawH * 0.54],
+              ];
             for (let i = 0; i < plant.fruitCount; i++) {
               const [ox, oy] = fruitOffsets[i % fruitOffsets.length];
               const bob = growsAtBase ? 0 : Math.sin(elapsedSec * 2.8 + i) * 2.2;

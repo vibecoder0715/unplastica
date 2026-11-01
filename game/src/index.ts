@@ -1635,7 +1635,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     nameInput.value = animal.customName || asset?.name || 'Animal';
     nameInput.setAttribute('aria-label', 'Animal Name');
     nameInput.addEventListener('change', () => {
-      animal.customName = nameInput.value.trim() || (asset?.name ?? 'Animal');
+      const cleaned = nameInput.value.replace(/[<>'"&]/g, '').trim().slice(0, 32);
+      animal.customName = cleaned || (asset?.name ?? 'Animal');
+      nameInput.value = animal.customName;
       persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
     });
 

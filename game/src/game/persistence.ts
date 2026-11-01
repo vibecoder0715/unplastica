@@ -111,12 +111,12 @@ function migrateFoodId(id: string | undefined): string | undefined {
  * Default scenery plants are regenerated from the current layout (for example the bamboo
  * that used to stand at the bottom of the river), keeping their growth by species.
  */
-function refreshDefaultScenery<T extends { assetId: string; isDefaultScenery?: boolean; growthStage: 1 | 2 | 3; growthProgress: number; fruitCount: number }>(
+function refreshDefaultScenery<T extends { uid?: string; assetId: string; isDefaultScenery?: boolean; growthStage: 1 | 2 | 3; growthProgress: number; fruitCount: number }>(
   plants: T[],
 ): T[] {
-  const userPlants = plants.filter((p) => !p.isDefaultScenery);
-  const savedDefaults = plants.filter((p) => p.isDefaultScenery);
-  if (savedDefaults.length === 0) return plants;
+  const isDefault = (p: T) => Boolean(p.isDefaultScenery || (typeof p.uid === 'string' && p.uid.startsWith('default_plant_')));
+  const userPlants = plants.filter((p) => !isDefault(p));
+  const savedDefaults = plants.filter((p) => isDefault(p));
   const fresh = createDefaultSanctuaryPlants().map((d) => {
     const prev = savedDefaults.find((p) => p.assetId === d.assetId);
     return prev

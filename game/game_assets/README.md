@@ -15,3 +15,4 @@ This directory houses the foundational vector graphics specifications and genera
 - `animals.ts`: Species parameters, wave configurations, eye scaling, and biological diet rules for all 41 animals (`A01`–`A41`).
 - `plants.ts`: Botanical morphology specifications, branch welding architecture, and fruit/flower lifecycle stages for all 30 plants (`P01`–`P30`).
 - `food.ts`: Handcrafted vector icon definitions for all 25 consumable foods and treats matching sanctuary flora.
+

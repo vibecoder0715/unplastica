@@ -617,8 +617,10 @@ function drawDetailedLeaf(
     // 3. Re-fill smooth fillet at bough roots so trunk outline doesn't cut across branch throat
     ctx.fillStyle = barkGrad;
     for (const item of boughItems) {
+      const filletW = item.bw ? item.bw * 1.15 : 16;
+      const filletH = item.bw ? item.bw * 1.3 : 18;
       ctx.beginPath();
-      ctx.ellipse(item.surfaceX + item.dir * 4, item.by, item.bw ? item.bw * 0.6 : 10, item.bw ? item.bw * 0.75 : 12, item.dir * 0.2, 0, Math.PI * 2);
+      ctx.ellipse(item.surfaceX, item.by, filletW, filletH, item.dir * 0.15, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -744,12 +746,12 @@ function drawDetailedLeaf(
     // 1. One continuous expansive broad paddle lamina (Pokok Pisang leaf blade)
     const lamina = new Path2D();
     lamina.moveTo(0, 0);
-    // Upper margin: smooth arching curve expanding out to wide paddle then curving into rounded tip
-    lamina.bezierCurveTo(length * 0.18, -width * 0.88, length * 0.65, -width * 0.96, length * 0.92, -width * 0.35);
-    lamina.quadraticCurveTo(length, -width * 0.1, length * 0.98, 0);
-    // Lower margin: matching expansive tropical curved blade
-    lamina.quadraticCurveTo(length, width * 0.1, length * 0.92, width * 0.35);
-    lamina.bezierCurveTo(length * 0.65, width * 0.96, length * 0.18, width * 0.88, 0, 0);
+    // Upper margin: smooth arching curve expanding out to wide paddle with downward curvature towards tip
+    lamina.bezierCurveTo(length * 0.16, -width * 0.85, length * 0.58, -width * 1.02, length * 0.88, -width * 0.45);
+    lamina.bezierCurveTo(length * 0.96, -width * 0.22, length * 1.02, -width * 0.05, length, 0);
+    // Lower margin: matching expansive tropical curved blade with natural gravity sag
+    lamina.bezierCurveTo(length * 0.98, width * 0.08, length * 0.92, width * 0.38, length * 0.82, width * 0.62);
+    lamina.bezierCurveTo(length * 0.55, width * 0.98, length * 0.18, width * 0.82, 0, 0);
     lamina.closePath();
 
     fillRimAndStroke(ctx, lamina, 0, -width, length, width, cLight, cMid, cDark, outline, 2.4);
@@ -1452,6 +1454,11 @@ function drawDetailedLeaf(
             ctx.beginPath();
             ctx.ellipse(wx, wy, wr, wr * 0.68, 0.2, 0, Math.PI * 2);
             ctx.fill();
+            // Raised specular core highlight
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.ellipse(wx - wr * 0.2, wy - wr * 0.15, wr * 0.38, wr * 0.24, 0.15, 0, Math.PI * 2);
+            ctx.fill();
           }
           ctx.restore();
           ctx.restore();
@@ -1934,6 +1941,17 @@ function drawDetailedLeaf(
           ctx.stroke();
           for (const la of [-0.95, -0.6, -0.28, 0, 0.28, 0.6, 0.95]) {
             drawDetailedLeaf(ctx, 68, 0, la, 56, 13, '#86efac', '#16a34a', '#14532d', 'rgba(235,255,215,0.65)', '#142914', true);
+            // Prominent pale midrib vein on each palmate leaf lobe
+            ctx.save();
+            ctx.translate(68, 0);
+            ctx.rotate(la);
+            ctx.strokeStyle = '#fef08a';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(48, 0);
+            ctx.stroke();
+            ctx.restore();
           }
           ctx.restore();
         }
@@ -2021,13 +2039,19 @@ function drawDetailedLeaf(
           culm.closePath();
           fillRimAndStroke(ctx, culm, -14, -280, 14, 0, colL, colM, '#365314', '#1a2e05', 3.0);
 
-          // Raised bamboo nodal rings across the continuous culm
+          // Raised bamboo nodal rings across the continuous culm with distinct sheath scars
           for (let seg = 1; seg <= 5; seg++) {
             const ny = -seg * 54;
             const nw = 15 - seg * 0.5;
             const node = new Path2D();
             node.ellipse(0, ny, nw, 4.2, 0, 0, Math.PI * 2);
             fillRimAndStroke(ctx, node, -nw, ny - 4, nw, ny + 4, '#ecfccb', colL, '#365314', '#1a2e05', 2.2);
+            // Delicate dark nodal sheath margin ring
+            ctx.strokeStyle = 'rgba(26, 46, 5, 0.55)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.arc(0, ny + 1.2, nw * 0.88, 0, Math.PI);
+            ctx.stroke();
           }
 
           // Seamlessly merged side bamboo twigs sprouting from the nodes + lanceolate leaf clusters
@@ -2174,6 +2198,17 @@ function drawDetailedLeaf(
           [-0.42, 188, 30],
         ] as const) {
           drawDetailedLeaf(ctx, sway * 10, 146, ang + sway * 0.1, len, w, '#bef264', '#65a30d', '#365314', '#1a2e05', '#1a2e05', true);
+          // Dark brownish-purple prominent midrib keel of Asplenium nidus
+          ctx.save();
+          ctx.translate(sway * 10, 146);
+          ctx.rotate(ang + sway * 0.1);
+          ctx.strokeStyle = '#271206';
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(len * 0.75, 0);
+          ctx.stroke();
+          ctx.restore();
         }
         break;
       }
@@ -2224,6 +2259,15 @@ function drawDetailedLeaf(
             for (let i = 0; i < count; i++) {
               const a = -Math.PI / 2 + (i - (count - 1) / 2) * 0.42;
               drawDetailedLeaf(ctx, 0, by, a, rad, w, '#fda4af', '#f43f5e', '#9f1239', 'rgba(255,245,235,0.75)', '#4c0519');
+              // Golden floret margin tip poking between bracts
+              ctx.save();
+              ctx.translate(0, by);
+              ctx.rotate(a);
+              ctx.fillStyle = '#fef08a';
+              ctx.beginPath();
+              ctx.ellipse(rad * 0.88, 0, 3.5, 2.2, 0, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
             }
           }
           ctx.restore();
@@ -2418,6 +2462,12 @@ function drawDetailedLeaf(
           ctx.ellipse(cxNut, cyNut - 15, 7.2, 3.4, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
+          for (const se of [-4, 0, 4]) {
+            ctx.beginPath();
+            ctx.arc(cxNut + se, cyNut - 15, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
         }
         break;
       }
@@ -2445,6 +2495,14 @@ function drawDetailedLeaf(
           propP.quadraticCurveTo(rx * 0.78 + sway * 8 + 4.5, 48, topRx + 3.5, -52);
           propP.closePath();
           fillRimAndStroke(ctx, propP, topRx - 6, -52, botRx + 6, 154, '#9c7e65', '#6e5239', '#3d2b1c', '#26170c', 2.4);
+
+          // Anastomosing horizontal fibrous root bridges connecting prop roots to trunk
+          ctx.strokeStyle = 'rgba(74, 48, 28, 0.45)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(rx * 0.78 + sway * 8, 30);
+          ctx.lineTo(rx > 0 ? (rx * 0.78 - 18) : (rx * 0.78 + 18), 44);
+          ctx.stroke();
         }
         drawCanopyCrown(ctx, -92, -64, 74, 44, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#991b1b']);
         drawCanopyCrown(ctx, 92, -60, 74, 44, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#991b1b']);
@@ -2559,6 +2617,11 @@ function drawDetailedLeaf(
               fy + Math.sin(ang + 0.08) * 24,
             );
             ctx.stroke();
+            // Yellow tip highlight on spintern
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(fx + Math.cos(ang + 0.08) * 21, fy + Math.sin(ang + 0.08) * 24, 1.2, 0, Math.PI * 2);
+            ctx.fill();
           }
         }
         break;
@@ -2649,6 +2712,13 @@ function drawDetailedLeaf(
           ctx.quadraticCurveTo(topX + dir * 18, topY - 42, topX + dir * 28, topY - 58);
           ctx.arc(topX + dir * 22, topY - 58, 9, 0, Math.PI * 1.6);
           ctx.stroke();
+          // Pale brown scales along crosier spine
+          ctx.fillStyle = '#78350f';
+          for (let sc = 1; sc <= 4; sc++) {
+            ctx.beginPath();
+            ctx.arc(topX + dir * sc * 5.5, topY - sc * 11, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
         break;
       }
@@ -2717,6 +2787,13 @@ function drawDetailedLeaf(
           rootP.quadraticCurveTo(ctrlX + 6, 92, sx + sway * 8 + 5, 48);
           rootP.closePath();
           fillRimAndStroke(ctx, rootP, sx, 42, endX, 160, '#8c583a', '#5e371f', '#381e0e', '#261307', 2.8);
+          // Lenticel bark breathing pores on prop root
+          ctx.fillStyle = '#d4b996';
+          for (const ly of [80, 110, 135]) {
+            ctx.beginPath();
+            ctx.ellipse(ctrlX * 0.7, ly, 2.2, 1.2, 0.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
         drawWoodyTrunkAndBranches(ctx, sway, 180, 22, 12, '#8c583a', '#5e371f', '#381e0e', false);
         drawCanopyCrown(ctx, 0, -98, 126, 72, sway, '#4ade80', '#15803d', '#052e16', '#052e16', ['#fef9c3', '#fde047', '#eab308', '#ca8a04']);
@@ -2746,6 +2823,16 @@ function drawDetailedLeaf(
        * breathing roots, silvery-backed leaves, golden-orange flower blocks, and capsules.
        * ====================================================================== */
       case 'plant_20_api_api_mangrove': {
+        // Vertical pencil pneumatophore breathing roots sticking up from mud base
+        ctx.strokeStyle = '#4e342e';
+        ctx.lineWidth = 3.2;
+        ctx.lineCap = 'round';
+        for (const px of [-72, -54, -36, 36, 54, 72]) {
+          ctx.beginPath();
+          ctx.moveTo(px, 154);
+          ctx.lineTo(px + (px > 0 ? 3 : -3), 118);
+          ctx.stroke();
+        }
         drawWoodyTrunkAndBranches(ctx, sway, 185, 28, 14, '#8d6e63', '#5d4037', '#3e2723', false);
         drawCanopyCrown(ctx, 0, -96, 132, 78, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#78350f']);
         // Heart-shaped green-gold Api-Api viviparous fruit capsules
@@ -2839,6 +2926,11 @@ function drawDetailedLeaf(
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
+            // Raised pyramidal umbo peak highlight on Nipa drupe
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+            ctx.fill();
             ctx.fillStyle = '#f59e0b';
             ctx.beginPath();
             ctx.arc(px - 1.5, py - 1.5, 2.2, 0, Math.PI * 2);
@@ -3001,6 +3093,15 @@ function drawDetailedLeaf(
             [0, -64, 42],
           ] as const) {
             drawBlossom(ctx, fx + sway * 22, fy, r, sway * 0.1, '#e9d5ff', '#a855f7', '#6b21a8', '#facc15', '#3b0764', 6);
+            // Signature blue-violet upper petal nectar spot with yellow pupil (Bunga Keladi Bunting)
+            ctx.fillStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.ellipse(fx + sway * 22, fy - r * 0.42, r * 0.22, r * 0.32, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fde047';
+            ctx.beginPath();
+            ctx.arc(fx + sway * 22, fy - r * 0.42, r * 0.12, 0, Math.PI * 2);
+            ctx.fill();
           }
         }
         break;
@@ -3156,6 +3257,19 @@ function drawDetailedLeaf(
           for (let y = -20; y >= -h; y -= 20) {
             for (const ang of [-2.55, -2.05, -1.1, -0.58]) {
               drawDetailedLeaf(ctx, 0, y, ang + sway * 0.1, 38, 6.5, '#bef264', '#22c55e', '#14532d', 'rgba(240,255,220,0.65)', '#142914', true);
+              // Dichotomous forked needle tips of Ceratophyllum demersum
+              ctx.save();
+              ctx.translate(0, y);
+              ctx.rotate(ang + sway * 0.1);
+              ctx.strokeStyle = '#86efac';
+              ctx.lineWidth = 1.1;
+              ctx.beginPath();
+              ctx.moveTo(34, 0);
+              ctx.lineTo(40, -3.5);
+              ctx.moveTo(34, 0);
+              ctx.lineTo(40, 3.5);
+              ctx.stroke();
+              ctx.restore();
             }
           }
           ctx.restore();

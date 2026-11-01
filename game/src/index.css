@@ -731,7 +731,7 @@
   gap: 12px;
   overflow-x: auto;
   overflow-y: visible;
-  padding: 36px 6px 6px;
+  padding: 44px 8px 8px;
   scrollbar-width: thin;
   touch-action: pan-x;
 }
@@ -1427,38 +1427,47 @@
     padding: 2px 8px 4px;
     border-radius: 12px 12px 0 0;
   }
+
   .dock-collapse-bar {
     height: 12px;
   }
+
   .dock-toggle-btn {
     top: -18px;
     height: 20px;
     width: 44px;
     font-size: 10px;
   }
+
   .dock-strip {
-    padding: 32px 4px 4px;
+    padding: 40px 6px 6px;
     gap: 6px;
   }
+
   .dock-card-drag-pop {
-    top: -28px;
-    font-size: 10.5px;
-    padding: 2.5px 8px;
+    top: -26px;
+    font-size: 10px;
+    padding: 2px 7px;
+    z-index: 25;
   }
+
   .dock-card {
     width: 64px;
     height: 68px;
     padding: 3px;
     border-radius: 10px;
   }
+
   .dock-card-thumb {
     width: 42px;
     height: 36px;
     margin-top: 2px;
   }
+
   .dock-card-title {
     font-size: 8.5px;
   }
+
   .dock-card-count {
     top: 2px;
     right: 3px;
@@ -1742,8 +1751,13 @@
 }
 
 @keyframes floatMarker {
-  0% { transform: translate(-50%, -100%) translateY(0); }
-  100% { transform: translate(-50%, -100%) translateY(-5px); }
+  0% {
+    transform: translate(-50%, -100%) translateY(0);
+  }
+
+  100% {
+    transform: translate(-50%, -100%) translateY(-5px);
+  }
 }
 
 .you-are-here-marker.offset-below {
@@ -1753,8 +1767,13 @@
 }
 
 @keyframes floatMarkerBelow {
-  0% { transform: translate(-50%, 0) translateY(0); }
-  100% { transform: translate(-50%, 0) translateY(5px); }
+  0% {
+    transform: translate(-50%, 0) translateY(0);
+  }
+
+  100% {
+    transform: translate(-50%, 0) translateY(5px);
+  }
 }
 
 .you-are-here-pill {

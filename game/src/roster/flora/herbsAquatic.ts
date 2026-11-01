@@ -111,23 +111,28 @@ const drawPitcherPlant: PlantRig = (ctx, input) => {
     peristomeP.ellipse(0, 0, 18, 6.5, 0, 0, Math.PI * 2);
     kitFillRimAndStroke(ctx, peristomeP, -18, -6.5, 18, 6.5, '#fef08a', '#eab308', '#ca8a04', outline, 1.8);
 
-    // Ribs on peristome
+    // Fine radial ribs on peristome
     ctx.strokeStyle = '#854d0e';
-    ctx.lineWidth = 1.2;
-    for (let r = -12; r <= 12; r += 4) {
+    ctx.lineWidth = 1.1;
+    for (let r = -14; r <= 14; r += 2.8) {
       ctx.beginPath();
-      ctx.moveTo(r, -4);
-      ctx.lineTo(r, 4);
+      ctx.moveTo(r, -4.5);
+      ctx.lineTo(r, 4.5);
       ctx.stroke();
     }
 
-    // Vaulted operculum (lid) over mouth
+    // Vaulted operculum (lid) over mouth with natural apical spur point
     const lidP = new Path2D();
     lidP.moveTo(-14, -4);
-    lidP.quadraticCurveTo(0, -22, 14, -4);
-    lidP.quadraticCurveTo(0, -10, -14, -4);
+    lidP.quadraticCurveTo(0, -23, 14, -4);
+    lidP.quadraticCurveTo(0, -11, -14, -4);
     lidP.closePath();
-    kitFillRimAndStroke(ctx, lidP, -14, -22, 14, -4, '#bef264', '#84cc16', '#4d7c0f', outline, 1.8);
+    kitFillRimAndStroke(ctx, lidP, -14, -23, 14, -4, '#bef264', '#84cc16', '#4d7c0f', outline, 1.8);
+    // Apical spur on lid
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(0, -22, 2.0, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
@@ -254,6 +259,12 @@ const drawHibiscus: PlantRig = (ctx, input) => {
         ctx.quadraticCurveTo(vx * 0.6, -30, vx, -55);
         ctx.stroke();
       }
+      // Petal crinkle edge highlights
+      ctx.strokeStyle = 'rgba(254, 202, 202, 0.45)';
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.arc(0, -66, 12, -Math.PI * 0.8, -Math.PI * 0.2);
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -397,6 +408,14 @@ const drawIxora: PlantRig = (ctx, input) => {
       ctx.save();
       ctx.translate(fx, fy);
       ctx.rotate(f * 0.5);
+
+      // Slender floral tube behind floret
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, 8);
+      ctx.stroke();
 
       // 4 Petals
       ctx.fillStyle = f % 2 === 0 ? '#f87171' : '#ef4444';
@@ -645,6 +664,10 @@ const drawEnhalusSeagrass: PlantRig = (ctx, input) => {
     bladeP.closePath();
     kitFillRimAndStroke(ctx, bladeP, -b.w, -b.h, b.w, 0, '#6ee7b7', '#059669', '#064e3b', outline, 2.4);
 
+    // Basal membranous transparent leaf-sheath base
+    ctx.fillStyle = 'rgba(209, 250, 229, 0.55)';
+    ctx.fillRect(-b.w * 0.48, -24, b.w * 0.96, 24);
+
     // Parallel multi-nerved longitudinal veins
     ctx.strokeStyle = 'rgba(209, 250, 229, 0.45)';
     ctx.lineWidth = 1.2;
@@ -715,6 +738,18 @@ const drawThalassiaTurtleGrass: PlantRig = (ctx, input) => {
     bP.quadraticCurveTo(b.w * 0.4 + b.curl + sway * 18, -b.h * 0.5, b.w * 0.5, 0);
     bP.closePath();
     kitFillRimAndStroke(ctx, bP, -b.w, -b.h, b.w, 0, '#86efac', '#10b981', '#047857', outline, 2.2);
+
+    // Short transverse tannin bars characteristic of Thalassia
+    ctx.strokeStyle = 'rgba(120, 53, 15, 0.45)';
+    ctx.lineWidth = 1.2;
+    for (const ty of [0.35, 0.55, 0.75]) {
+      const by = -b.h * ty;
+      const bx = b.curl * ty + sway * 25 * ty;
+      ctx.beginPath();
+      ctx.moveTo(bx - b.w * 0.35, by);
+      ctx.lineTo(bx + b.w * 0.35, by);
+      ctx.stroke();
+    }
 
     ctx.restore();
   }
@@ -861,6 +896,17 @@ const drawLotus: PlantRig = (ctx, input) => {
     ctx.restore();
   }
 
+  // Filamentous golden stamens surrounding central seed torus
+  ctx.strokeStyle = '#fde047';
+  ctx.lineWidth = 1.6;
+  for (let a = 0; a < 20; a++) {
+    const ang = (a / 20) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * 16, Math.sin(ang) * 10);
+    ctx.lineTo(Math.cos(ang) * 22, Math.sin(ang) * 14);
+    ctx.stroke();
+  }
+
   // Distinct Flat-Topped Showerhead Seed Pod (Torus)!
   const podP = new Path2D();
   podP.ellipse(0, 0, 16, 10, 0, 0, Math.PI * 2);
@@ -930,6 +976,21 @@ const drawWaterLily: PlantRig = (ctx, input) => {
     petP.lineTo(6, -20);
     petP.closePath();
     kitFillRimAndStroke(ctx, petP, -6, -32, 6, 0, '#fdf4ff', '#e879f9', '#a21caf', outline, 1.8);
+    ctx.restore();
+  }
+
+  // Inner acute star petal ring
+  for (let p = 0; p < 8; p++) {
+    const pang = (p / 8) * Math.PI * 2 + Math.PI / 8;
+    ctx.save();
+    ctx.rotate(pang);
+    const inP = new Path2D();
+    inP.moveTo(0, 0);
+    inP.lineTo(-4, -14);
+    inP.lineTo(0, -22);
+    inP.lineTo(4, -14);
+    inP.closePath();
+    kitFillRimAndStroke(ctx, inP, -4, -22, 4, 0, '#ffffff', '#f5d0fe', '#c084fc', outline, 1.4);
     ctx.restore();
   }
 

@@ -3287,10 +3287,37 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const photoUrlRef = useRef("");
+  const RATE_LIMIT_KEY = "unplastica_scanner_timestamps";
+  const LOCKOUT_UNTIL_KEY = "unplastica_scanner_lockout_until";
+
+  const getStoredLockoutSec = (): number => {
+    try {
+      const storedUntil = Number(sessionStorage.getItem(LOCKOUT_UNTIL_KEY) || 0);
+      const remainingMs = storedUntil - Date.now();
+      return remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const getStoredSubmissionTimes = (): number[] => {
+    try {
+      const raw = sessionStorage.getItem(RATE_LIMIT_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const now = Date.now();
+        return parsed.filter((t) => typeof t === "number" && now - t < 60000);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const detectionIdRef = useRef(0);
-  const submissionTimesRef = useRef<number[]>([]);
-  const [lockoutSec, setLockoutSec] = useState(0);
+  const [lockoutSec, setLockoutSec] = useState<number>(getStoredLockoutSec);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
@@ -3336,12 +3363,20 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
 
   const setSelectedPhoto = (blob: Blob) => {
     const now = Date.now();
-    submissionTimesRef.current = submissionTimesRef.current.filter((t) => now - t < 60000);
-    if (submissionTimesRef.current.length >= 5) {
-      setLockoutSec(45);
+    const recent = getStoredSubmissionTimes();
+    if (recent.length >= 5) {
+      const lockoutDuration = 45;
+      const until = now + lockoutDuration * 1000;
+      try {
+        sessionStorage.setItem(LOCKOUT_UNTIL_KEY, String(until));
+      } catch {}
+      setLockoutSec(lockoutDuration);
       return;
     }
-    submissionTimesRef.current.push(now);
+    recent.push(now);
+    try {
+      sessionStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(recent));
+    } catch {}
 
     const currentId = ++detectionIdRef.current;
     if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current);
@@ -3392,7 +3427,26 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
   const onFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     if (lockoutSec > 0) return;
     const file = event.target.files?.[0];
-    if (file) setSelectedPhoto(file);
+    if (!file) return;
+
+    // Security Hardening: 15MB file size ceiling and strict image MIME validation
+    const MAX_FILE_SIZE = 15 * 1024 * 1024;
+    const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError("File exceeds 15MB limit.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      setError("Invalid file format. Please upload JPEG, PNG, or WebP.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setError("");
+    setSelectedPhoto(file);
   };
 
   const submit = async () => {

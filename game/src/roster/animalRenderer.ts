@@ -1767,7 +1767,8 @@ export interface AnimalRenderOptions {
     ctx.fillStyle = '#f48fb1';
     drawOvalSpot(ctx, 112 + lookX * 0.55, 34 + lookY * 0.45, 8, 9, 0.2);
     ctx.fillStyle = outline;
-    drawOvalSpot(ctx, 113 + lookX * 0.55, 34 + lookY * 0.45, 4, 5, 0.2);
+    drawOvalSpot(ctx, 110 + lookX * 0.55, 33 + lookY * 0.45, 3.2, 4.2, 0.15);
+    drawOvalSpot(ctx, 116 + lookX * 0.55, 36 + lookY * 0.45, 3.2, 4.2, 0.25);
 
     drawExpressiveAnimalMouth(ctx, 16 + lookX, 54 + lookY, 0.76, 0.08, pose, outline);
 
@@ -3248,6 +3249,11 @@ export interface AnimalRenderOptions {
       casqueP.bezierCurveTo(casqueX + 10, casqueY + 14, casqueX - 18, casqueY + 12, casqueX - 38, casqueY + 6);
       casqueP.closePath();
       fillRimAndStroke(ctx, casqueP, casqueX - 38, casqueY - 64, casqueX + 68, casqueY + 12, '#ff8a65', '#e53935', '#991b1b', outline, 3.4);
+      // Golden highlight on upturned horn tip
+      ctx.fillStyle = '#fde047';
+      ctx.beginPath();
+      ctx.ellipse(casqueX + 58, casqueY - 56, 5.5, 3.2, -0.4, 0, Math.PI * 2);
+      ctx.fill();
 
       // 2. Rhinoceros Hornbill (A15) Curved Bill positioned directly at the BOTTOM of the eyes!
       const beakX = 4 + lookX * 0.9;
@@ -5492,6 +5498,9 @@ export interface AnimalRenderOptions {
       drawOvalSpot(ctx, bx, by, br + 2.2, (br + 2.2) * 0.78, 0.15);
       ctx.fillStyle = '#00b0ff';
       drawOvalSpot(ctx, bx, by, br, br * 0.78, 0.15);
+      // Vivid electric specular core in blue ocelli
+      ctx.fillStyle = '#e0f2fe';
+      drawOvalSpot(ctx, bx - 1.2, by - 1.0, br * 0.42, br * 0.32, 0.15);
     }
     const lookX = pose.headLookX * 14;
     const lookY = pose.headLookY * 10;
