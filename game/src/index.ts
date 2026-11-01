@@ -34,6 +34,7 @@ import {
   recordAnimalCareInteraction,
 } from './game/persistence';
 import { soundEngine } from './game/sound';
+import { getAnimalRealLifeDiet } from './game/diets';
 import {
   getGameString,
   getLocalizedAssetName,
@@ -139,35 +140,6 @@ function getLocalDecimalHours(): number {
   return now.getHours() + now.getMinutes() / 60;
 }
 
-/**
- * Human-readable condition string for the 4-item Animal Inspector card
- */
-function getAnimalConditionText(animal: PlacedAnimal, night: boolean): string {
-  if (animal.emotionTimerSec > 0) {
-    switch (animal.currentEmotion) {
-      case 'angry':
-        return 'Angry';
-      case 'crying':
-        return 'Sad';
-      case 'laugh':
-      case 'blush':
-      case 'congratulate':
-        return 'Happy';
-      case 'wondered':
-        return 'Curious';
-      case 'waving':
-        return 'Friendly';
-      case 'sleepy':
-        return 'Sleeping';
-      default:
-        break;
-    }
-  }
-  if (animal.hunger <= 25) return 'Hungry';
-  if (night) return 'Sleeping';
-  if (animal.hunger >= 80) return 'Happy';
-  return 'Calm';
-}
 
 export interface SanctuaryGameOptions {
   rootElement?: HTMLElement | null;
@@ -522,10 +494,31 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
   dockCollapseBar.appendChild(dockToggleBtn);
 
+  let dockSearchQuery = '';
+  const getDockSearchPlaceholder = (lang: GameLanguage) => {
+    if (lang === '中文') return '搜索背包物品...';
+    if (lang === 'Bahasa Melayu') return 'Cari barang beg...';
+    if (lang === 'தமிழ்') return 'பொருட்களைத் தேடுங்கள்...';
+    return 'Search bag...';
+  };
+
+  const dockSearchWrap = document.createElement('div');
+  dockSearchWrap.className = 'dock-search-wrap';
+  const dockSearchInput = document.createElement('input');
+  dockSearchInput.type = 'text';
+  dockSearchInput.className = 'dock-search-input';
+  dockSearchInput.placeholder = getDockSearchPlaceholder(currentLang);
+  dockSearchInput.setAttribute('aria-label', 'Search items in bag');
+  dockSearchInput.addEventListener('input', () => {
+    dockSearchQuery = dockSearchInput.value.trim().toLowerCase();
+    renderDockCards();
+  });
+  dockSearchWrap.appendChild(dockSearchInput);
+
   const dockStrip = document.createElement('div');
   dockStrip.className = 'dock-strip';
 
-  bottomDock.append(dockCollapseBar, dockStrip);
+  bottomDock.append(dockCollapseBar, dockSearchWrap, dockStrip);
   root.appendChild(bottomDock);
 
   // 6. Drag Ghost Element
@@ -650,8 +643,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     cardEl.addEventListener('pointermove', (e) => {
       if (!isHolding) return;
       const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
-      // If moved more than 8px before 0.5s hold timer fires, user is scrolling or swiping the strip!
-      if (dist > 8) {
+      // If moved more than 16px before 0.5s hold timer fires, user is scrolling or swiping the strip!
+      // Deadzone threshold of 16px accommodates finger micro-tremors while quickly canceling on intentful swipes.
+      if (dist > 16) {
         clearHold();
       }
     });
@@ -670,6 +664,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     for (const food of foodList) {
       const count = saveState.foodInventory[food.id] ?? 0;
       if (count <= 0) continue;
+
+      if (dockSearchQuery) {
+        const localizedFood = getLocalizedFoodName(food.id, food.name, currentLang).toLowerCase();
+        const matchesName = food.name.toLowerCase().includes(dockSearchQuery);
+        const matchesLoc = localizedFood.includes(dockSearchQuery);
+        const matchesId = food.id.toLowerCase().includes(dockSearchQuery);
+        if (!matchesName && !matchesLoc && !matchesId) continue;
+      }
+
       totalRendered++;
 
       const card = document.createElement('div');
@@ -721,6 +724,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         availableInBag = Math.max(0, ownedCount - placedCount);
       }
       if (availableInBag <= 0) continue;
+
+      const localizedName = getLocalizedAssetName(asset.id, asset.name, currentLang);
+      if (dockSearchQuery) {
+        const matchesName = asset.name.toLowerCase().includes(dockSearchQuery);
+        const matchesLoc = localizedName.toLowerCase().includes(dockSearchQuery);
+        const matchesId = asset.id.toLowerCase().includes(dockSearchQuery);
+        if (!matchesName && !matchesLoc && !matchesId) continue;
+      }
+
       totalRendered++;
 
       const card = document.createElement('div');
@@ -740,7 +752,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       bindAssetThumbnailImage(img, asset.id);
       img.alt = asset.name;
 
-      const localizedName = getLocalizedAssetName(asset.id, asset.name, currentLang);
       const title = document.createElement('div');
       title.className = 'dock-card-title';
       title.textContent = localizedName;
@@ -770,14 +781,25 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     if (totalRendered === 0) {
       const emptyMsg = document.createElement('div');
       emptyMsg.className = 'dock-empty-msg';
-      emptyMsg.textContent =
-        currentLang === '中文'
-          ? '背包暂空，前往商店获取物种或食物吧！'
-          : currentLang === 'Bahasa Melayu'
-          ? 'Beg anda kosong, buka Kedai untuk dapatkan haiwan atau makanan!'
-          : currentLang === 'தமிழ்'
-          ? 'பை காலியாக உள்ளது, கடையைத் திறந்து விலங்குகளைப் பெறுங்கள்!'
-          : 'Your bag is empty. Open Store to get animals, plants, or food.';
+      if (dockSearchQuery) {
+        emptyMsg.textContent =
+          currentLang === '中文'
+            ? '未找到匹配的背包物品'
+            : currentLang === 'Bahasa Melayu'
+            ? 'Tiada barang beg yang sepadan dijumpai'
+            : currentLang === 'தமிழ்'
+            ? 'பொருத்தமான பொருட்கள் எதுவும் கிடைக்கவில்லை'
+            : 'No matching items found in your bag';
+      } else {
+        emptyMsg.textContent =
+          currentLang === '中文'
+            ? '背包暂空，前往商店获取物种或食物吧！'
+            : currentLang === 'Bahasa Melayu'
+            ? 'Beg anda kosong, buka Kedai untuk dapatkan haiwan atau makanan!'
+            : currentLang === 'தமிழ்'
+            ? 'பை காலியாக உள்ளது, கடையைத் திறந்து விலங்குகளைப் பெறுங்கள்!'
+            : 'Your bag is empty. Open Store to get animals, plants, or food.';
+      }
       dockStrip.appendChild(emptyMsg);
     }
   }
@@ -1599,16 +1621,14 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     const asset = ROSTER_ASSETS.find((r) => r.id === animal.assetId);
     const loveLevel = computeAnimalLoveLevel(animal);
-    const night = isAnimalResting(animal.assetId, saveState.timeOfDayHours);
-    const conditionText = getAnimalConditionText(animal, night);
     const fullnessPct = Math.max(0, Math.min(100, Math.round(animal.hunger)));
 
     entityCard.style.display = 'flex';
     entityCard.innerHTML = '';
 
-    // (i) Name (changeable)
+    // (i) Name (changeable) + Info (i) popup button
     const nameRow = document.createElement('div');
-    nameRow.className = 'entity-item-row';
+    nameRow.className = 'entity-item-row entity-name-row';
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.className = 'entity-name-input';
@@ -1618,7 +1638,25 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       animal.customName = nameInput.value.trim() || (asset?.name ?? 'Animal');
       persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
     });
-    nameRow.appendChild(nameInput);
+
+    const infoBtn = document.createElement('button');
+    infoBtn.type = 'button';
+    infoBtn.className = 'entity-info-btn';
+    infoBtn.setAttribute('aria-label', 'Animal Info');
+    infoBtn.innerHTML = INFO_SVG_ICON;
+    infoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!asset) return;
+      const localizedTitle = getLocalizedAssetName(asset.id, asset.name, currentLang);
+      const sentences: [string, string] = [
+        ASSET_ECO_CONFIG[asset.id]?.infoSentences?.[0] || asset.name,
+        ASSET_ECO_CONFIG[asset.id]?.infoSentences?.[1] || '',
+      ];
+      const query = ASSET_ECO_CONFIG[asset.id]?.searchQuery || asset.name;
+      openCharacteristicsPopupCard(asset.id, localizedTitle, sentences, query);
+    });
+
+    nameRow.append(nameInput, infoBtn);
 
     // (ii) Standalone <SVG> Lv. x (pink color, max 5, without rounded container)
     const loveRow = document.createElement('div');
@@ -1634,7 +1672,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const fullnessHeader = document.createElement('div');
     fullnessHeader.className = 'fullness-header';
     const fullnessLabel = getGameString('fullness', currentLang);
-    const condLabel = getGameString('condition', currentLang);
     fullnessHeader.innerHTML = `<span>${fullnessLabel}</span><span>${fullnessPct}%</span>`;
     const barTrack = document.createElement('div');
     barTrack.className = 'hunger-bar-track';
@@ -1647,12 +1684,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     barTrack.appendChild(barFill);
     fullnessWrap.append(fullnessHeader, barTrack);
 
-    // (iv) Condition: xxx
-    const condRow = document.createElement('div');
-    condRow.className = 'condition-row';
-    condRow.textContent = `${condLabel}: ${conditionText}`;
-
-    // (v) Recall / Store in Bag button
+    // (iv) Recall / Store in Bag button (Status: xxx removed per user specification)
     const recallBtn = document.createElement('button');
     recallBtn.type = 'button';
     recallBtn.className = 'entity-recall-btn';
@@ -1679,7 +1711,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       }
     });
 
-    entityCard.append(nameRow, loveRow, fullnessWrap, condRow, recallBtn);
+    entityCard.append(nameRow, loveRow, fullnessWrap, recallBtn);
   }
 
   function syncHudDOM(): void {
@@ -1832,7 +1864,23 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     link.rel = 'noopener noreferrer';
     link.textContent = getGameString('learnMore', currentLang);
 
-    card.append(header, text, link);
+    const dietText = getAnimalRealLifeDiet(itemId, currentLang);
+    if (dietText) {
+      const dietRow = document.createElement('div');
+      dietRow.className = 'info-popup-diet-row';
+      const dietHeading =
+        currentLang === '中文'
+          ? '🌿 现实中以何为食：'
+          : currentLang === 'Bahasa Melayu'
+          ? '🌿 Makanan di Alam Semula Jadi:'
+          : currentLang === 'தமிழ்'
+          ? '🌿 இயற்கையான உணவு முறை:'
+          : '🌿 Natural Real-life Diet:';
+      dietRow.innerHTML = `<div class="diet-heading"><strong>${dietHeading}</strong></div><div class="diet-content">${dietText}</div>`;
+      card.append(header, text, dietRow, link);
+    } else {
+      card.append(header, text, link);
+    }
     backdrop.appendChild(card);
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) backdrop.remove();
@@ -2202,8 +2250,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       mCtx.stroke();
       mCtx.setLineDash([]);
 
-      // Tactical PUBG-style 8x8 coordinate grid lines (A1..H8)
-      mCtx.strokeStyle = 'rgba(250, 250, 237, 0.14)';
+      // Tactical PUBG-style 8x8 coordinate grid lines (A1..H8) & crisp coordinate labels
+      mCtx.strokeStyle = 'rgba(250, 250, 237, 0.16)';
       mCtx.lineWidth = 1;
       const cell = 440 / 8;
       for (let i = 1; i < 8; i++) {
@@ -2213,6 +2261,21 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         mCtx.moveTo(0, i * cell);
         mCtx.lineTo(440, i * cell);
         mCtx.stroke();
+      }
+
+      // Tactical alphanumeric coordinate labels along top (A-H) and left (1-8)
+      mCtx.font = 'bold 9px monospace, sans-serif';
+      mCtx.fillStyle = 'rgba(220, 252, 231, 0.65)';
+      mCtx.textAlign = 'center';
+      mCtx.textBaseline = 'top';
+      const colLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      for (let c = 0; c < 8; c++) {
+        mCtx.fillText(colLabels[c], (c + 0.5) * cell, 4);
+      }
+      mCtx.textAlign = 'left';
+      mCtx.textBaseline = 'middle';
+      for (let r = 0; r < 8; r++) {
+        mCtx.fillText(String(r + 1), 4, (r + 0.5) * cell);
       }
 
       // Current camera position radar ripple
@@ -2230,6 +2293,21 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     hereMarker.className = 'you-are-here-marker';
     hereMarker.style.left = `${(curMapX / 440) * 100}%`;
     hereMarker.style.top = `${(curMapY / 440) * 100}%`;
+
+    // Check proximity to any teleport tower pin button (if close or near top edge, offset marker downwards so pin is completely unobstructed)
+    let isNearTowerPin = curMapY < 58;
+    for (const tower of TELEPORT_TOWERS) {
+      const tx = tower.mapNormX * 440;
+      const ty = tower.mapNormY * 440;
+      if (Math.hypot(curMapX - tx, curMapY - ty) < 54) {
+        isNearTowerPin = true;
+        break;
+      }
+    }
+    if (isNearTowerPin) {
+      hereMarker.classList.add('offset-below');
+    }
+
     hereMarker.innerHTML = `
       <div class="you-are-here-pill">
         ${LOCATION_PIN_SVG}

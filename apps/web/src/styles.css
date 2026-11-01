@@ -2320,18 +2320,19 @@ img { max-width: 100%; }
   background: #9b2c2c !important;
 }
 
-/* Teleport Turtle Loading Scene Overlay */
+/* Teleport & Launch Turtle Loading Scene Overlay (Dynamic Bright / Dark Support) */
 .teleport-loading-overlay {
   position: fixed;
   inset: 0;
-  background: #002c17;
+  background: #f4fbf5;
   z-index: 10000;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  color: #fafaed;
+  gap: 16px;
+  color: #0c2b18;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .teleport-loading-canvas {
@@ -2341,28 +2342,54 @@ img { max-width: 100%; }
 }
 
 .teleport-loading-title {
-  font-family: "Outfit", sans-serif;
-  font-size: 18px;
+  font-family: var(--font-display, "Outfit", sans-serif);
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #aef682;
+  color: #0c2b18;
   text-align: center;
   padding: 0 16px;
 }
 
 .teleport-progress-track {
   width: 220px;
-  height: 5px;
-  background: rgba(250, 250, 237, 0.16);
+  height: 6px;
+  background: rgba(12, 43, 24, 0.12);
   border-radius: 999px;
   overflow: hidden;
 }
 
 .teleport-progress-fill {
   height: 100%;
-  background: #aef682;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   border-radius: 999px;
   transition: width 0.08s linear;
+}
+
+/* Dark Mode Overrides for Teleport Loading Overlay */
+:root[data-theme="dark"] .teleport-loading-overlay,
+.teleport-loading-overlay.theme-dark,
+.teleport-loading-overlay[data-theme="dark"] {
+  background: #002c17 !important;
+  color: #fafaed !important;
+}
+
+:root[data-theme="dark"] .teleport-loading-title,
+.teleport-loading-overlay.theme-dark .teleport-loading-title,
+.teleport-loading-overlay[data-theme="dark"] .teleport-loading-title {
+  color: #aef682 !important;
+}
+
+:root[data-theme="dark"] .teleport-progress-track,
+.teleport-loading-overlay.theme-dark .teleport-progress-track,
+.teleport-loading-overlay[data-theme="dark"] .teleport-progress-track {
+  background: rgba(250, 250, 237, 0.18) !important;
+}
+
+:root[data-theme="dark"] .teleport-progress-fill,
+.teleport-loading-overlay.theme-dark .teleport-progress-fill,
+.teleport-loading-overlay[data-theme="dark"] .teleport-progress-fill {
+  background: #aef682 !important;
 }
 
 .manual-trigger-card .show-manual-btn {

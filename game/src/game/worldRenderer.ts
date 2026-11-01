@@ -158,15 +158,17 @@ export function drawOverheadEmotionBadge(
   ctx.translate(0, bob);
 
   const r = 18;
-  // Speech bubble pointer tail pointing down
+  // Speech bubble pointer tail pointing down (clean closed comic bubble)
   ctx.fillStyle = '#ffffff';
   ctx.strokeStyle = '#002c17';
   ctx.lineWidth = 2.4;
   ctx.lineJoin = 'round';
 
   ctx.beginPath();
-  ctx.arc(0, 0, r, 0.38, Math.PI * 2 - 0.38);
-  ctx.lineTo(0, r + 6);
+  // Arc sweeps 310° from left of bottom clockwise to right of bottom
+  ctx.arc(0, 0, r, Math.PI * 0.5 + 0.28, Math.PI * 0.5 - 0.28);
+  // Sharp triangular pointer tail pointing straight down toward the animal's head
+  ctx.lineTo(0, r + 7);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
@@ -2314,6 +2316,9 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
       mouthSmile: animal.eatingStage !== 'none' ? 0.85 : rig.pose.mouthSmile,
       blushAlpha: animal.eatingStage !== 'none' ? 0.65 : rig.pose.blushAlpha,
       headScaleY: chewScaleY,
+      questionMarkAlpha: isEmotingNow ? 0 : rig.pose.questionMarkAlpha,
+      laughMarksAlpha: isEmotingNow ? 0 : rig.pose.laughMarksAlpha,
+      angryVeinAlpha: isEmotingNow ? 0 : rig.pose.angryVeinAlpha,
     };
 
     const drawW = 220 * worldScale;

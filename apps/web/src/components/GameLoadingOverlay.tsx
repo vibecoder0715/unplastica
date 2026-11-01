@@ -190,31 +190,25 @@ export function GameLoadingOverlay({ language, onComplete }: GameLoadingOverlayP
   }, [onComplete]);
 
   const activeLang = language || getLanguage();
-  const localizedContent = {
-    English: {
-      title: "Entering Sanctuary…",
-      subtitle: "Loading initial assets for the game",
-    },
-    "Bahasa Melayu": {
-      title: "Memasuki Santuari…",
-      subtitle: "Memuatkan aset awal untuk permainan",
-    },
-    "中文": {
-      title: "正在进入生态天地…",
-      subtitle: "正在加载游戏初始生态资源",
-    },
-    "தமிழ்": {
-      title: "சரணாலயத்திற்குள் நுழைகிறது…",
-      subtitle: "விளையாட்டின் தொடக்க ஆதாரங்களை ஏற்றுகிறது",
-    },
-  }[activeLang] || {
-    title: "Entering Sanctuary…",
-    subtitle: "Loading initial assets for the game",
-  };
+  const localizedTitle = {
+    English: "Entering Sanctuary…",
+    "Bahasa Melayu": "Memasuki Santuari…",
+    "中文": "正在进入生态天地…",
+    "தமிழ்": "சரணாலயத்திற்குள் நுழைகிறது…",
+  }[activeLang] || "Entering Sanctuary…";
+
+  const isDark =
+    typeof document !== "undefined"
+      ? document.documentElement.dataset.theme === "dark"
+      : false;
 
   return (
     <div
-      className="teleport-loading-overlay game-launch-overlay"
+      className={
+        "teleport-loading-overlay game-launch-overlay " +
+        (isDark ? "theme-dark" : "theme-light")
+      }
+      data-theme={isDark ? "dark" : "light"}
       role="status"
       aria-live="polite"
     >
@@ -224,17 +218,7 @@ export function GameLoadingOverlay({ language, onComplete }: GameLoadingOverlayP
         height={250}
         className="teleport-loading-canvas"
       />
-      <div className="teleport-loading-title">{localizedContent.title}</div>
-      <div
-        className="teleport-loading-subtitle"
-        style={{
-          fontSize: 13,
-          color: "rgba(250, 250, 237, 0.72)",
-          fontFamily: "Space Grotesk, sans-serif",
-        }}
-      >
-        {localizedContent.subtitle}
-      </div>
+      <div className="teleport-loading-title">{localizedTitle}</div>
       <div className="teleport-progress-track">
         <div
           className="teleport-progress-fill"

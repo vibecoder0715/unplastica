@@ -503,6 +503,8 @@ function drawDetailedLeaf(
     const boughItems: Array<{
       bP: Path2D;
       subP: Path2D;
+      openP: Path2D;
+      openSubP: Path2D;
       bx: number;
       by: number;
       endX: number;
@@ -512,27 +514,55 @@ function drawDetailedLeaf(
       subEndX: number;
       subEndY: number;
       dir: number;
+      surfaceX: number;
+      bw: number;
     }> = [];
 
     for (const [xFactor, yFactor, dx, dy, bw] of branches) {
       const dir = dx >= 0 ? 1 : -1;
-      const bx = topX * Math.abs(yFactor) + xFactor * topW * 0.65;
+      const tH = Math.min(1, Math.max(0, -yFactor)); // 0 at ground, 1 at trunk crown
+      const trunkCenterX = topX * tH;
+      const trunkHalfW = baseW * (1 - tH) + topW * tH;
+      const surfaceX = trunkCenterX + dir * trunkHalfW;
       const by = 148 + yFactor * trunkH;
+      // Anchor branch root smoothly inside trunk core
+      const bx = trunkCenterX + xFactor * trunkHalfW * 0.35;
       const endX = bx + dx + sway * 22 + activePlant3DYaw * 14;
       const endY = by + dy + activePlant3DPitch * -8;
 
+      // 1. Solid filled branch path overlapping into trunk interior
       const bP = new Path2D();
-      bP.moveTo(bx - dir * bw * 0.35, by - bw * 0.35);
-      bP.bezierCurveTo(bx + dx * 0.3, by + dy * 0.15, bx + dx * 0.65, by + dy * 0.65, endX, endY);
+      bP.moveTo(surfaceX, by - bw * 0.65);
+      bP.quadraticCurveTo(surfaceX + dir * 6, by - bw * 0.35, bx + dx * 0.3, by + dy * 0.15);
+      bP.bezierCurveTo(bx + dx * 0.65, by + dy * 0.65, endX - dir * 4, endY - bw * 0.2, endX, endY);
+      bP.quadraticCurveTo(endX + dir * 4, endY + bw * 0.2, endX, endY + bw * 0.38);
       bP.bezierCurveTo(
         bx + dx * 0.7,
-        by + dy * 0.75 + bw * 0.35,
-        bx + dx * 0.35,
-        by + dy * 0.25 + bw * 0.5,
-        bx - dir * bw * 0.2,
-        by + bw * 0.45,
+        by + dy * 0.75 + bw * 0.38,
+        bx + dx * 0.32,
+        by + dy * 0.28 + bw * 0.52,
+        surfaceX + dir * 6,
+        by + bw * 0.6,
       );
+      bP.quadraticCurveTo(surfaceX, by + bw * 0.78, surfaceX - dir * trunkHalfW * 0.4, by + bw * 0.4);
+      bP.lineTo(surfaceX - dir * trunkHalfW * 0.4, by - bw * 0.4);
       bP.closePath();
+
+      // 2. Open stroke path for seamless welded crotch outline (no stroke cutting through trunk throat)
+      const openP = new Path2D();
+      openP.moveTo(surfaceX, by - bw * 0.65);
+      openP.quadraticCurveTo(surfaceX + dir * 6, by - bw * 0.35, bx + dx * 0.3, by + dy * 0.15);
+      openP.bezierCurveTo(bx + dx * 0.65, by + dy * 0.65, endX - dir * 4, endY - bw * 0.2, endX, endY);
+      openP.quadraticCurveTo(endX + dir * 4, endY + bw * 0.2, endX, endY + bw * 0.38);
+      openP.bezierCurveTo(
+        bx + dx * 0.7,
+        by + dy * 0.75 + bw * 0.38,
+        bx + dx * 0.32,
+        by + dy * 0.28 + bw * 0.52,
+        surfaceX + dir * 6,
+        by + bw * 0.6,
+      );
+      openP.quadraticCurveTo(surfaceX, by + bw * 0.82, surfaceX - dir * 4, by + bw * 0.95);
 
       const forkX = bx + dx * 0.52 + sway * 12 + activePlant3DYaw * 8;
       const forkY = by + dy * 0.46 + activePlant3DPitch * -4;
@@ -546,22 +576,13 @@ function drawDetailedLeaf(
       subP.quadraticCurveTo(forkX + dir * 18, forkY - 12 + subW * 0.4, forkX + dir * subW * 0.5, forkY + subW * 0.3);
       subP.closePath();
 
-      boughItems.push({ bP, subP, bx, by, endX, endY, forkX, forkY, subEndX, subEndY, dir });
-    }
+      const openSubP = new Path2D();
+      openSubP.moveTo(forkX - dir * subW * 0.5, forkY);
+      openSubP.quadraticCurveTo(forkX + dir * 14, forkY - 18, subEndX, subEndY);
+      openSubP.quadraticCurveTo(forkX + dir * 18, forkY - 12 + subW * 0.4, forkX + dir * subW * 0.5, forkY + subW * 0.3);
 
-    ctx.save();
-    ctx.strokeStyle = outline;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 6.8;
-    ctx.stroke(tP);
-    for (const item of boughItems) {
-      ctx.lineWidth = 5.8;
-      ctx.stroke(item.bP);
-      ctx.lineWidth = 4.6;
-      ctx.stroke(item.subP);
+      boughItems.push({ bP, subP, openP, openSubP, bx, by, endX, endY, forkX, forkY, subEndX, subEndY, dir, surfaceX, bw });
     }
-    ctx.restore();
 
     const shiftX = activePlant3DYaw * flare * 0.35;
     const barkGrad = ctx.createLinearGradient(-flare + shiftX, topY - 40, flare + shiftX, 156);
@@ -569,12 +590,37 @@ function drawDetailedLeaf(
     barkGrad.addColorStop(0.26, barkLight);
     barkGrad.addColorStop(0.62, barkMid);
     barkGrad.addColorStop(1, barkDark);
+
+    // 1. Fill all woody geometries (trunk and seamlessly merged boughs) with bark gradient
     ctx.fillStyle = barkGrad;
+    ctx.fill(tP);
     for (const item of boughItems) {
       ctx.fill(item.bP);
       ctx.fill(item.subP);
     }
-    ctx.fill(tP);
+
+    // 2. Stroke outer trunk and organically welded bough silhouettes
+    ctx.save();
+    ctx.strokeStyle = outline;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 6.4;
+    ctx.stroke(tP);
+    for (const item of boughItems) {
+      ctx.lineWidth = 5.4;
+      ctx.stroke(item.openP);
+      ctx.lineWidth = 4.2;
+      ctx.stroke(item.openSubP);
+    }
+    ctx.restore();
+
+    // 3. Re-fill smooth fillet at bough roots so trunk outline doesn't cut across branch throat
+    ctx.fillStyle = barkGrad;
+    for (const item of boughItems) {
+      ctx.beginPath();
+      ctx.ellipse(item.surfaceX + item.dir * 4, item.by, item.bw ? item.bw * 0.6 : 10, item.bw ? item.bw * 0.75 : 12, item.dir * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.save();
     ctx.clip(tP);
@@ -676,7 +722,8 @@ function drawDetailedLeaf(
   }
 
   /**
-   * Draws a distinct banana paddle frond with natural transverse wind-splits perpendicular to the thick midrib.
+   * Draws an authentic Pokok Pisang banana leaf: a grand, continuous broad elongated paddle frond
+   * with prominent pale midrib, dense transverse parallel veins, and realistic natural wind notches.
    */
   function drawBananaPaddleLeaf(
     ctx: CanvasRenderingContext2D,
@@ -694,52 +741,62 @@ function drawDetailedLeaf(
     ctx.translate(x + activePlant3DYaw * 6, y + activePlant3DPitch * 4);
     ctx.rotate(angle + activePlant3DYaw * 0.04);
 
-    // Thick pale-green petiole & midrib
+    // 1. One continuous expansive broad paddle lamina (Pokok Pisang leaf blade)
+    const lamina = new Path2D();
+    lamina.moveTo(0, 0);
+    // Upper margin: smooth arching curve expanding out to wide paddle then curving into rounded tip
+    lamina.bezierCurveTo(length * 0.18, -width * 0.88, length * 0.65, -width * 0.96, length * 0.92, -width * 0.35);
+    lamina.quadraticCurveTo(length, -width * 0.1, length * 0.98, 0);
+    // Lower margin: matching expansive tropical curved blade
+    lamina.quadraticCurveTo(length, width * 0.1, length * 0.92, width * 0.35);
+    lamina.bezierCurveTo(length * 0.65, width * 0.96, length * 0.18, width * 0.88, 0, 0);
+    lamina.closePath();
+
+    fillRimAndStroke(ctx, lamina, 0, -width, length, width, cLight, cMid, cDark, outline, 2.4);
+
+    // 2. Continuous prominent pale-green midrib running from stem base to apex
     ctx.strokeStyle = '#d9f99d';
-    ctx.lineWidth = Math.max(3.2, width * 0.16);
+    ctx.lineWidth = Math.max(3.0, width * 0.14);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(length * 0.5, -width * 0.05, length * 0.98, 0);
+    ctx.quadraticCurveTo(length * 0.5, -width * 0.04, length * 0.98, 0);
     ctx.stroke();
 
-    // Split paddle segments along upper and lower lamina
-    const segments = [
-      [0.04, 0.34],
-      [0.37, 0.68],
-      [0.71, 0.98],
-    ] as const;
-
-    for (const [t0, t1] of segments) {
-      const x0 = length * t0;
-      const x1 = length * t1;
-      const xm = (x0 + x1) * 0.5;
-      const segW = width * (1 - Math.pow((t0 + t1) * 0.5 - 0.5, 2) * 1.1);
-
-      const segP = new Path2D();
-      segP.moveTo(x0, -1.5);
-      segP.quadraticCurveTo(xm, -segW * 1.05, x1, -segW * 0.65);
-      segP.lineTo(x1 - 3, -1.5);
-      segP.moveTo(x0, 1.5);
-      segP.quadraticCurveTo(xm, segW * 1.05, x1, segW * 0.65);
-      segP.lineTo(x1 - 3, 1.5);
-      segP.closePath();
-
-      fillRimAndStroke(ctx, segP, x0, -segW, x1, segW, cLight, cMid, cDark, outline, 2.2);
-
-      // Parallel transverse banana leaf veins
-      ctx.strokeStyle = 'rgba(236, 252, 203, 0.55)';
-      ctx.lineWidth = 1.1;
-      ctx.beginPath();
-      for (let vt = t0 + 0.06; vt < t1 - 0.03; vt += 0.08) {
-        const vx = length * vt;
-        ctx.moveTo(vx, -2);
-        ctx.lineTo(vx + 4, -segW * 0.78);
-        ctx.moveTo(vx, 2);
-        ctx.lineTo(vx + 4, segW * 0.78);
-      }
-      ctx.stroke();
+    // 3. Dense parallel transverse veins running strictly perpendicular from midrib to edge
+    ctx.strokeStyle = 'rgba(236, 252, 203, 0.45)';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    const veinCount = 14;
+    for (let i = 1; i <= veinCount; i++) {
+      const t = i / (veinCount + 1);
+      const vx = length * t;
+      const vy = -width * 0.04 * (4 * t * (1 - t));
+      const vDist = width * (1 - Math.pow(t - 0.5, 2) * 1.8) * 0.82;
+      // Upper transverse vein
+      ctx.moveTo(vx, vy - 1.5);
+      ctx.lineTo(vx + 3, vy - vDist);
+      // Lower transverse vein
+      ctx.moveTo(vx, vy + 1.5);
+      ctx.lineTo(vx + 3, vy + vDist);
     }
+    ctx.stroke();
+
+    // 4. Subtle natural transverse wind-incisions (realistic natural leaf splits, without breaking continuity)
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    const splitPositions = [0.38, 0.68];
+    for (const st of splitPositions) {
+      const sx = length * st;
+      const sy = -width * 0.04 * (4 * st * (1 - st));
+      const sDist = width * (1 - Math.pow(st - 0.5, 2) * 1.8) * 0.82;
+      ctx.moveTo(sx + 2, sy - sDist * 0.95);
+      ctx.lineTo(sx - 2, sy - sDist * 0.35);
+      ctx.moveTo(sx + 2, sy + sDist * 0.95);
+      ctx.lineTo(sx - 2, sy + sDist * 0.35);
+    }
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -1521,10 +1578,10 @@ function drawDetailedLeaf(
        * ====================================================================== */
       case 'plant_03_durian_tree': {
         drawWoodyTrunkAndBranches(ctx, sway, 200, 30, 15, '#966F4B', '#66462C', '#3B2514', false, [
-          [-0.4, -0.62, -112, -22, 16],
-          [0.4, -0.58, 112, -18, 16],
-          [-0.3, -0.85, -84, -48, 14],
-          [0.3, -0.85, 84, -48, 14],
+          [-0.35, -0.72, -78, -32, 18],
+          [0.35, -0.70, 78, -30, 18],
+          [-0.25, -0.86, -42, -42, 15],
+          [0.25, -0.86, 42, -42, 15],
         ]);
         drawCanopyCrown(ctx, 0, -118, 128, 72, sway, '#a3e635', '#65a30d', '#365314', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
 
