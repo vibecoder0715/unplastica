@@ -2280,14 +2280,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         mCtx.fillText(String(r + 1), 4, (r + 0.5) * cell);
       }
 
-      // Current camera position radar ripple
-      mCtx.strokeStyle = '#aef682';
-      mCtx.lineWidth = 2.5;
-      mCtx.beginPath();
-      mCtx.arc(curMapX, curMapY, 14, 0, Math.PI * 2);
-      mCtx.stroke();
-      mCtx.fillStyle = 'rgba(174, 246, 130, 0.25)';
-      mCtx.fill();
     }
 
     // "You are here" marker with Location Pin SVG
@@ -2458,6 +2450,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         const card = document.createElement('div');
         card.className = 'pet-teleport-card';
 
+        const mainRow = document.createElement('div');
+        mainRow.className = 'pet-card-main';
+
         const thumbWrap = document.createElement('div');
         thumbWrap.className = 'pet-card-thumb-wrap';
         const img = document.createElement('img');
@@ -2466,37 +2461,27 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         img.alt = animal.customName || asset?.name || 'Pet';
         thumbWrap.appendChild(img);
 
-        const info = document.createElement('div');
-        info.className = 'pet-card-info';
+        const details = document.createElement('div');
+        details.className = 'pet-card-details';
 
-        const topRow = document.createElement('div');
-        topRow.className = 'pet-card-top-row';
+        const titleRow = document.createElement('div');
+        titleRow.className = 'pet-card-title-row';
 
         const nameEl = document.createElement('span');
         nameEl.className = 'pet-card-name';
         const animalDisplayName = animal.customName || getLocalizedAssetName(animal.assetId, asset?.name || 'Pet', currentLang);
         nameEl.textContent = animalDisplayName;
+        nameEl.title = animalDisplayName;
 
         const level = computeAnimalLoveLevel(animal);
         const levelBadge = document.createElement('span');
         levelBadge.className = 'pet-card-level-badge';
-        levelBadge.innerHTML = `${HEART_SVG_ICON}Lv.${level}`;
+        levelBadge.innerHTML = `${HEART_SVG_ICON}<span>Lv.${level}</span>`;
 
-        topRow.append(nameEl, levelBadge);
+        titleRow.append(nameEl, levelBadge);
 
-        const statsRow = document.createElement('div');
-        statsRow.className = 'pet-card-stats-row';
-
-        const fullnessPct = Math.max(0, Math.min(100, Math.round(animal.hunger)));
-        const fullnessWrap = document.createElement('div');
-        fullnessWrap.className = 'pet-card-fullness-wrap';
-        fullnessWrap.innerHTML = `
-          <span>${getGameString('fullness', currentLang)}</span>
-          <div class="pet-card-fullness-track">
-            <div class="pet-card-fullness-fill" style="width: ${fullnessPct}%; background: ${fullnessPct <= 25 ? '#ef4444' : fullnessPct <= 55 ? '#f59e0b' : '#22c55e'};"></div>
-          </div>
-          <span>${fullnessPct}%</span>
-        `;
+        const badgesRow = document.createElement('div');
+        badgesRow.className = 'pet-card-badges-row';
 
         const isHappy = animal.hunger > 35;
         const condBadge = document.createElement('span');
@@ -2507,8 +2492,23 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         zoneBadge.className = 'pet-card-zone-badge';
         zoneBadge.textContent = getLocalizedZoneName(animal.zoneId, currentLang);
 
-        statsRow.append(fullnessWrap, condBadge, zoneBadge);
-        info.append(topRow, statsRow);
+        badgesRow.append(condBadge, zoneBadge);
+        details.append(titleRow, badgesRow);
+        mainRow.append(thumbWrap, details);
+
+        const actionRow = document.createElement('div');
+        actionRow.className = 'pet-card-action-row';
+
+        const fullnessPct = Math.max(0, Math.min(100, Math.round(animal.hunger)));
+        const fullnessWrap = document.createElement('div');
+        fullnessWrap.className = 'pet-card-fullness-wrap';
+        fullnessWrap.innerHTML = `
+          <span class="pet-card-fullness-label">${getGameString('fullness', currentLang)}</span>
+          <div class="pet-card-fullness-track">
+            <div class="pet-card-fullness-fill" style="width: ${fullnessPct}%; background: ${fullnessPct <= 25 ? '#ef4444' : fullnessPct <= 55 ? '#f59e0b' : '#22c55e'};"></div>
+          </div>
+          <span class="pet-card-fullness-val">${fullnessPct}%</span>
+        `;
 
         const teleBtn = document.createElement('button');
         teleBtn.type = 'button';
@@ -2542,7 +2542,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           doTeleport();
         });
 
-        card.append(thumbWrap, info, teleBtn);
+        actionRow.append(fullnessWrap, teleBtn);
+        card.append(mainRow, actionRow);
         cardsContainer.appendChild(card);
       }
     };
