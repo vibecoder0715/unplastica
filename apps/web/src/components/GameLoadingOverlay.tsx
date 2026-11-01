@@ -11,6 +11,7 @@ import { loadSaveState } from "@game/game/persistence";
 import { ROSTER_ASSETS } from "@game/roster/catalog";
 import { soundEngine } from "@game/game/sound";
 import { type Language, getLanguage } from "../lib/i18n";
+import { forceUpdateAndClearCache } from "../lib/forceUpdate";
 
 interface GameLoadingOverlayProps {
   language?: Language;
@@ -225,6 +226,41 @@ export function GameLoadingOverlay({ language, onComplete }: GameLoadingOverlayP
           style={{ width: `${progress}%` }}
         />
       </div>
+      <button
+        type="button"
+        className="teleport-force-update-btn"
+        onClick={() => {
+          void forceUpdateAndClearCache();
+        }}
+        style={{
+          marginTop: "16px",
+          background: "rgba(0, 44, 23, 0.45)",
+          color: "#ffffff",
+          border: "1.5px solid rgba(255, 255, 255, 0.35)",
+          borderRadius: "999px",
+          padding: "6px 16px",
+          fontSize: "12px",
+          fontWeight: 600,
+          cursor: "pointer",
+          backdropFilter: "blur(6px)",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          transition: "all 0.15s ease",
+          zIndex: 10,
+        }}
+      >
+        <span>🔄</span>
+        <span>
+          {activeLang === "中文"
+            ? "模型旧或卡顿？点击强制刷新并清除缓存"
+            : activeLang === "Bahasa Melayu"
+            ? "Model lama? Paksa Kemas Kini & Kosongkan Cache"
+            : activeLang === "தமிழ்"
+            ? "பழைய மாடலா? புதுப்பித்து நினைவகத்தை அழிக்கவும்"
+            : "Seeing older models? Force Update & Clear Cache"}
+        </span>
+      </button>
     </div>
   );
 }

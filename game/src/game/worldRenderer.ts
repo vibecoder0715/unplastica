@@ -162,13 +162,14 @@ export function drawOverheadEmotionBadge(
   ctx.fillStyle = '#ffffff';
   ctx.strokeStyle = '#002c17';
   ctx.lineWidth = 2.4;
+  ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
   ctx.beginPath();
-  // Guaranteed clockwise arc from bottom-left to bottom-right across top of bubble
-  ctx.arc(0, 0, r, Math.PI * 0.5 + 0.32, Math.PI * 2.5 - 0.32, false);
-  // Pointer tail pointing straight down toward the animal's head
-  ctx.lineTo(0, r + 7);
+  // Seamless counter-clockwise arc across top of bubble from bottom-right to bottom-left
+  ctx.arc(0, -3, r, 0.22 * Math.PI, 0.78 * Math.PI, true);
+  // Symmetrical downward comic pointer tail
+  ctx.lineTo(0, r + 6);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
