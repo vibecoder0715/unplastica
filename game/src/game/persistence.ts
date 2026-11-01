@@ -9,7 +9,7 @@ import {
   WORLD_SCALE_X,
   WORLD_WIDTH,
 } from './worldConfig';
-import type { PlacedAnimal, SaveState } from './types';
+import type { PlacedAnimal, PlacedPlant, SaveState } from './types';
 
 export const SAVE_STORAGE_KEY = 'malaysia_ecopet_save_v1';
 
@@ -20,12 +20,27 @@ export interface LoadedSaveResult {
 }
 
 /**
+ * Sanitizes an untrusted object by stripping prototype pollution attack vectors (__proto__, constructor, prototype).
+ */
+export function sanitizeKeys(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeKeys);
+  const clean: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+    clean[k] = sanitizeKeys(v);
+  }
+  return clean;
+}
+
+/**
  * Computes Love Level (1 .. 5) based on sustained care (1-3 weeks / 7-21 care days + bondXp).
  * Only reaches max Level 5 with sufficient care milestones and time!
  */
-export function computeAnimalLoveLevel(animal: PlacedAnimal): number {
-  const xp = Math.max(0, animal.bondXp ?? 100);
-  const days = Math.max(1, animal.careDaysCount ?? 1);
+export function computeAnimalLoveLevel(animal: PlacedAnimal | null | undefined): number {
+  if (!animal) return 1;
+  const xp = typeof animal.bondXp === 'number' && Number.isFinite(animal.bondXp) ? Math.max(0, animal.bondXp) : 100;
+  const days = typeof animal.careDaysCount === 'number' && Number.isFinite(animal.careDaysCount) ? Math.max(1, Math.floor(animal.careDaysCount)) : 1;
 
   // XP tiers: 100 (Lv1), 200 (Lv2), 300 (Lv3), 400 (Lv4), 500 (Lv5)
   const xpTier = Math.min(5, Math.max(1, Math.floor(xp / 100)));
@@ -46,12 +61,14 @@ export function computeAnimalLoveLevel(animal: PlacedAnimal): number {
 /**
  * Records a daily care interaction (feeding or gentle petting) for the 1-3 week Love Level progression.
  */
-export function recordAnimalCareInteraction(animal: PlacedAnimal, xpGain: number): void {
+export function recordAnimalCareInteraction(animal: PlacedAnimal | null | undefined, xpGain: number): void {
+  if (!animal) return;
+  const gain = typeof xpGain === 'number' && Number.isFinite(xpGain) ? Math.max(0, xpGain) : 0;
   const todayStamp = new Date().toISOString().slice(0, 10);
-  if (!animal.careStartTimestampMs) {
+  if (!animal.careStartTimestampMs || !Number.isFinite(animal.careStartTimestampMs)) {
     animal.careStartTimestampMs = Date.now();
   }
-  if (!animal.careDaysCount) {
+  if (!animal.careDaysCount || !Number.isFinite(animal.careDaysCount)) {
     animal.careDaysCount = 1;
   }
   if (animal.lastCareDayStamp !== todayStamp) {
@@ -62,11 +79,13 @@ export function recordAnimalCareInteraction(animal: PlacedAnimal, xpGain: number
   const elapsedDaysSinceAdoption = Math.floor(
     Math.max(0, Date.now() - animal.careStartTimestampMs) / (1000 * 60 * 60 * 24),
   );
-  if (animal.hunger > 30 && elapsedDaysSinceAdoption + 1 > animal.careDaysCount) {
+  const currentHunger = Number.isFinite(animal.hunger) ? animal.hunger : 50;
+  if (currentHunger > 30 && elapsedDaysSinceAdoption + 1 > animal.careDaysCount) {
     animal.careDaysCount = Math.min(21, elapsedDaysSinceAdoption + 1);
   }
   // Progress bondXp steadily toward 500
-  animal.bondXp = Math.min(500, (animal.bondXp ?? 100) + xpGain);
+  const currentXp = Number.isFinite(animal.bondXp) ? animal.bondXp : 100;
+  animal.bondXp = Math.min(500, Math.max(0, currentXp + gain));
 }
 
 function migrateWorldX(rawX: number | undefined, fallbackX: number, version: number): number {
@@ -118,7 +137,7 @@ function refreshDefaultScenery<T extends { uid?: string; assetId: string; isDefa
   const userPlants = plants.filter((p) => !isDefault(p));
   const savedDefaults = plants.filter((p) => isDefault(p));
   const fresh = createDefaultSanctuaryPlants().map((d) => {
-    const prev = savedDefaults.find((p) => p.assetId === d.assetId);
+    const prev = savedDefaults.find((p) => p.uid === d.uid || p.assetId === d.assetId);
     return prev
       ? { ...d, growthStage: prev.growthStage, growthProgress: prev.growthProgress, fruitCount: prev.fruitCount }
       : d;
@@ -136,10 +155,19 @@ export function loadSaveState(
 ): LoadedSaveResult {
   try {
     const key = getSaveStorageKey(userId);
-    const raw =
-      typeof window !== 'undefined' && window.localStorage
-        ? window.localStorage.getItem(key) ?? (!userId ? window.localStorage.getItem(SAVE_STORAGE_KEY) : null)
-        : null;
+    let raw: string | null = null;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        raw = window.localStorage.getItem(key);
+        // Fallback to guest save if user key is empty, to preserve progress upon sign-in
+        if (!raw && userId) {
+          raw = window.localStorage.getItem(SAVE_STORAGE_KEY);
+        }
+      } catch (err) {
+        console.warn('Sanctuary load localStorage read error:', err);
+      }
+    }
+
     if (!raw && (!cloudState || typeof cloudState !== 'object')) {
       return {
         state: createInitialSaveState(),
@@ -147,103 +175,215 @@ export function loadSaveState(
         offlineMinutes: 0,
       };
     }
-    const sanitizeKeys = (obj: any): any => {
-      if (obj === null || typeof obj !== 'object') return obj;
-      if (Array.isArray(obj)) return obj.map(sanitizeKeys);
-      const clean: Record<string, any> = {};
-      for (const [k, v] of Object.entries(obj)) {
-        if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
-        clean[k] = sanitizeKeys(v);
+
+    let localParsed: Partial<SaveState> = {};
+    if (raw && raw !== 'undefined' && raw !== 'null') {
+      try {
+        localParsed = sanitizeKeys(JSON.parse(raw)) as Partial<SaveState>;
+      } catch (err) {
+        console.warn('Sanctuary save state JSON parse error:', err);
       }
-      return clean;
-    };
-    const localParsed = raw ? (sanitizeKeys(JSON.parse(raw)) as Partial<SaveState>) : {};
-    const safeCloud = cloudState ? sanitizeKeys(cloudState) : null;
-    const localTs = Number(localParsed.lastSavedTimestampMs || 0);
-    const cloudTs = Number(safeCloud?.lastSavedTimestampMs || 0);
+    }
+
+    const safeCloud = cloudState && typeof cloudState === 'object' ? sanitizeKeys(cloudState) : null;
+    const localTs = typeof localParsed.lastSavedTimestampMs === 'number' && Number.isFinite(localParsed.lastSavedTimestampMs)
+      ? localParsed.lastSavedTimestampMs
+      : 0;
+    const cloudTs = typeof safeCloud?.lastSavedTimestampMs === 'number' && Number.isFinite(safeCloud.lastSavedTimestampMs)
+      ? safeCloud.lastSavedTimestampMs
+      : 0;
+
     const parsed: Partial<SaveState> =
       safeCloud && cloudTs >= localTs
         ? { ...localParsed, ...safeCloud }
         : { ...(safeCloud ?? {}), ...localParsed };
-    const base = createInitialSaveState();
-    const saveVersion = typeof parsed.version === 'number' ? parsed.version : 1;
 
-    const elapsedMs = Math.max(0, Date.now() - (parsed.lastSavedTimestampMs || Date.now()));
+    const base = createInitialSaveState();
+    const saveVersion = typeof parsed.version === 'number' && Number.isFinite(parsed.version) ? parsed.version : 1;
+
+    const lastTs = Math.max(localTs, cloudTs);
+    const elapsedMs = lastTs > 0 ? Math.max(0, Date.now() - lastTs) : 0;
     const offlineMinutes = Math.min(720, Math.floor(elapsedMs / 60000));
     // Biology: 6 hours (360 minutes) from 100% full to 0% hungry
     const offlineHungerDrop = (offlineMinutes / 360) * 100;
 
-    const sanitizedAnimals =
-      Array.isArray(parsed.placedAnimals) && parsed.placedAnimals.length > 0
-        ? parsed.placedAnimals
-          .filter((a) => a && typeof a.assetId === 'string' && ASSET_ECO_CONFIG[a.assetId])
-          .map((a, idx) => {
-            const zoneSpec = getZoneSpec(a.zoneId ?? 'sea');
-            const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
-            const migratedX = migrateWorldX(a.x, defaultCenter, saveVersion);
-            const migratedTargetX = migrateWorldX(a.targetX, migratedX + 140, saveVersion);
-            const rawHunger = Number.isFinite(a.hunger) ? a.hunger : 85;
-            return {
-              ...base.placedAnimals[0],
-              ...a,
-              uid: a.uid || `anim_restored_${idx}`,
-              x: migratedX,
-              y: Number.isFinite(a.y) ? a.y : 380,
-              targetX: migratedTargetX,
-              targetY: Number.isFinite(a.targetY) ? a.targetY : 380,
-              vx: 0,
-              vy: 0,
-              facing: (a.facing === -1 ? -1 : 1) as 1 | -1,
-              hunger: Math.max(0, Math.min(100, rawHunger - offlineHungerDrop)),
-              happiness: Number.isFinite(a.happiness) ? Math.max(0, Math.min(100, a.happiness)) : 90,
-              bondXp: Number.isFinite(a.bondXp) ? a.bondXp : 100,
-              careStartTimestampMs: a.careStartTimestampMs || Date.now(),
-              careDaysCount: a.careDaysCount || 1,
-              lastCareDayStamp: a.lastCareDayStamp || new Date().toISOString().slice(0, 10),
-              emotionTimerSec: Number.isFinite(a.emotionTimerSec) ? a.emotionTimerSec : 0,
-              lastEmoteTriggerMs: 0,
-              emoteSpamCount: 0,
-              locoBlend: 1,
-              eatingStage: a.eatingStage ?? 'none',
-              eatingFoodId: migrateFoodId(a.eatingFoodId),
-              eatingTimerSec: Number.isFinite(a.eatingTimerSec) ? a.eatingTimerSec : 0,
-              blinkCountdownSec: Number.isFinite(a.blinkCountdownSec) ? a.blinkCountdownSec : 2.0,
-              blinkActiveSec: Number.isFinite(a.blinkActiveSec) ? a.blinkActiveSec : 0,
-            };
-          })
+    // Pick candidate animals from parsed, falling back to local or base
+    const animalSources = [
+      parsed.placedAnimals,
+      localParsed.placedAnimals,
+      safeCloud?.placedAnimals,
+    ];
+    let candidateAnimals: any[] | undefined = undefined;
+    for (const src of animalSources) {
+      if (Array.isArray(src) && src.length > 0) {
+        candidateAnimals = src;
+        break;
+      }
+    }
+
+    const sanitizedAnimals: PlacedAnimal[] =
+      candidateAnimals && candidateAnimals.length > 0
+        ? candidateAnimals
+            .filter((a) => a && typeof a.assetId === 'string' && ASSET_ECO_CONFIG[a.assetId])
+            .map((a, idx) => {
+              const nativeZone = ASSET_ECO_CONFIG[a.assetId]?.allowedZones[0] ?? 'forest';
+              const targetZone = a.zoneId && getZoneSpec(a.zoneId) ? a.zoneId : nativeZone;
+              const zoneSpec = getZoneSpec(targetZone);
+              const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
+              const migratedX = migrateWorldX(a.x, defaultCenter, saveVersion);
+              const migratedTargetX = migrateWorldX(a.targetX, migratedX + 140, saveVersion);
+              const rawHunger = typeof a.hunger === 'number' && Number.isFinite(a.hunger) ? a.hunger : 85;
+              return {
+                uid: typeof a.uid === 'string' && a.uid.trim() ? a.uid.trim() : `anim_restored_${idx}`,
+                assetId: a.assetId,
+                customName: typeof a.customName === 'string' && a.customName.trim() ? a.customName.trim() : undefined,
+                zoneId: targetZone,
+                x: migratedX,
+                y: typeof a.y === 'number' && Number.isFinite(a.y) ? a.y : 380,
+                targetX: migratedTargetX,
+                targetY: typeof a.targetY === 'number' && Number.isFinite(a.targetY) ? a.targetY : 380,
+                vx: 0,
+                vy: 0,
+                facing: (a.facing === -1 ? -1 : 1) as 1 | -1,
+                hunger: Math.max(0, Math.min(100, rawHunger - offlineHungerDrop)),
+                happiness: typeof a.happiness === 'number' && Number.isFinite(a.happiness) ? Math.max(0, Math.min(100, a.happiness)) : 90,
+                bondXp: typeof a.bondXp === 'number' && Number.isFinite(a.bondXp) ? Math.max(0, Math.min(500, a.bondXp)) : 100,
+                careStartTimestampMs:
+                  typeof a.careStartTimestampMs === 'number' && Number.isFinite(a.careStartTimestampMs)
+                    ? a.careStartTimestampMs
+                    : Date.now(),
+                careDaysCount:
+                  typeof a.careDaysCount === 'number' && Number.isFinite(a.careDaysCount)
+                    ? Math.max(1, Math.floor(a.careDaysCount))
+                    : 1,
+                lastCareDayStamp:
+                  typeof a.lastCareDayStamp === 'string' ? a.lastCareDayStamp : new Date().toISOString().slice(0, 10),
+                showBabyCompanion: Boolean(a.showBabyCompanion),
+                currentEmotion: typeof a.currentEmotion === 'string' ? a.currentEmotion : 'idle',
+                emotionTimerSec: typeof a.emotionTimerSec === 'number' && Number.isFinite(a.emotionTimerSec) ? Math.max(0, a.emotionTimerSec) : 0,
+                lastEmoteTriggerMs: 0,
+                emoteSpamCount: 0,
+                locoBlend: typeof a.locoBlend === 'number' && Number.isFinite(a.locoBlend) ? a.locoBlend : 1,
+                eatingStage: a.eatingStage ?? 'none',
+                eatingFoodId: migrateFoodId(a.eatingFoodId),
+                eatingTimerSec: typeof a.eatingTimerSec === 'number' && Number.isFinite(a.eatingTimerSec) ? Math.max(0, a.eatingTimerSec) : 0,
+                petScratchAccum: typeof a.petScratchAccum === 'number' && Number.isFinite(a.petScratchAccum) ? a.petScratchAccum : 0,
+                lastGreenbitDropSec: typeof a.lastGreenbitDropSec === 'number' && Number.isFinite(a.lastGreenbitDropSec) ? a.lastGreenbitDropSec : 0,
+                blinkCountdownSec: typeof a.blinkCountdownSec === 'number' && Number.isFinite(a.blinkCountdownSec) ? a.blinkCountdownSec : 2.0,
+                blinkActiveSec: typeof a.blinkActiveSec === 'number' && Number.isFinite(a.blinkActiveSec) ? a.blinkActiveSec : 0,
+                isFalling: Boolean(a.isFalling),
+                fallImpactSec: typeof a.fallImpactSec === 'number' && Number.isFinite(a.fallImpactSec) ? a.fallImpactSec : 0,
+              };
+            })
         : base.placedAnimals;
 
-    const sanitizedPlants =
-      Array.isArray(parsed.placedPlants) && parsed.placedPlants.length > 0
-        ? parsed.placedPlants
-          .filter((p) => p && typeof p.assetId === 'string' && ASSET_ECO_CONFIG[p.assetId])
-          .map((p, idx) => {
-            const zoneSpec = getZoneSpec(p.zoneId ?? 'forest');
-            const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
-            let finalX = migrateWorldX(p.x, defaultCenter, saveVersion);
-            // Open Item O8: Safely migrate historical/invalid placements (e.g. bamboo in water) to valid zone center
-            if (getPlantPlacementProblem(p.assetId, finalX)) {
-              finalX = defaultCenter;
-            }
-            return {
-              ...p,
-              uid: p.uid || `plant_restored_${idx}`,
-              x: finalX,
-              y: Number.isFinite(p.y) ? p.y : 380,
-              growthStage: (p.growthStage === 1 || p.growthStage === 2 || p.growthStage === 3
-                ? p.growthStage
-                : 1) as 1 | 2 | 3,
-              growthProgress: Number.isFinite(p.growthProgress) ? p.growthProgress : 25,
-              fruitCount: Number.isFinite(p.fruitCount) ? p.fruitCount : 0,
-              hasGoldenFruit: Boolean(p.hasGoldenFruit),
-              fruitRegenTimerSec: Number.isFinite(p.fruitRegenTimerSec) ? p.fruitRegenTimerSec : 28,
-              swayImpulse: Number.isFinite(p.swayImpulse) ? p.swayImpulse : 0,
-              grazingBitesRemaining: Number.isFinite(p.grazingBitesRemaining)
-                ? p.grazingBitesRemaining
-                : 4,
-            };
-          })
+    const plantSources = [
+      parsed.placedPlants,
+      localParsed.placedPlants,
+      safeCloud?.placedPlants,
+    ];
+    let candidatePlants: any[] | undefined = undefined;
+    for (const src of plantSources) {
+      if (Array.isArray(src) && src.length > 0) {
+        candidatePlants = src;
+        break;
+      }
+    }
+
+    const sanitizedPlants: PlacedPlant[] =
+      candidatePlants && candidatePlants.length > 0
+        ? candidatePlants
+            .filter((p) => p && typeof p.assetId === 'string' && ASSET_ECO_CONFIG[p.assetId])
+            .map((p, idx) => {
+              const zoneSpec = getZoneSpec(p.zoneId ?? 'forest');
+              const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
+              let finalX = migrateWorldX(p.x, defaultCenter, saveVersion);
+              if (getPlantPlacementProblem(p.assetId, finalX)) {
+                finalX = defaultCenter;
+              }
+              return {
+                ...p,
+                uid: typeof p.uid === 'string' && p.uid.trim() ? p.uid.trim() : `plant_restored_${idx}`,
+                assetId: p.assetId,
+                zoneId: p.zoneId ?? 'forest',
+                x: finalX,
+                y: typeof p.y === 'number' && Number.isFinite(p.y) ? p.y : 380,
+                growthStage: (p.growthStage === 1 || p.growthStage === 2 || p.growthStage === 3
+                  ? p.growthStage
+                  : 1) as 1 | 2 | 3,
+                growthProgress: typeof p.growthProgress === 'number' && Number.isFinite(p.growthProgress) ? Math.max(0, Math.min(100, p.growthProgress)) : 25,
+                fruitCount: typeof p.fruitCount === 'number' && Number.isFinite(p.fruitCount) ? Math.max(0, Math.floor(p.fruitCount)) : 0,
+                hasGoldenFruit: Boolean(p.hasGoldenFruit),
+                fruitRegenTimerSec: typeof p.fruitRegenTimerSec === 'number' && Number.isFinite(p.fruitRegenTimerSec) ? Math.max(0, p.fruitRegenTimerSec) : 28,
+                swayImpulse: typeof p.swayImpulse === 'number' && Number.isFinite(p.swayImpulse) ? p.swayImpulse : 0,
+                grazingBitesRemaining: typeof p.grazingBitesRemaining === 'number' && Number.isFinite(p.grazingBitesRemaining)
+                  ? Math.max(0, Math.floor(p.grazingBitesRemaining))
+                  : 4,
+                isDefaultScenery: Boolean(p.isDefaultScenery),
+              };
+            })
         : createDefaultSanctuaryPlants();
+
+    const finalAnimals = sanitizedAnimals.length > 0 ? sanitizedAnimals : base.placedAnimals;
+    const finalPlants = refreshDefaultScenery(sanitizedPlants);
+
+    // Build unified ownedAssets: Starter turtle is always owned; placed animals/plants are preserved; non-zero counts kept.
+    const ownedAssetsMap: Record<string, number> = {
+      animal_28_green_sea_turtle: 1,
+    };
+    const mergeOwned = (src: Record<string, any> | undefined) => {
+      if (!src || typeof src !== 'object') return;
+      for (const [id, count] of Object.entries(src)) {
+        if (typeof id === 'string' && ASSET_ECO_CONFIG[id]) {
+          const num = typeof count === 'number' && Number.isFinite(count) ? Math.max(1, Math.floor(count)) : 1;
+          ownedAssetsMap[id] = Math.max(ownedAssetsMap[id] ?? 0, num);
+        }
+      }
+    };
+    mergeOwned(localParsed.ownedAssets);
+    mergeOwned(safeCloud?.ownedAssets);
+    mergeOwned(parsed.ownedAssets);
+    for (const a of finalAnimals) {
+      if (a?.assetId && ASSET_ECO_CONFIG[a.assetId]) {
+        ownedAssetsMap[a.assetId] = Math.max(1, ownedAssetsMap[a.assetId] ?? 1);
+      }
+    }
+    for (const p of finalPlants) {
+      if (p?.assetId && !p.isDefaultScenery && ASSET_ECO_CONFIG[p.assetId]) {
+        ownedAssetsMap[p.assetId] = Math.max(1, ownedAssetsMap[p.assetId] ?? 1);
+      }
+    }
+
+    // Merge food inventory across sources so purchases are never wiped
+    const localFood = migrateFoodInventory(localParsed.foodInventory);
+    const cloudFood = safeCloud ? migrateFoodInventory(safeCloud.foodInventory) : {};
+    const parsedFood = parsed.foodInventory ? migrateFoodInventory(parsed.foodInventory) : {};
+    const mergedFood: Record<string, number> = { ...base.foodInventory };
+    for (const [k, v] of Object.entries(localFood)) {
+      mergedFood[k] = Math.max(mergedFood[k] ?? 0, v);
+    }
+    for (const [k, v] of Object.entries(cloudFood)) {
+      mergedFood[k] = Math.max(mergedFood[k] ?? 0, v);
+    }
+    for (const [k, v] of Object.entries(parsedFood)) {
+      mergedFood[k] = Math.max(mergedFood[k] ?? 0, v);
+    }
+
+    // Merge EcoDex and Favorite Foods discoveries additively
+    const ecoDexSet = new Set<string>([
+      ...base.discoveredEcoDex,
+      ...(Array.isArray(localParsed.discoveredEcoDex) ? localParsed.discoveredEcoDex : []),
+      ...(Array.isArray(safeCloud?.discoveredEcoDex) ? safeCloud.discoveredEcoDex : []),
+      ...(Array.isArray(parsed.discoveredEcoDex) ? parsed.discoveredEcoDex : []),
+    ]);
+    for (const a of finalAnimals) if (a?.assetId) ecoDexSet.add(a.assetId);
+    for (const p of finalPlants) if (p?.assetId) ecoDexSet.add(p.assetId);
+
+    const favFoodsSet = new Set<string>([
+      ...(Array.isArray(localParsed.discoveredFavoriteFoods) ? localParsed.discoveredFavoriteFoods : []),
+      ...(Array.isArray(safeCloud?.discoveredFavoriteFoods) ? safeCloud.discoveredFavoriteFoods : []),
+      ...(Array.isArray(parsed.discoveredFavoriteFoods) ? parsed.discoveredFavoriteFoods : []),
+    ]);
 
     const state: SaveState = {
       ...base,
@@ -252,27 +392,30 @@ export function loadSaveState(
       greenbits:
         typeof parsed.greenbits === 'number' && Number.isFinite(parsed.greenbits)
           ? Math.max(0, Math.round(parsed.greenbits))
+          : typeof localParsed.greenbits === 'number' && Number.isFinite(localParsed.greenbits)
+          ? Math.max(0, Math.round(localParsed.greenbits))
           : base.greenbits,
       harmonyXp:
         typeof parsed.harmonyXp === 'number' && Number.isFinite(parsed.harmonyXp)
-          ? Math.max(0, parsed.harmonyXp)
+          ? Math.max(0, Math.round(parsed.harmonyXp))
           : base.harmonyXp,
       timeOfDayHours:
         typeof parsed.timeOfDayHours === 'number' && Number.isFinite(parsed.timeOfDayHours)
-          ? parsed.timeOfDayHours
+          ? Math.max(0, Math.min(24, parsed.timeOfDayHours))
           : base.timeOfDayHours,
-      ownedAssets: {
-        animal_28_green_sea_turtle: 1,
-        ...(parsed.ownedAssets ?? {}),
-      },
-      foodInventory: parsed.foodInventory
-        ? migrateFoodInventory(parsed.foodInventory)
-        : { ...base.foodInventory },
-      placedAnimals: sanitizedAnimals.length > 0 ? sanitizedAnimals : base.placedAnimals,
-      placedPlants: refreshDefaultScenery(sanitizedPlants),
+      autoCycleTime: typeof parsed.autoCycleTime === 'boolean' ? parsed.autoCycleTime : base.autoCycleTime,
+      currentWeather: parsed.currentWeather ?? base.currentWeather,
+      autoCycleWeather: typeof parsed.autoCycleWeather === 'boolean' ? parsed.autoCycleWeather : base.autoCycleWeather,
+      soundMuted: typeof parsed.soundMuted === 'boolean' ? parsed.soundMuted : base.soundMuted,
+      streakDays: typeof parsed.streakDays === 'number' && Number.isFinite(parsed.streakDays) ? Math.max(1, Math.floor(parsed.streakDays)) : base.streakDays,
+      cameraY: typeof parsed.cameraY === 'number' && Number.isFinite(parsed.cameraY) ? parsed.cameraY : base.cameraY,
+      ownedAssets: ownedAssetsMap,
+      foodInventory: mergedFood,
+      placedAnimals: finalAnimals,
+      placedPlants: finalPlants,
       droppedFoods: Array.isArray(parsed.droppedFoods)
         ? parsed.droppedFoods
-          .filter((df) => df && Number.isFinite(df.x) && Number.isFinite(df.y))
+          .filter((df) => df && typeof df.x === 'number' && Number.isFinite(df.x) && typeof df.y === 'number' && Number.isFinite(df.y))
           .map((df) => ({
             ...df,
             foodId: migrateFoodId(df.foodId) ?? '',
@@ -280,17 +423,14 @@ export function loadSaveState(
           }))
           .filter((df) => df.foodId !== '')
         : [],
-      discoveredEcoDex: Array.isArray(parsed.discoveredEcoDex)
-        ? parsed.discoveredEcoDex
-        : base.discoveredEcoDex,
-      discoveredFavoriteFoods: Array.isArray(parsed.discoveredFavoriteFoods)
-        ? parsed.discoveredFavoriteFoods
-        : [],
+      discoveredEcoDex: Array.from(ecoDexSet),
+      discoveredFavoriteFoods: Array.from(favFoodsSet),
       discoveredEmotions: parsed.discoveredEmotions ?? base.discoveredEmotions,
       dailyQuests:
         Array.isArray(parsed.dailyQuests) && parsed.dailyQuests.length > 0
           ? parsed.dailyQuests
           : base.dailyQuests,
+      lastSavedTimestampMs: Date.now(),
     };
 
     const cappedOfflineMins = Math.min(240, offlineMinutes);
@@ -313,7 +453,8 @@ export function loadSaveState(
       offlineGreenbitsEarned,
       offlineMinutes: cappedOfflineMins,
     };
-  } catch {
+  } catch (err) {
+    console.error('Fatal error loading Sanctuary save state, fallback to initial state:', err);
     return {
       state: createInitialSaveState(),
       offlineGreenbitsEarned: 0,
@@ -327,16 +468,31 @@ export function persistSaveState(
   userId?: string,
   onSaveStateChange?: (state: SaveState) => void,
 ): void {
+  if (!state || typeof state !== 'object') return;
   try {
     state.lastSavedTimestampMs = Date.now();
-    const key = getSaveStorageKey(userId);
-    window.localStorage.setItem(key, JSON.stringify(state));
-    if (!userId) {
-      window.localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(state));
-    }
-    onSaveStateChange?.(state);
   } catch {
-    // Ignore storage quota errors
+    // Non-extensible state guard
+  }
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const key = getSaveStorageKey(userId);
+      const json = JSON.stringify(state);
+      window.localStorage.setItem(key, json);
+      if (!userId) {
+        window.localStorage.setItem(SAVE_STORAGE_KEY, json);
+      }
+    } catch (e) {
+      // Storage quota exceeded or disabled, continue to invoke cloud sync callback
+      console.warn('Sanctuary save state localStorage write failed:', e);
+    }
+  }
+
+  try {
+    onSaveStateChange?.(state);
+  } catch (e) {
+    console.warn('onSaveStateChange callback error:', e);
   }
 }
 
@@ -352,23 +508,16 @@ export function exportSaveStateJson(state: SaveState): string {
 
 export function importSaveStateJson(jsonText: string): SaveState | null {
   try {
-    const parsed = JSON.parse(jsonText) as Partial<SaveState>;
-    if (!parsed || typeof parsed !== 'object' || typeof parsed.greenbits !== 'number') {
-      return null;
-    }
-    const base = createInitialSaveState();
-    const merged: SaveState = {
-      ...base,
-      ...parsed,
-      version: 2,
-      ownedAssets: {
-        animal_28_green_sea_turtle: 1,
-        ...(parsed.ownedAssets ?? {}),
-      },
-    };
-    persistSaveState(merged);
-    return merged;
-  } catch {
+    if (typeof jsonText !== 'string' || !jsonText.trim()) return null;
+    const rawParsed = JSON.parse(jsonText);
+    if (!rawParsed || typeof rawParsed !== 'object') return null;
+    const sanitized = sanitizeKeys(rawParsed) as Partial<SaveState>;
+    // Pass sanitized object through loadSaveState pipeline for comprehensive validation and migration
+    const result = loadSaveState(undefined, sanitized);
+    persistSaveState(result.state);
+    return result.state;
+  } catch (err) {
+    console.warn('Failed to import save state JSON:', err);
     return null;
   }
 }

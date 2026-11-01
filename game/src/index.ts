@@ -456,7 +456,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     }, durationMs);
   }
 
-  if (!options?.userId && loaded.offlineGreenbitsEarned > 0) {
+  if (loaded.offlineGreenbitsEarned > 0) {
     saveState.greenbits += loaded.offlineGreenbitsEarned;
     options?.onBalanceChange?.(saveState.greenbits);
     persistSaveState(saveState, options?.userId, options?.onSaveStateChange);

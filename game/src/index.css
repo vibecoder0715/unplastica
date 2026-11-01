@@ -705,7 +705,7 @@
   transform: translateX(-50%);
   appearance: none;
   border: 2px solid var(--forest);
-  border-bottom: none;
+  border-bottom: 2px solid var(--surface);
   background: var(--surface);
   color: var(--forest-dark);
   width: 56px;
@@ -718,6 +718,7 @@
   cursor: pointer;
   box-shadow: 0 -4px 12px rgba(0, 44, 23, 0.14);
   transition: background-color 0.12s ease, color 0.12s ease;
+  z-index: 26;
 }
 
 .dock-toggle-btn:hover {
@@ -1437,6 +1438,8 @@
     height: 20px;
     width: 44px;
     font-size: 10px;
+    border-bottom: 2px solid var(--surface);
+    z-index: 26;
   }
 
   .dock-strip {
