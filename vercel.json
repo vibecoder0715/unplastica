@@ -4,7 +4,7 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(\\.env.*|\\.git.*|config\\.json.*|\\.aws.*|client_secret_.*|.*\\.pem|.*\\.key|.*\\.sql|.*\\.bak)",
+      "source": "/(\\.env.*|\\.git.*|config\\.json.*|\\.aws.*)",
       "destination": "/api/blocked"
     },
     {
@@ -43,7 +43,7 @@
       ]
     },
     {
-      "source": "/(index.html|sw.js|manifest.webmanifest|workbox-.*\\.js)",
+      "source": "/(index.html|version.json|sw.js|manifest.webmanifest|workbox-.*\\.js)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -52,7 +52,7 @@
       ]
     },
     {
-      "source": "/(|login|settings|profile|earn|events|game)",
+      "source": "/(login|settings|profile|earn|events|game)?",
       "headers": [
         {
           "key": "Cache-Control",
@@ -108,4 +108,3 @@
     }
   ]
 }
-
