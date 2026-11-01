@@ -95,8 +95,6 @@ const POSTCARD_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" h
 
 const EXIT_DOOR_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
 
-const REFRESH_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>`;
-
 const CAMERA_CAPTURE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
 
 function clamp(v: number, min: number, max: number): number {
@@ -317,19 +315,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   postcardBtn.title = getGameString('postcardView', currentLang);
   postcardBtn.addEventListener('click', () => setPostcardView(true));
 
-  const forceUpdateBtn = document.createElement('button');
-  forceUpdateBtn.type = 'button';
-  forceUpdateBtn.className = 'hud-circle-btn force-update-btn';
-  forceUpdateBtn.innerHTML = REFRESH_ROUND_SVG;
-  const updateForceBtnTooltip = () => {
-    const lbl = currentLang === '中文' ? '强制更新与清除缓存' : currentLang === 'Bahasa Melayu' ? 'Paksa Kemas Kini & Kosongkan Cache' : currentLang === 'தமிழ்' ? 'புதுப்பித்து நினைவகத்தை அழி' : 'Force Update & Clear Cache';
-    forceUpdateBtn.setAttribute('aria-label', lbl);
-    forceUpdateBtn.title = lbl;
-  };
-  updateForceBtnTooltip();
-  forceUpdateBtn.addEventListener('click', () => openForceUpdateDialog());
-
-  buttonCluster.append(petsBtn, mapBtn, storeBtn, postcardBtn, forceUpdateBtn);
+  buttonCluster.append(petsBtn, mapBtn, storeBtn, postcardBtn);
 
   let exitBtn: HTMLButtonElement | null = null;
   if (options?.onExit) {
@@ -354,7 +340,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     storeBtn.title = getGameString('store', currentLang);
     postcardBtn.setAttribute('aria-label', getGameString('postcardView', currentLang));
     postcardBtn.title = getGameString('postcardView', currentLang);
-    updateForceBtnTooltip();
     if (exitBtn) {
       exitBtn.setAttribute('aria-label', getGameString('exit', currentLang));
       exitBtn.title = getGameString('exit', currentLang);
@@ -1826,116 +1811,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     cancelBtn.addEventListener('click', () => backdrop.remove());
 
     card.append(closeBtn, itemImg, heading, prompt, confirmBtn, cancelBtn);
-    backdrop.appendChild(card);
-    backdrop.addEventListener('click', (e) => {
-      if (e.target === backdrop) backdrop.remove();
-    });
-    root!.appendChild(backdrop);
-  }
-
-  function openForceUpdateDialog(): void {
-    const existing = document.getElementById('force-update-modal');
-    if (existing) existing.remove();
-
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop buy-confirm-backdrop';
-    backdrop.id = 'force-update-modal';
-    backdrop.setAttribute('role', 'dialog');
-
-    const card = document.createElement('div');
-    card.className = 'dialog login-required-dialog logout-confirm-dialog';
-    card.style.maxWidth = '400px';
-    card.style.padding = '24px 20px';
-    card.style.position = 'relative';
-
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'dialog-close';
-    closeBtn.innerHTML = '✕';
-    closeBtn.setAttribute('aria-label', getGameString('cancel', currentLang));
-    closeBtn.addEventListener('click', () => backdrop.remove());
-
-    const heading = document.createElement('h2');
-    heading.textContent = currentLang === '中文' ? '🔄 强制更新与清除缓存' : currentLang === 'Bahasa Melayu' ? '🔄 Paksa Kemas Kini & Kosongkan Cache' : currentLang === 'தமிழ்' ? '🔄 புதுப்பித்து நினைவகத்தை அழி' : '🔄 Force Update & Clear Cache';
-    heading.style.margin = '0 0 8px';
-    heading.style.textAlign = 'center';
-
-    const prompt = document.createElement('p');
-    prompt.textContent = currentLang === '中文'
-      ? '此操作将注销 ServiceWorker、清除所有离线静态资源缓存，并从服务器强制拉取最新应用代码与美术资产。'
-      : currentLang === 'Bahasa Melayu'
-      ? 'Tindakan ini akan menyahdaftar ServiceWorker, mengosongkan cache pelayar, dan memuatkan kod serta aset terkini dari pelayan.'
-      : currentLang === 'தமிழ்'
-      ? 'இது ஆஃப்லைன் சர்வீஸ் ஒர்க்கரை நீக்கி, பழைய நினைவகத்தை அழித்து, புதிய பதிப்பை உடனடியாக ஏற்றும்.'
-      : 'This will unregister offline ServiceWorkers, wipe browser cache, and reload the newest app bundle and species art.';
-    prompt.style.margin = '0 0 20px';
-    prompt.style.textAlign = 'center';
-    prompt.style.fontSize = '13px';
-    prompt.style.color = 'var(--ink-muted, #4b5563)';
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.type = 'button';
-    confirmBtn.className = 'primary-button';
-    confirmBtn.style.width = '100%';
-    confirmBtn.style.minHeight = '46px';
-    confirmBtn.style.marginBottom = '10px';
-    confirmBtn.textContent = currentLang === '中文' ? '🚀 立即强制更新（保留存档）' : currentLang === 'Bahasa Melayu' ? '🚀 Kemas Kini Sekarang (Kekal Simpanan)' : currentLang === 'தமிழ்' ? '🚀 புதுப்பிக்கவும் (சேமிப்புடன்)' : '🚀 Force Update Now (Keep Save)';
-    confirmBtn.addEventListener('click', async () => {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = 'Updating…';
-      if (typeof (window as unknown as { __unplasticaForceUpdate?: (opts?: { resetSaveState?: boolean }) => Promise<void> }).__unplasticaForceUpdate === 'function') {
-        await (window as unknown as { __unplasticaForceUpdate: (opts?: { resetSaveState?: boolean }) => Promise<void> }).__unplasticaForceUpdate({ resetSaveState: false });
-      } else {
-        try {
-          if ('serviceWorker' in navigator) {
-            const regs = await navigator.serviceWorker.getRegistrations();
-            for (const r of regs) await r.unregister();
-          }
-          if ('caches' in window) {
-            const keys = await caches.keys();
-            for (const k of keys) await caches.delete(k);
-          }
-        } catch {}
-        window.location.replace(window.location.pathname + '?_v=' + Date.now() + '&forceUpdate=1');
-      }
-    });
-
-    const resetBtn = document.createElement('button');
-    resetBtn.type = 'button';
-    resetBtn.className = 'text-button';
-    resetBtn.style.width = '100%';
-    resetBtn.style.marginBottom = '8px';
-    resetBtn.style.color = '#ef4444';
-    resetBtn.textContent = currentLang === '中文' ? '🧹 完全重置（清除存档与缓存）' : currentLang === 'Bahasa Melayu' ? '🧹 Reset Penuh (Kosongkan Simpanan & Cache)' : currentLang === 'தமிழ்' ? '🧹 முழு மீட்டமைப்பு (சேமிப்பு & நினைவகம் அழி)' : '🧹 Full Reset (Clear Save & Cache)';
-    resetBtn.addEventListener('click', async () => {
-      if (confirm(currentLang === '中文' ? '确定要重置本地存档并清除缓存吗？' : 'Are you sure you want to reset your local save and clear cache?')) {
-        resetBtn.disabled = true;
-        if (typeof (window as unknown as { __unplasticaForceUpdate?: (opts?: { resetSaveState?: boolean }) => Promise<void> }).__unplasticaForceUpdate === 'function') {
-          await (window as unknown as { __unplasticaForceUpdate: (opts?: { resetSaveState?: boolean }) => Promise<void> }).__unplasticaForceUpdate({ resetSaveState: true });
-        } else {
-          try {
-            localStorage.removeItem('unplastica_sanctuary_save_v1');
-            if ('serviceWorker' in navigator) {
-              const regs = await navigator.serviceWorker.getRegistrations();
-              for (const r of regs) await r.unregister();
-            }
-            if ('caches' in window) {
-              const keys = await caches.keys();
-              for (const k of keys) await caches.delete(k);
-            }
-          } catch {}
-          window.location.replace(window.location.pathname + '?_v=' + Date.now() + '&forceUpdate=1');
-        }
-      }
-    });
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'text-button';
-    cancelBtn.style.width = '100%';
-    cancelBtn.textContent = getGameString('cancel', currentLang);
-    cancelBtn.addEventListener('click', () => backdrop.remove());
-
-    card.append(closeBtn, heading, prompt, confirmBtn, resetBtn, cancelBtn);
     backdrop.appendChild(card);
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) backdrop.remove();

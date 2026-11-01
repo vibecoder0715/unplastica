@@ -10,7 +10,6 @@ import { GameLoadingOverlay } from "../components/GameLoadingOverlay";
 import { GamePage } from "../components/GamePage";
 import { MascotWidget } from "../components/MascotWidget";
 import { MascotManualTour } from "../components/MascotManualTour";
-import { forceUpdateAndClearCache } from "../lib/forceUpdate";
 
 type Page = "home" | "earn" | "events" | "settings" | "login" | "game";
 type Theme = "light" | "dark" | "system";
@@ -335,7 +334,6 @@ export default function App() {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [enteringGame, setEnteringGame] = useState(false);
   const [showManualTour, setShowManualTour] = useState(false);
-  const [showForceUpdateModal, setShowForceUpdateModal] = useState(false);
   const t = useCallback((key: string, values?: Record<string, string | number>) => translate(language, key, values), [language]);
   userRef.current = user;
 
@@ -979,7 +977,6 @@ export default function App() {
           avatarUrl={profile?.avatar_url ?? null}
           onProfile={openSettings}
           onHome={() => navigate("home")}
-          onForceUpdate={() => setShowForceUpdateModal(true)}
         />
       )}
       <main className={"page page-" + page}>
@@ -1069,7 +1066,6 @@ export default function App() {
           onShowManual={() => {
             setShowManualTour(true);
           }}
-          onForceUpdate={() => setShowForceUpdateModal(true)}
           notify={notify}
         />}
         {page === "login" && <AuthPage user={user} onAuthenticated={() => { const target = sessionStorage.getItem("unplastica-return-to") as Page | null; sessionStorage.removeItem("unplastica-return-to"); navigate(target && target !== "login" ? target : "settings"); }} />}
@@ -1106,18 +1102,6 @@ export default function App() {
         />
       )}
       {page !== "login" && <InstallPrompt prompt={installPrompt} environment={installEnvironment} onInstall={installApp} />}
-      {page !== "game" && !enteringGame && (
-        <ForceUpdateFloatingPill
-          language={language}
-          onOpen={() => setShowForceUpdateModal(true)}
-        />
-      )}
-      {showForceUpdateModal && (
-        <ForceUpdateModal
-          language={language}
-          onClose={() => setShowForceUpdateModal(false)}
-        />
-      )}
       <UpdateNotice />
       {toast && <div className="toast" role="status">{toast}</div>}
       {showLoginGate && <LoginRequiredDialog onClose={() => setShowLoginGate(false)} onLogin={startLogin} />}
@@ -1171,7 +1155,6 @@ function Header({
   avatarUrl,
   onProfile,
   onHome,
-  onForceUpdate,
 }: {
   page: Page;
   eventSubpage?: "challenge" | "done" | null;
@@ -1181,7 +1164,6 @@ function Header({
   avatarUrl: string | null;
   onProfile: () => void;
   onHome: () => void;
-  onForceUpdate: () => void;
 }) {
   const t = useCopy();
   return (
@@ -1190,15 +1172,7 @@ function Header({
         {page === "settings" ? <>
           <button className="header-back" onClick={onHome} aria-label={t("common.back")}><Icon name="back" /></button>
           <h1 className="settings-header-title">{t("settings.profile")}</h1>
-          <button
-            type="button"
-            className="header-force-update-btn"
-            onClick={onForceUpdate}
-            title={t("update.clearCache") || "Force Update & Clear Cache"}
-            aria-label={t("update.clearCache") || "Force Update & Clear Cache"}
-          >
-            <Icon name="refresh" />
-          </button>
+          <span className="header-spacer" />
         </> : <>
           {page === "events" && eventSubpage ? (
             <button className="header-back" onClick={onEventBack} aria-label={t("common.back")}>
@@ -1210,17 +1184,6 @@ function Header({
             </button>
           )}
           {page !== "login" && <div className="balance-pill"><img src="/assets/brand/greenbits.png" alt="" /><strong>{formatPoints(balance)}</strong></div>}
-          {page !== "login" && (
-            <button
-              type="button"
-              className="header-force-update-btn"
-              onClick={onForceUpdate}
-              title={t("update.clearCache") || "Force Update & Clear Cache"}
-              aria-label={t("update.clearCache") || "Force Update & Clear Cache"}
-            >
-              <Icon name="refresh" />
-            </button>
-          )}
           {page !== "login" && <button className="avatar-button" onClick={onProfile} aria-label={t("common.profile")}>{avatarUrl ? <img className="header-avatar-photo" src={avatarUrl} alt="" /> : <Icon name="user" />}</button>}
         </>}
       </div>
@@ -1822,7 +1785,6 @@ function SettingsPage(props: {
   onUpdateProfile?: (updated: { display_name: string; username: string; email?: string; phone: string; tagline: string }) => Promise<void>;
   onUpdatePassword?: (password: string) => Promise<void>;
   onShowManual?: () => void;
-  onForceUpdate: () => void;
   notify: (message: string) => void;
 }) {
   const t = useCopy();
@@ -2366,29 +2328,6 @@ function SettingsPage(props: {
         {([["light", "sun", t("theme.light")], ["dark", "moon", t("theme.dark")], ["system", "monitor", t("theme.system")]] as const).map(([value, icon, label]) =>
           <button key={value} className={props.theme === value ? "active" : ""} aria-label={t("theme.ariaLabel", { label })} aria-pressed={props.theme === value} onClick={() => props.onTheme(value)}><Icon name={icon} /><span>{label}</span></button>)}
       </div></div>
-      <div className="setting-card">
-        <div className="setting-title">
-          <span className="setting-icon"><Icon name="refresh" /></span>
-          <strong>{props.language === "中文" ? "应用更新与缓存管理" : props.language === "Bahasa Melayu" ? "Kemas Kini & Pengurusan Cache" : props.language === "தமிழ்" ? "புதுப்பிப்பு & நினைவக மேலாண்மை" : "App Updates & Cache Management"}</strong>
-        </div>
-        <p className="setting-description" style={{ fontSize: "13px", color: "var(--ink-muted, #4b5563)", margin: "4px 0 12px" }}>
-          {props.language === "中文"
-            ? "如遇到界面未更新、旧版动物模型或网络缓存，点击此处可强制注销离线 ServiceWorker 并拉取服务器最新发布。"
-            : props.language === "Bahasa Melayu"
-            ? "Jika anda melihat model lama atau isu cache, tekan di sini untuk menyahdaftar ServiceWorker dan memuatkan versi terkini serta-merta."
-            : props.language === "தமிழ்"
-            ? "பழைய மாடல்கள் அல்லது தற்காலிக நினைவக சிக்கல்கள் இருந்தால், புதிய பதிப்பை உடனடியாக ஏற்ற இங்கு தட்டவும்."
-            : "If you see older models or stale assets, tap here to aggressively unregister offline workers, purge cache, and load the newest release."}
-        </p>
-        <button
-          type="button"
-          className="button secondary"
-          style={{ width: "100%", minHeight: "44px", fontWeight: 700 }}
-          onClick={props.onForceUpdate}
-        >
-          🔄 {props.language === "中文" ? "强制更新并清除缓存" : props.language === "Bahasa Melayu" ? "Paksa Kemas Kini & Kosongkan Cache" : props.language === "தமிழ்" ? "புதுப்பித்து நினைவகத்தை அழி" : "Force Update & Clear Cache"}
-        </button>
-      </div>
     </section>
     <button
       className="logout-button"
@@ -4018,148 +3957,4 @@ function UpdateNotice() {
   return null;
 }
 
-function ForceUpdateModal({
-  onClose,
-  language,
-}: {
-  onClose: () => void;
-  language: Language;
-}) {
-  const [updating, setUpdating] = useState(false);
-  const isZh = language === "中文";
-  const isMs = language === "Bahasa Melayu";
-  const isTa = language === "தமிழ்";
-
-  const title = isZh
-    ? "🔄 强制更新与清除缓存"
-    : isMs
-    ? "🔄 Paksa Kemas Kini & Kosongkan Cache"
-    : isTa
-    ? "🔄 புதுப்பித்து நினைவகத்தை அழி"
-    : "🔄 Force Update & Clear Cache";
-
-  const desc = isZh
-    ? "此操作将注销所有离线 ServiceWorker、清除浏览器中所有旧版静态缓存，并强制从服务器重新拉取最新代码与所有美术资产。"
-    : isMs
-    ? "Tindakan ini akan menyahdaftar ServiceWorker, memadam semua cache pelayar, dan memuatkan kod serta aset terkini dari pelayan serta-merta."
-    : isTa
-    ? "இது ஆஃப்லைன் சர்வீஸ் ஒர்க்கரை நீக்கி, அனைத்து பழைய நினைவகத்தை அழித்து, புதிய பதிப்பை உடனடியாக ஏற்றும்."
-    : "This will unregister offline ServiceWorkers, purge all stored browser cache, and reload the newest release and species art directly from the server.";
-
-  const keepSaveText = isZh
-    ? "🚀 立即强制更新（保留游戏存档）"
-    : isMs
-    ? "🚀 Kemas Kini Sekarang (Kekal Simpanan)"
-    : isTa
-    ? "🚀 இப்போது புதுப்பிக்கவும் (சேமிப்புடன்)"
-    : "🚀 Force Update Now (Keep Game Save)";
-
-  const resetSaveText = isZh
-    ? "🧹 完全重置（清除存档与缓存）"
-    : isMs
-    ? "🧹 Reset Penuh (Kosongkan Simpanan & Cache)"
-    : isTa
-    ? "🧹 முழு மீட்டமைப்பு (சேமிப்பு & நினைவகம் அழி)"
-    : "🧹 Full Reset (Clear Save & Cache)";
-
-  const cancelText = isZh ? "取消" : isMs ? "Batal" : isTa ? "ரத்துசெய்" : "Cancel";
-
-  const handleUpdate = async (resetSave: boolean) => {
-    setUpdating(true);
-    await forceUpdateAndClearCache({ resetSaveState: resetSave });
-  };
-
-  return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <div
-        className="dialog"
-        style={{ maxWidth: 420, padding: "26px 22px", position: "relative" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          className="dialog-close"
-          onClick={onClose}
-          aria-label={cancelText}
-          disabled={updating}
-        >
-          ✕
-        </button>
-        <h2 style={{ fontSize: "19px", fontWeight: 800, margin: "0 0 10px", textAlign: "center" }}>
-          {title}
-        </h2>
-        <p style={{ fontSize: "13px", color: "var(--ink-muted, #4b5563)", lineHeight: 1.5, margin: "0 0 20px", textAlign: "center" }}>
-          {desc}
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <button
-            type="button"
-            className="button primary"
-            style={{ width: "100%", minHeight: "46px", fontWeight: 700 }}
-            disabled={updating}
-            onClick={() => void handleUpdate(false)}
-          >
-            {updating ? "Updating…" : keepSaveText}
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            style={{ width: "100%", minHeight: "44px", color: "#dc2626", borderColor: "rgba(220, 38, 38, 0.3)" }}
-            disabled={updating}
-            onClick={() => {
-              if (window.confirm(isZh ? "确定要清除所有存档与缓存吗？" : "Clear all local game saves and caches?")) {
-                void handleUpdate(true);
-              }
-            }}
-          >
-            {resetSaveText}
-          </button>
-          <button
-            type="button"
-            className="button text"
-            style={{ width: "100%", marginTop: "4px" }}
-            disabled={updating}
-            onClick={onClose}
-          >
-            {cancelText}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ForceUpdateFloatingPill({
-  language,
-  onOpen,
-}: {
-  language: Language;
-  onOpen: () => void;
-}) {
-  const isZh = language === "中文";
-  const isMs = language === "Bahasa Melayu";
-  const isTa = language === "தமிழ்";
-
-  const label = isZh
-    ? "🔄 强制更新/清除缓存"
-    : isMs
-    ? "🔄 Paksa Kemas Kini"
-    : isTa
-    ? "🔄 புதுப்பி/நினைவக அழிப்பு"
-    : "🔄 Force Update & Clear Cache";
-
-  return (
-    <button
-      type="button"
-      className="force-update-floating-pill"
-      onClick={onOpen}
-      title={label}
-      aria-label={label}
-    >
-      <span className="force-update-pill-icon">🔄</span>
-      <span className="force-update-pill-text">{label}</span>
-    </button>
-  );
-}
 
