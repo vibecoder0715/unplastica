@@ -38,3 +38,4 @@ export const FOOD_VECTOR_CATALOG: Record<string, FoodVectorMetadata> = {
     primaryColor: '#fb923c',
   },
 };
+

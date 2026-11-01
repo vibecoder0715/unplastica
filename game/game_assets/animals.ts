@@ -51,3 +51,4 @@ export const ANIMAL_VECTOR_CATALOG: Record<string, AnimalVectorMetadata> = {
     palette: { primary: '#ffffff', secondary: '#1e293b', accent: '#0f172a', outline: '#020617' },
   },
 };
+

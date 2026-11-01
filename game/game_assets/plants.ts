@@ -43,3 +43,4 @@ export const PLANT_VECTOR_CATALOG: Record<string, PlantVectorMetadata> = {
     palette: { foliage: '#10b981', bark: '#064e3b' },
   },
 };
+

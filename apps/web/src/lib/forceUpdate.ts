@@ -97,3 +97,4 @@ export async function forceUpdateAndClearCache(options: ForceUpdateOptions = {})
 if (typeof window !== 'undefined') {
   (window as unknown as { __unplasticaForceUpdate: typeof forceUpdateAndClearCache }).__unplasticaForceUpdate = forceUpdateAndClearCache;
 }
+
