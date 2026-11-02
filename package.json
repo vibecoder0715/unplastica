@@ -8,7 +8,8 @@
     "build": "pnpm --filter @unplastica/web build",
     "preview": "pnpm --filter @unplastica/web preview",
     "typecheck": "pnpm --filter @unplastica/web typecheck",
-    "test": "pnpm --filter @unplastica/web test"
+    "test": "pnpm --filter @unplastica/web test",
+    "package-game-assets": "node scripts/package-game-assets.mjs"
   },
   "overrides": {
     "tinypool": ">=2.1.2",
