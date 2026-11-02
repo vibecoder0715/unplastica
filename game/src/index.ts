@@ -232,20 +232,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     };
   }
 
-  /**
-   * Facing changes are rate-limited. The turtle-style 2.5D turn narrows the body while it
-   * turns, so flipping direction every frame (collision nudges, food just behind, finger
-   * jitter on a phone) made animals look repeatedly squeezed.
-   */
-  const lastFacingFlipSec = new Map<string, number>();
-  function setFacing(animal: PlacedAnimal, dir: 1 | -1): void {
-    if (animal.facing === dir) return;
-    const last = lastFacingFlipSec.get(animal.uid) ?? -Infinity;
-    if (totalElapsedSec - last < 1.0) return;
-    lastFacingFlipSec.set(animal.uid, totalElapsedSec);
-    animal.facing = dir;
-  }
-
   let selectedAnimalUid: string | null = saveState.placedAnimals[0]?.uid ?? null;
   let activeStoreTab: StoreTab = 'animals';
   let isHudHidden = false;
@@ -2941,26 +2927,25 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
             );
             startAnimalEating(animal, targetDrop.foodId, targetDrop.isGolden);
           } else {
-            const speed = 44 * speedFactor * animal.locoBlend;
+            const speed = 32 * animal.locoBlend;
             animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-            if (Math.abs(dx) > 12) setFacing(animal, dx >= 0 ? 1 : -1);
+            if (Math.abs(dx) > 2) animal.facing = dx >= 0 ? 1 : -1;
           }
         } else if (grazePlant) {
           const dx = grazePlant.x - animal.x;
           if (Math.abs(dx) < 36) {
             startAnimalGrazing(animal, grazePlant);
           } else {
-            const speed = 36 * speedFactor * animal.locoBlend;
+            const speed = 24 * animal.locoBlend;
             animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-            if (Math.abs(dx) > 12) setFacing(animal, dx >= 0 ? 1 : -1);
+            if (Math.abs(dx) > 2) animal.facing = dx >= 0 ? 1 : -1;
           }
         } else {
           const dx = animal.targetX - animal.x;
           if (Math.abs(dx) < 16) {
-            // Pick a new nearby wander waypoint. Slow species patrol a smaller area, and
-            // canopy animals that are in (or near) a tree keep to its crown instead of
-            // walking off into thin air. Sea turtles glide across a wide peaceful span.
-            const patrolSpan = (animal.assetId.includes('sea_turtle') ? 560 : 420) * clamp(speedFactor, 0.2, 1.3);
+            // Pick a new nearby wander waypoint within natural local span.
+            // Canopy animals keep to crown.
+            const patrolSpan = animal.assetId.includes('sea_turtle') ? 380 : 340;
             let nextTarget = animal.x + (Math.random() - 0.5) * patrolSpan * 2;
             if (eco?.canopyHabit === 'canopy') {
               const tree = findPerchTree(animal, saveState.placedPlants, 700);
@@ -2971,10 +2956,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
             }
             animal.targetX = clamp(nextTarget, minX, maxX);
           } else {
-            const baseSpeed = animal.assetId === 'animal_28_green_sea_turtle' ? 14 : 22;
-            const speed = baseSpeed * speedFactor * animal.locoBlend;
+            // Natural calm cruising pace: sea turtles glide gracefully at 12, others at 18
+            const baseSpeed = animal.assetId.includes('sea_turtle') ? 12 : 18;
+            const speed = baseSpeed * animal.locoBlend;
             animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-            setFacing(animal, dx >= 0 ? 1 : -1);
+            if (Math.abs(dx) > 2) animal.facing = dx >= 0 ? 1 : -1;
           }
         }
       }
@@ -3014,22 +3000,22 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           if (aPinned && !bPinned) {
             b.x = clamp(b.x + dir * push * 2, minX, maxX);
             b.targetX = clamp(b.x + dir * 220, minX, maxX);
-            setFacing(b, dir);
+            b.facing = dir;
           } else if (!aPinned && bPinned) {
             a.x = clamp(a.x - dir * push * 2, minX, maxX);
             a.targetX = clamp(a.x - dir * 220, minX, maxX);
-            setFacing(a, oppDir);
+            a.facing = oppDir;
           } else if (!aPinned && !bPinned) {
             a.x = clamp(a.x - dir * push, minX, maxX);
             b.x = clamp(b.x + dir * push, minX, maxX);
             // Politely steer waypoints away from each other so they don't keep walking into each other
             if ((a.targetX - a.x) * dir > 0) {
               a.targetX = clamp(a.x - dir * (160 + Math.random() * 140), minX, maxX);
-              setFacing(a, oppDir);
+              a.facing = oppDir;
             }
             if ((b.targetX - b.x) * dir < 0) {
               b.targetX = clamp(b.x + dir * (160 + Math.random() * 140), minX, maxX);
-              setFacing(b, dir);
+              b.facing = dir;
             }
           }
         }

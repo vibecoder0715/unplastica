@@ -309,7 +309,12 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(getTheme);
   const [language, setLanguage] = useState<Language>(getLanguage);
   const [, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("unplastica-dev-user") === "true") {
+      return { id: "dev-user-001", email: "dev@unplastica.com" } as User;
+    }
+    return null;
+  });
   const userRef = useRef<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [balance, setBalance] = useState(0);
@@ -521,13 +526,16 @@ export default function App() {
           }
         } else {
           setSession(null);
-          setUser(null);
-          await loadAccount(null);
-          if (readPage() === "earn") {
-            history.replaceState({}, "", "/");
-            pendingPage.current = "earn";
-            setPage("home");
-            setShowLoginGate(true);
+          const isDev = typeof localStorage !== "undefined" && localStorage.getItem("unplastica-dev-user") === "true";
+          if (!isDev) {
+            setUser(null);
+            await loadAccount(null);
+            if (readPage() === "earn") {
+              history.replaceState({}, "", "/");
+              pendingPage.current = "earn";
+              setPage("home");
+              setShowLoginGate(true);
+            }
           }
         }
       } catch (err) {
