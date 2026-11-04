@@ -2270,10 +2270,11 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
 
     const restY = getAnimalRestY(animal, state.placedPlants, viewportHeight);
     const prevRest = animalRestYCache.get(animal.uid);
+    const diff = Math.abs((prevRest ?? restY) - restY);
     const easedRest =
-      prevRest === undefined || Math.abs(prevRest - restY) > viewportHeight
+      prevRest === undefined || diff > 24 || animal.fallImpactSec
         ? restY
-        : prevRest + clamp(restY - prevRest, -150 * 0.016, 150 * 0.016);
+        : prevRest + clamp(restY - prevRest, -320 * worldFrameDt, 320 * worldFrameDt);
     animalRestYCache.set(animal.uid, easedRest);
 
     const swimBob =
@@ -2916,20 +2917,23 @@ export function findPerchTree(
   return best;
 }
 
+/** Clears cached vertical position for placed or moved animals so they never float. */
+export function clearAnimalRestCache(uid?: string): void {
+  if (uid) {
+    animalRestYCache.delete(uid);
+  } else {
+    animalRestYCache.clear();
+  }
+}
+
 /**
- * Where an animal rests vertically: on the ground, in the water column, or on the
- * branches of the tree it has climbed.
+ * Where an animal rests vertically: firmly on the ground terrain or in the water column.
+ * Ground and canopy animals stay grounded to terrain floor with feet and contact shadow touching the earth.
  */
 export function getAnimalRestY(
   animal: Pick<PlacedAnimal, 'assetId' | 'zoneId' | 'x'>,
-  plants: PlacedPlant[],
+  _plants: PlacedPlant[],
   canvasHeight: number,
 ): number {
-  const base = getDefaultPlacementY(animal.assetId, animal.zoneId, animal.x, canvasHeight);
-  const meta = ASSET_ECO_CONFIG[animal.assetId];
-  if (meta?.canopyHabit !== 'canopy' || getWaterSurfaceY(animal.x, canvasHeight) !== null) return base;
-  const tree = findPerchTree(animal, plants);
-  if (!tree) return base;
-  const branchY = tree.y - getPlantDrawSize(tree).h * 0.5;
-  return Math.min(base, branchY - getAnimalGroundContactOffset(animal.assetId, false) + 8);
+  return getDefaultPlacementY(animal.assetId, animal.zoneId, animal.x, canvasHeight);
 }

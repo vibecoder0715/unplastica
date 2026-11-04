@@ -3300,6 +3300,37 @@ async function runModelDetection(blob: Blob, targetHabit: string): Promise<Model
   }
 }
 
+function DottedSpinner({ size = 52 }: { size?: number }) {
+  const dots = [
+    { cx: 32, cy: 8, opacity: 1.0 },
+    { cx: 44, cy: 11.2, opacity: 0.92 },
+    { cx: 52.8, cy: 20, opacity: 0.83 },
+    { cx: 56, cy: 32, opacity: 0.75 },
+    { cx: 52.8, cy: 44, opacity: 0.67 },
+    { cx: 44, cy: 52.8, opacity: 0.58 },
+    { cx: 32, cy: 56, opacity: 0.50 },
+    { cx: 20, cy: 52.8, opacity: 0.42 },
+    { cx: 11.2, cy: 44, opacity: 0.33 },
+    { cx: 8, cy: 32, opacity: 0.25 },
+    { cx: 11.2, cy: 20, opacity: 0.17 },
+    { cx: 20, cy: 11.2, opacity: 0.08 },
+  ];
+  return (
+    <svg
+      className="dotted-loading-spinner"
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      aria-label="Loading"
+      role="progressbar"
+    >
+      {dots.map((dot, i) => (
+        <circle key={i} cx={dot.cx} cy={dot.cy} r={3.8} fill="currentColor" opacity={dot.opacity} />
+      ))}
+    </svg>
+  );
+}
+
 function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode | null; onClose: () => void; onComplete: (message: ReactNode, verifiedSuccess?: boolean) => void }) {
   const t = useCopy();
   const video = useRef<HTMLVideoElement>(null);
@@ -3553,6 +3584,13 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
           </div>
         </div>
       )}
+
+      {detecting && (
+        <div className="verification-loading-overlay">
+          <DottedSpinner size={54} />
+          <span className="verification-loading-text">{t("camera.checkingPhoto")}</span>
+        </div>
+      )}
     </div>
 
     {lockoutSec > 0 && (
@@ -3561,8 +3599,7 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       </div>
     )}
 
-    {detecting && <div className="ai-detection-pill detecting">{t("camera.checkingPhoto")}</div>}
-    {detection && (
+    {detection && !detecting && (
       <div className={"ai-detection-pill " + (detection.verified ? "verified" : "flagged")}>
         {detection.message === "Verified"
           ? t("camera.verified")
@@ -3572,26 +3609,28 @@ function CameraDialog({ habitCode, onClose, onComplete }: { habitCode: HabitCode
       </div>
     )}
 
-    <div className="camera-controls">
-      {photoUrl ? (
-        <button
-          className="secondary-button"
-          onClick={handleRetake}
-        >
-          {t("camera.retake")}
-        </button>
-      ) : (
-        <>
-          <button className="primary-button" disabled={!cameraReady || lockoutSec > 0} onClick={() => void capture()}>
-            <Icon name="camera" /> {t("camera.capture")}
+    {!detection?.verified && !detecting && (
+      <div className="camera-controls">
+        {photoUrl ? (
+          <button
+            className="secondary-button"
+            onClick={handleRetake}
+          >
+            {t("camera.retake")}
           </button>
-          <button className="secondary-button" disabled={lockoutSec > 0} onClick={() => fileInputRef.current?.click()}>
-            <Icon name="camera" /> {t("camera.uploadPhoto")}
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" style={{ display: "none" }} onChange={onFileSelect} />
-        </>
-      )}
-    </div>
+        ) : (
+          <>
+            <button className="primary-button" disabled={!cameraReady || lockoutSec > 0} onClick={() => void capture()}>
+              <Icon name="camera" /> {t("camera.capture")}
+            </button>
+            <button className="secondary-button" disabled={lockoutSec > 0} onClick={() => fileInputRef.current?.click()}>
+              <Icon name="camera" /> {t("camera.uploadPhoto")}
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" style={{ display: "none" }} onChange={onFileSelect} />
+          </>
+        )}
+      </div>
+    )}
     <label className="consent-row"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>{t("camera.consent")}</span></label>
     <button
       className="primary-button submit-proof"

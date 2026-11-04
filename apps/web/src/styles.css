@@ -1048,6 +1048,39 @@ img { max-width: 100%; }
   color: #f8faf5 !important;
 }
 
+/* Game Sanctuary modals & dialogs are strictly Bright Mode (NO dark mode in game) */
+.sanctuary-game-page .dialog,
+#sanctuary-game-root .dialog,
+.modal-backdrop .dialog,
+.modal-backdrop .modal-sheet,
+.buy-confirm-backdrop .dialog,
+.buy-confirm-backdrop .modal-sheet,
+:root[data-theme="dark"] .sanctuary-game-page .dialog,
+:root[data-theme="dark"] #sanctuary-game-root .dialog,
+:root[data-theme="dark"] .modal-backdrop .dialog,
+:root[data-theme="dark"] .modal-backdrop .modal-sheet,
+:root[data-theme="dark"] .buy-confirm-backdrop .dialog,
+:root[data-theme="dark"] .buy-confirm-backdrop .modal-sheet {
+  background: #fafaed !important;
+  color: #1a1c15 !important;
+  border: 2px solid #15432a !important;
+  box-shadow: 0 22px 44px rgba(0, 44, 23, 0.32) !important;
+}
+
+:root[data-theme="dark"] .sanctuary-game-page .dialog h2,
+:root[data-theme="dark"] #sanctuary-game-root .dialog h2,
+:root[data-theme="dark"] .modal-backdrop .modal-sheet h2,
+:root[data-theme="dark"] .buy-confirm-backdrop h2 {
+  color: #002c17 !important;
+}
+
+:root[data-theme="dark"] .sanctuary-game-page .dialog p,
+:root[data-theme="dark"] #sanctuary-game-root .dialog p,
+:root[data-theme="dark"] .modal-backdrop .modal-sheet p,
+:root[data-theme="dark"] .buy-confirm-backdrop p {
+  color: #2b332c !important;
+}
+
 :root[data-theme="dark"] .dialog h2,
 :root[data-theme="dark"] .login-required-dialog h2,
 :root[data-theme="dark"] .auth-dialog h2 {
@@ -1482,7 +1515,88 @@ img { max-width: 100%; }
 .scanner-bracket.tr { top: -2px; right: -2px; border-width: 2.5px 2.5px 0 0; border-top-right-radius: 6px; }
 .scanner-bracket.bl { bottom: -2px; left: -2px; border-width: 0 0 2.5px 2.5px; border-bottom-left-radius: 6px; }
 .scanner-bracket.br { bottom: -2px; right: -2px; border-width: 0 2.5px 2.5px 0; border-bottom-right-radius: 6px; }
-.camera-controls { display: flex; justify-content: center; gap: 10px; margin: 14px 0; }
+.camera-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 14px auto 10px;
+  width: 100%;
+  max-width: 360px;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+.camera-controls .primary-button,
+.camera-controls .secondary-button {
+  flex: 1 1 0;
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 0 14px !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  white-space: nowrap !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+}
+.camera-controls .primary-button svg,
+.camera-controls .secondary-button svg {
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0;
+}
+
+/* Dotted Loading Page in Verification Flow */
+.verification-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #07190e;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 18px;
+  padding: 24px;
+  text-align: center;
+  animation: fadeIn 0.2s ease-out;
+}
+:root[data-theme="dark"] .verification-loading-overlay {
+  background: rgba(7, 25, 14, 0.94) !important;
+  color: #f0fdf4 !important;
+}
+.dotted-loading-spinner {
+  animation: dotted-spin 0.95s steps(12, end) infinite;
+  display: block;
+  color: currentColor;
+}
+@keyframes dotted-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.verification-loading-text {
+  font-family: "Outfit", sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: inherit;
+  letter-spacing: 0.01em;
+}
+
+/* Align inline Greenbits coin logo everywhere */
+.inline-greenbit-logo {
+  display: inline-block;
+  vertical-align: -0.16em;
+  object-fit: contain;
+  margin: 0 2px;
+}
+
 .secondary-button { border: 1px solid var(--line); color: var(--forest); background: var(--surface); }
 .consent-row { display: flex; align-items: start; gap: 9px; margin: 13px 0; color: var(--ink-soft); font-size: calc((12px) * var(--desktop-type-scale, 1)); line-height: 1.45; }
 .consent-row input { flex: 0 0 auto; width: 17px; height: 17px; accent-color: var(--leaf); }

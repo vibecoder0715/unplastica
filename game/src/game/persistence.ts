@@ -448,10 +448,7 @@ export function loadSaveState(
         passivePerMin += ASSET_ECO_CONFIG[p.assetId]?.passiveGreenbitsPerMin ?? 5;
       }
     }
-    const offlineGreenbitsEarned =
-      cappedOfflineMins >= 2
-        ? Math.min(25, Math.round(cappedOfflineMins * passivePerMin * 0.05))
-        : 0;
+    const offlineGreenbitsEarned = 0;
 
     return {
       state,

@@ -4,7 +4,6 @@ import { ROSTER_ASSETS } from './roster/catalog';
 import type {
   PlacedAnimal,
   PlacedPlant,
-  FloatingGreenbit,
   RejectedDropAnimation,
   HabitatZoneId,
   TeleportTowerSpec,
@@ -55,6 +54,7 @@ import {
   findPerchTree,
   getPlantDrawSize,
   isNightTime,
+  clearAnimalRestCache,
 } from './game/worldRenderer';
 
 type StoreTab = 'animals' | 'plants' | 'food';
@@ -85,7 +85,7 @@ const TOWER_SVG_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" heigh
 
 const WORLD_MAP_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/><circle cx="12" cy="9" r="1.5" fill="currentColor"/><path d="M12 4a3 3 0 0 0-3 3c0 2.5 3 6 3 6s3-3.5 3-6a3 3 0 0 0-3-3z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>`;
 
-const PET_PAW_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11c-2.4 0-4.3 1.8-4.3 4.2 0 2 1.8 3.3 4.3 3.3s4.3-1.3 4.3-3.3c0-2.4-1.9-4.2-4.3-4.2z"/><circle cx="6.5" cy="9.5" r="2.2" fill="currentColor"/><circle cx="10" cy="5.5" r="2.2" fill="currentColor"/><circle cx="14" cy="5.5" r="2.2" fill="currentColor"/><circle cx="17.5" cy="9.5" r="2.2" fill="currentColor"/></svg>`;
+const PET_PAW_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11c-2.4 0-4.3 1.8-4.3 4.2 0 2 1.8 3.3 4.3 3.3s4.3-1.3 4.3-3.3c0-2.4-1.9-4.2-4.3-4.2z"/><circle cx="6.5" cy="9.5" r="2.2" fill="#ffffff" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="5.5" r="2.2" fill="#ffffff" stroke="currentColor" stroke-width="1.8"/><circle cx="14" cy="5.5" r="2.2" fill="#ffffff" stroke="currentColor" stroke-width="1.8"/><circle cx="17.5" cy="9.5" r="2.2" fill="#ffffff" stroke="currentColor" stroke-width="1.8"/></svg>`;
 
 const LOCATION_PIN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
 
@@ -167,7 +167,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   }
   const foodList = Object.values(FOOD_CATALOG);
 
-  let floatingGreenbits: FloatingGreenbit[] = [];
   let rejectedDrops: RejectedDropAnimation[] = [];
   const shoreShells = [
     { id: 'sh1', x: 364000, y: 420 },
@@ -442,23 +441,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     }, durationMs);
   }
 
-  if (loaded.offlineGreenbitsEarned > 0) {
-    saveState.greenbits += loaded.offlineGreenbitsEarned;
-    options?.onBalanceChange?.(saveState.greenbits);
-    persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
-    window.setTimeout(() => {
-      const offlineMsg =
-        currentLang === '中文'
-          ? `在您离开期间收获了 +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} 硬币`
-          : currentLang === 'Bahasa Melayu'
-          ? `Mengumpul +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} syiling semasa anda tiada`
-          : currentLang === 'தமிழ்'
-          ? `நீங்கள் இல்லாத போது +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} நாணயங்கள் பெறப்பட்டன`
-          : `Collected +${GB_LOGO_HTML} ${loaded.offlineGreenbitsEarned} while you were away`;
-      showToast(offlineMsg, 3500, true);
-    }, 400);
-  }
-
   // 5. Collapsible Bottom Panel (Covered line box when hidden with ^ chevron; expands with v chevron)
   const bottomDock = document.createElement('section');
   bottomDock.className = 'bottom-dock';
@@ -572,58 +554,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   window.setInterval(() => {
     void syncRealTimeWeatherAndClock();
   }, 600000);
-
-  // Pure backend daily pacing and 5-10 greenbits per action mechanism (quiet backend work, no UI messaging)
-  function calculatePacedActionGreenbits(requestedAmount: number): number {
-    const todayStamp = new Date().toISOString().slice(0, 10);
-    if (saveState.lastEarnDayStamp !== todayStamp) {
-      saveState.lastEarnDayStamp = todayStamp;
-      saveState.dailyEarnedGreenbits = 0;
-    }
-    const currentDaily = saveState.dailyEarnedGreenbits ?? 0;
-    const DAILY_ACTION_CAP = 120; // Paced daily limit from active gameplay actions
-
-    if (currentDaily >= DAILY_ACTION_CAP) {
-      return 0;
-    }
-
-    // Paced between 5 and 10 per action, scaling organically with requested action weight
-    const base = Math.min(10, Math.max(5, Math.round(requestedAmount * 0.5)));
-    const jitter = Math.floor(Math.random() * 3) - 1; // -1, 0, +1
-    let award = Math.min(10, Math.max(5, base + jitter));
-
-    // Remaining allowance for today
-    const remaining = DAILY_ACTION_CAP - currentDaily;
-    award = Math.min(award, remaining);
-
-    saveState.dailyEarnedGreenbits = currentDaily + award;
-    return award;
-  }
-
-  function awardGreenbits(amount: number, worldX?: number, worldY?: number): void {
-    const pacedAmount = calculatePacedActionGreenbits(amount);
-    if (pacedAmount <= 0) {
-      // Quietly reached daily action allowance; silent backend handling without intrusive toasts
-      persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
-      return;
-    }
-    saveState.greenbits += pacedAmount;
-    options?.onBalanceChange?.(saveState.greenbits);
-    soundEngine.playCoinChime();
-    if (worldX !== undefined && worldY !== undefined) {
-      floatingGreenbits.push({
-        uid: `gb_${Date.now()}_${Math.random()}`,
-        x: worldX,
-        y: worldY,
-        vy: -42,
-        amount: pacedAmount,
-        alpha: 1,
-        collected: false,
-      });
-    }
-    persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
-    syncHudDOM();
-  }
 
   // ============================================================================
   // BOTTOM PANEL CARDS (All owned items in one clean strip + "Drag me!" on hover)
@@ -968,7 +898,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     }
 
     const safeX = findNonOverlappingAnimalX(animal.assetId, worldX, zoneId, animal.uid);
-    // Canopy animals land in a tree if dropped on one, otherwise on the ground (no mid-air perch)
+    clearAnimalRestCache(animal.uid);
     const targetGroundY = getAnimalRestY({ ...animal, x: safeX, zoneId }, saveState.placedPlants, viewportHeight);
     const releaseWorldY = screenToWorld(0, screenY).y;
     animal.zoneId = zoneId;
@@ -1037,6 +967,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const releaseWorldY = screenToWorld(0, screenY).y;
       const dropStartY = Math.min(releaseWorldY, targetGroundY - 135);
       const uid = `anim_${asset.code.toLowerCase()}_${Date.now()}`;
+      clearAnimalRestCache(uid);
       const night = isAnimalResting(asset.id, saveState.timeOfDayHours);
       const nowMs = Date.now();
       const newAnimal: PlacedAnimal = {
@@ -1231,11 +1162,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     animal.locoBlend = 0;
 
     soundEngine.playEatMunch();
-    awardGreenbits(
-      (foodSpec?.greenbitsBonus ?? 12) * (isGolden ? 3 : 1),
-      animal.x,
-      animal.y - 45,
-    );
     renderEntityCard();
   }
 
@@ -1504,7 +1430,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       animal.emotionTimerSec = 3.6;
       recordAnimalCareInteraction(animal, 12);
       soundEngine.playLaughGiggle();
-      awardGreenbits(10, animal.x, animal.y - 48);
       renderEntityCard();
       showToast(getGameString('isHappy', currentLang).replace('{name}', displayName));
       return;
@@ -1527,7 +1452,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     // 1. Check if tapping a shore shell
     for (const sh of shoreShells) {
       if (Math.hypot(sh.x - worldX, sh.y - worldY) < 32) {
-        awardGreenbits(15, sh.x, sh.y - 20);
+        soundEngine.playPluckPop();
         sh.x += (Math.random() > 0.5 ? 1 : -1) * (120 + Math.random() * 240);
         return;
       }
@@ -1548,14 +1473,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       }
     }
 
-    // 3. Check if tapping a Teleport Tower in the world
-    for (const tower of TELEPORT_TOWERS) {
-      const tFloorY = getTerrainFloorY(tower.worldX, viewportHeight);
-      if (Math.hypot(tower.worldX - worldX, (tFloorY - 48) - worldY) < 62) {
-        openTeleportMapModal(tower.id);
-        return;
-      }
-    }
+    // Teleport towers in the world canvas are display only; users strictly use the HUD map function to teleport
 
     // 4. Check if tapping an animal
     const hitAnimal = findAnimalAtPoint(worldX, worldY);
@@ -1772,15 +1690,23 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     backdrop.setAttribute('role', 'dialog');
 
     const card = document.createElement('div');
-    card.className = 'dialog login-required-dialog logout-confirm-dialog';
+    card.className = 'modal-sheet buy-confirm-sheet';
     card.style.maxWidth = '380px';
-    card.style.padding = '24px 20px';
+    card.style.padding = '24px 22px 20px';
     card.style.position = 'relative';
+    card.style.background = '#fafaed';
+    card.style.color = '#1a1c15';
+    card.style.border = '2px solid #15432a';
+    card.style.borderRadius = '24px';
+    card.style.boxShadow = '0 22px 44px rgba(0, 44, 23, 0.32)';
 
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'dialog-close';
-    closeBtn.innerHTML = '✕';
+    closeBtn.className = 'modal-close-btn buy-confirm-close-btn';
+    closeBtn.textContent = getGameString('close', currentLang);
     closeBtn.setAttribute('aria-label', getGameString('cancel', currentLang));
+    closeBtn.style.position = 'absolute';
+    closeBtn.style.top = '14px';
+    closeBtn.style.right = '14px';
     closeBtn.addEventListener('click', () => backdrop.remove());
 
     const itemImg = document.createElement('img');
@@ -1795,9 +1721,13 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     heading.textContent = getGameString('buyConfirmTitle', currentLang);
     heading.style.margin = '0 0 8px';
     heading.style.textAlign = 'center';
+    heading.style.color = '#002c17';
+    heading.style.fontFamily = 'var(--font-display, "Outfit", sans-serif)';
+    heading.style.fontSize = '20px';
+    heading.style.fontWeight = '800';
 
     const prompt = document.createElement('p');
-    const priceSpan = `<span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">${GB_LOGO_HTML} ${price}</span>`;
+    const priceSpan = `<span class="price-token-inline">${GB_LOGO_HTML}<span class="price-num">${price}</span></span>`;
     const promptText =
       currentLang === '中文'
         ? `确定要使用 ${priceSpan} 兑换 <strong>${itemName}</strong> 吗？`
@@ -1809,6 +1739,10 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     prompt.innerHTML = promptText;
     prompt.style.margin = '0 0 20px';
     prompt.style.textAlign = 'center';
+    prompt.style.color = '#2b332c';
+    prompt.style.fontFamily = 'var(--font-body, "Outfit", sans-serif)';
+    prompt.style.fontSize = '14.5px';
+    prompt.style.lineHeight = '1.5';
 
     const confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
@@ -1826,6 +1760,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     cancelBtn.type = 'button';
     cancelBtn.className = 'text-button';
     cancelBtn.style.width = '100%';
+    cancelBtn.style.color = '#15432a';
+    cancelBtn.style.fontWeight = '700';
     cancelBtn.textContent = getGameString('cancel', currentLang);
     cancelBtn.addEventListener('click', () => backdrop.remove());
 
@@ -1887,18 +1823,29 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     const dietText = getAnimalRealLifeDiet(itemId, currentLang);
     if (dietText) {
-      const dietRow = document.createElement('div');
-      dietRow.className = 'info-popup-diet-row';
-      const dietHeading =
+      const divider = document.createElement('hr');
+      divider.className = 'info-popup-divider';
+
+      const dietBlock = document.createElement('div');
+      dietBlock.className = 'info-popup-diet-block';
+
+      const dietLabel = document.createElement('div');
+      dietLabel.className = 'info-popup-diet-label';
+      dietLabel.textContent =
         currentLang === '中文'
-          ? '🌿 现实中以何为食：'
+          ? '饮食习惯：'
           : currentLang === 'Bahasa Melayu'
-          ? '🌿 Makanan di Alam Semula Jadi:'
+          ? 'Pemakanannya:'
           : currentLang === 'தமிழ்'
-          ? '🌿 இயற்கையான உணவு முறை:'
-          : '🌿 Natural Real-life Diet:';
-      dietRow.innerHTML = `<div class="diet-heading"><strong>${dietHeading}</strong></div><div class="diet-content">${dietText}</div>`;
-      card.append(header, text, dietRow, link);
+          ? 'உணவு முறை:'
+          : 'Its diet:';
+
+      const dietSentence = document.createElement('p');
+      dietSentence.className = 'info-popup-text info-popup-diet-sentence';
+      dietSentence.innerHTML = dietText;
+
+      dietBlock.append(dietLabel, dietSentence);
+      card.append(header, text, divider, dietBlock, link);
     } else {
       card.append(header, text, link);
     }
@@ -2061,7 +2008,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           buyBtn.type = 'button';
           buyBtn.className = 'buy-btn';
           buyBtn.disabled = saveState.greenbits < food.price;
-          buyBtn.innerHTML = `<span>${getGameString('buyPrefix', currentLang)} (</span>${GB_LOGO_HTML}<span>${food.price})</span>`;
+          buyBtn.innerHTML = `<span>${getGameString('buyPrefix', currentLang)} (</span><span class="price-token-inline">${GB_LOGO_HTML}<span>${food.price}</span></span><span>)</span>`;
           buyBtn.addEventListener('click', () => {
             if (saveState.greenbits < food.price) {
               showToast(getGameString('notEnoughGreenbits', currentLang));
@@ -2150,7 +2097,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           buyBtn.type = 'button';
           buyBtn.className = 'buy-btn';
           buyBtn.disabled = saveState.greenbits < price;
-          buyBtn.innerHTML = `<span>${getGameString('buyPrefix', currentLang)} (</span>${GB_LOGO_HTML}<span>${price})</span>`;
+          buyBtn.innerHTML = `<span>${getGameString('buyPrefix', currentLang)} (</span><span class="price-token-inline">${GB_LOGO_HTML}<span>${price}</span></span><span>)</span>`;
           buyBtn.addEventListener('click', () => {
             if (saveState.greenbits < price) {
               showToast(getGameString('notEnoughGreenbits', currentLang));
@@ -2498,21 +2445,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         levelBadge.innerHTML = `${HEART_SVG_ICON}<span>Lv.${level}</span>`;
 
         titleRow.append(nameEl, levelBadge);
-
-        const badgesRow = document.createElement('div');
-        badgesRow.className = 'pet-card-badges-row';
-
-        const isHappy = animal.hunger > 35;
-        const condBadge = document.createElement('span');
-        condBadge.className = `pet-card-cond-badge ${isHappy ? 'happy' : 'hungry'}`;
-        condBadge.textContent = isHappy ? getGameString('happy', currentLang) : getGameString('hungry', currentLang);
-
-        const zoneBadge = document.createElement('span');
-        zoneBadge.className = 'pet-card-zone-badge';
-        zoneBadge.textContent = getLocalizedZoneName(animal.zoneId, currentLang);
-
-        badgesRow.append(condBadge, zoneBadge);
-        details.append(titleRow, badgesRow);
+        details.append(titleRow);
         mainRow.append(thumbWrap, details);
 
         const actionRow = document.createElement('div');
@@ -2797,13 +2730,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       }
     }
 
-    // 3. Update Floating Greenbits Coins
-    for (const fg of floatingGreenbits) {
-      fg.y += fg.vy * dt;
-      fg.alpha -= dt * 0.85;
-    }
-    floatingGreenbits = floatingGreenbits.filter((fg) => fg.alpha > 0.02);
-
     // 4. Update Rejected Drop Animations
     for (const rej of rejectedDrops) {
       rej.progress += dt * 1.45;
@@ -2977,8 +2903,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         const b = animals[j];
         if (a.zoneId !== b.zoneId) continue;
         const ecoB = ASSET_ECO_CONFIG[b.assetId];
-        // Canopy animals and ground animals at different vertical strata don't collide horizontally
-        if ((ecoA?.canopyHabit === 'canopy') !== (ecoB?.canopyHabit === 'canopy')) continue;
 
         const rB = ecoB?.collisionRadius ?? 78;
         const desiredSep = (rA + rB) * 1.15;
@@ -3040,7 +2964,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         zoom: cameraZoom,
         state: saveState,
         elapsedSec: totalElapsedSec,
-        floatingCoins: floatingGreenbits,
+        floatingCoins: [],
         rejectedDrops,
         activeDrag: activeDrag
           ? {
