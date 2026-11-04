@@ -27,8 +27,8 @@ export function GameLoadingOverlay({ language, onComplete }: GameLoadingOverlayP
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // High-DPR razor-sharp buffer configuration
-    const dpr = Math.min(3, window.devicePixelRatio || 2);
+    // Balanced razor-sharp buffer configuration (optimized for 60 FPS)
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     canvas.width = Math.round(340 * dpr);
     canvas.height = Math.round(250 * dpr);
     canvas.style.width = "340px";

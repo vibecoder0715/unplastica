@@ -409,6 +409,10 @@ export function loadSaveState(
       soundMuted: typeof parsed.soundMuted === 'boolean' ? parsed.soundMuted : base.soundMuted,
       streakDays: typeof parsed.streakDays === 'number' && Number.isFinite(parsed.streakDays) ? Math.max(1, Math.floor(parsed.streakDays)) : base.streakDays,
       cameraY: typeof parsed.cameraY === 'number' && Number.isFinite(parsed.cameraY) ? parsed.cameraY : base.cameraY,
+      graphicQuality:
+        parsed.graphicQuality === 'performance' || parsed.graphicQuality === 'quality' || parsed.graphicQuality === 'dynamic'
+          ? parsed.graphicQuality
+          : 'dynamic',
       ownedAssets: ownedAssetsMap,
       foodInventory: mergedFood,
       placedAnimals: finalAnimals,

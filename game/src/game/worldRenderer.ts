@@ -38,6 +38,8 @@ function clamp(v: number, min: number, max: number): number {
 
 const thumbnailCache = new Map<string, string>();
 const rigCache = new Map<string, TurtleRigController>();
+/** Static immutable base pose for flora - saves 30+ full skeletal matrix kinematics per frame */
+const STATIC_PLANT_BASE_POSE: TurtlePose = new TurtleRigController('idle', 'right').pose;
 /** Eased vertical rest position per animal (smooth climbing into and out of trees). */
 const animalRestYCache = new Map<string, number>();
 /**
@@ -1677,17 +1679,23 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
     ctx.fillRect(-viewportWidth, -48, viewportWidth * 2, 96);
     ctx.restore();
 
-    // 64 multi-spectral twinkling stars with individual scintillation frequencies
+    // Multi-spectral twinkling stars batched into 4 color passes (64 draw calls reduced to 4)
+    const starQuality = state.graphicQuality || 'dynamic';
+    const starCount = starQuality === 'performance' ? 24 : starQuality === 'quality' ? 64 : 44;
     const starTints = ['#ffffff', '#fef9c3', '#bae6fd', '#fde68a'];
-    for (let s = 0; s < 64; s++) {
-      const sx = ((s * 173.7 + cameraX * 0.03) % viewportWidth + viewportWidth) % viewportWidth;
-      const sy = ((s * 61.3) % (viewportHeight * 0.48)) - cameraY * 0.14;
-      if (sy < -10 || sy > viewportHeight * 0.55) continue;
-      const twinkle = 0.45 + 0.55 * Math.sin(elapsedSec * (1.6 + (s % 5) * 0.7) + s * 2.1);
-      const sr = (s % 7 === 0 ? 1.9 : 1.1) * twinkle;
-      ctx.fillStyle = starTints[s % starTints.length];
+    for (let tIdx = 0; tIdx < starTints.length; tIdx++) {
+      ctx.fillStyle = starTints[tIdx];
       ctx.beginPath();
-      ctx.arc(sx, sy, Math.max(0.4, sr), 0, Math.PI * 2);
+      for (let s = tIdx; s < starCount; s += starTints.length) {
+        const sx = ((s * 173.7 + cameraX * 0.03) % viewportWidth + viewportWidth) % viewportWidth;
+        const sy = ((s * 61.3) % (viewportHeight * 0.48)) - cameraY * 0.14;
+        if (sy < -10 || sy > viewportHeight * 0.55) continue;
+        const twinkle = 0.45 + 0.55 * Math.sin(elapsedSec * (1.6 + (s % 5) * 0.7) + s * 2.1);
+        const sr = (s % 7 === 0 ? 1.9 : 1.1) * twinkle;
+        const r = Math.max(0.4, sr);
+        ctx.moveTo(sx + r, sy);
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      }
       ctx.fill();
     }
 
@@ -1981,9 +1989,10 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
     }
     ctx.stroke();
 
-    // 70% Realistic / 30% Cute Rainforest Ground Grass Blades along the Forest Floor (Frustum-Culled)
+    // 70% Realistic / 30% Cute Rainforest Ground Grass Blades along the Forest Floor (Frustum-Culled & Dynamic)
     if (zone.id === 'forest') {
-      const grassStep = 36;
+      const gQuality = state.graphicQuality || 'dynamic';
+      const grassStep = gQuality === 'performance' ? 64 : gQuality === 'quality' ? 34 : 46;
       const gStart = Math.max(zone.xStart + 24, Math.floor(zStart / grassStep) * grassStep);
       const gEnd = Math.min(zone.xEnd - 24, Math.ceil(zEnd / grassStep) * grassStep);
       for (let gx = gStart; gx <= gEnd; gx += grassStep) {
@@ -2002,18 +2011,20 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
           '#3d5a24',
           '#26361a',
         );
-        drawRealisticGrassBlade(
-          ctx,
-          gx + 4,
-          gy + 1,
-          19 + (1 - hSeed) * 10,
-          3.9,
-          4 + swayPx * 1.1,
-          nightFactor > 0.5 ? '#4a6640' : '#b5c97a',
-          nightFactor > 0.5 ? '#324a2a' : '#7c9c48',
-          '#4a6a2c',
-          '#26361a',
-        );
+        if (gQuality !== 'performance') {
+          drawRealisticGrassBlade(
+            ctx,
+            gx + 4,
+            gy + 1,
+            19 + (1 - hSeed) * 10,
+            3.9,
+            4 + swayPx * 1.1,
+            nightFactor > 0.5 ? '#4a6640' : '#b5c97a',
+            nightFactor > 0.5 ? '#324a2a' : '#7c9c48',
+            '#4a6a2c',
+            '#26361a',
+          );
+        }
       }
     } else if (zone.id === 'mud') {
       renderIntertidalMangroveTide(ctx, zStart, zEnd, viewportHeight, elapsedSec, nightFactor);
@@ -2116,20 +2127,13 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
   for (const plant of state.placedPlants) {
     if (plant.x < visStartX - 280 || plant.x > visEndX + 280) continue;
     plant.y = getDefaultPlacementY(plant.assetId, plant.zoneId, plant.x, viewportHeight);
-    const rigKey = `plant_${plant.uid}`;
-    let rig = rigCache.get(rigKey);
-    if (!rig) {
-      rig = new TurtleRigController();
-      rigCache.set(rigKey, rig);
-    }
-    rig.update(worldFrameDt, 1.0);
 
     const windWave =
       Math.sin(elapsedSec * (state.currentWeather === 'windy' ? 3.4 : 1.6) + plant.x * 0.01) *
       0.16 *
       windSwayBoost;
     const pose: TurtlePose = {
-      ...rig.pose,
+      ...STATIC_PLANT_BASE_POSE,
       headRot: windWave + Math.sin(elapsedSec * 12) * plant.swayImpulse * 0.25,
       waveRaysPhase: elapsedSec * (1.2 + windSwayBoost * 0.6),
     };
@@ -2711,7 +2715,7 @@ function renderParallaxRidges(
     // Base sits exactly on the horizon so the ridges never show through translucent water
     ctx.moveTo(0, horizon + 1);
     let any = false;
-    for (let sx = 0; sx <= w + 24; sx += 24) {
+    for (let sx = 0; sx <= w + 24; sx += 36) {
       const worldX = cameraX + w * 0.5 + (sx - w * 0.5) / zoom;
       const fade = clamp((mudEndX - worldX) / 7000, 0, 1);
       if (fade > 0) any = true;
@@ -2785,19 +2789,20 @@ function renderWeatherScreenOverlay(
       ctx.stroke();
     }
 
-    // Ground & Water Surface Rain Splash Rings
+    // Ground & Water Surface Rain Splash Rings (batched stroke pass)
     ctx.strokeStyle = 'rgba(224, 242, 254, 0.42)';
     ctx.lineWidth = 1.4;
-    for (let s = 0; s < 18; s++) {
+    ctx.beginPath();
+    for (let s = 0; s < 14; s++) {
       const phase = (elapsedSec * 2.8 + s * 0.37) % 1;
       const sx = ((s * 149.3) % Math.max(100, w - 40)) + 20;
-      // Splashes sit on the actual water surface / ground line on screen
       const sy = surfaceScreenY + ((s * 29) % 28) * (surfaceIsWater ? 0.15 : 0.9);
-      ctx.globalAlpha = (1 - phase) * 0.55;
-      ctx.beginPath();
-      ctx.ellipse(sx, sy, 4 + phase * 14, 1.5 + phase * 4.5, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      const rx = 4 + phase * 14;
+      const ry = 1.5 + phase * 4.5;
+      ctx.moveTo(sx + rx, sy);
+      ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
     }
+    ctx.stroke();
     ctx.restore();
   } else if (weather === 'fog') {
     ctx.save();

@@ -309,6 +309,19 @@
   transform: translateY(-2px) scale(1.06);
 }
 
+/* Performance & Dynamic Resolution Toggle Button */
+.hud-circle-btn.perf-btn {
+  background: var(--surface, #ffffff);
+  border-color: var(--forest, #1b4d3e);
+  color: var(--forest-dark, #062211);
+}
+
+.hud-circle-btn.perf-btn:hover {
+  background: #f0fdf4;
+  border-color: #15803d;
+  color: #15803d;
+}
+
 /* Postcard View Close "✕" Circular Button */
 .postcard-close-x-btn {
   position: absolute;

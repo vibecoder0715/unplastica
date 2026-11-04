@@ -93,6 +93,10 @@ const CART_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" heigh
 
 const POSTCARD_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
 
+const DYNAMIC_PERF_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" fill-opacity="0.25"/></svg>`;
+const ROCKET_PERF_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4.5c1.62-1.63 5-2.5 5-2.5"/><path d="M12 15v5s3.03-.55 4.5-2c1.63-1.62 2.5-5 2.5-5"/></svg>`;
+const QUALITY_SHARP_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" fill="currentColor" fill-opacity="0.25"/></svg>`;
+
 const EXIT_DOOR_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
 
 const CAMERA_CAPTURE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
@@ -258,7 +262,21 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     ? storedLang
     : (options?.language ?? 'English');
 
-  // 2. Minimalist Top HUD with Circular Buttons (Pets, World Map, Store, Postcard View, Red Exit)
+  // Dynamic Performance & Resolution Scaling state
+  let handleResize = () => {};
+  let dynamicDprScale = 1.0;
+  let lastDprAdjustmentTime = 0;
+  const recentFrameTimes: number[] = [];
+  let isTabVisible = !document.hidden;
+  const onVisibilityChange = () => {
+    isTabVisible = !document.hidden;
+    if (isTabVisible) {
+      lastFrameTime = performance.now();
+    }
+  };
+  document.addEventListener('visibilitychange', onVisibilityChange);
+
+  // 2. Minimalist Top HUD with Circular Buttons (Pets, World Map, Store, Performance Quality, Postcard View, Red Exit)
   // Greenbit coin count is intentionally removed from the game HUD (only shown inside Store modal).
   const hudTop = document.createElement('header');
   hudTop.className = 'hud-top';
@@ -292,6 +310,51 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   storeBtn.title = getGameString('store', currentLang);
   storeBtn.addEventListener('click', () => openStoreModal('animals'));
 
+  // Dynamic Quality & Performance Mode Button (Auto 60 FPS / Performance / Quality)
+  const perfBtn = document.createElement('button');
+  perfBtn.type = 'button';
+  perfBtn.className = 'hud-circle-btn perf-btn';
+  const updatePerfBtn = () => {
+    const q = saveState.graphicQuality || 'dynamic';
+    perfBtn.innerHTML =
+      q === 'performance'
+        ? ROCKET_PERF_ROUND_SVG
+        : q === 'quality'
+          ? QUALITY_SHARP_ROUND_SVG
+          : DYNAMIC_PERF_ROUND_SVG;
+    const label =
+      q === 'performance'
+        ? getGameString('graphicsPerf', currentLang)
+        : q === 'quality'
+          ? getGameString('graphicsSharp', currentLang)
+          : getGameString('graphicsAuto', currentLang);
+    perfBtn.setAttribute('aria-label', `${getGameString('graphicsQuality', currentLang)}: ${label}`);
+    perfBtn.title = `${getGameString('graphicsQuality', currentLang)}: ${label}`;
+  };
+  updatePerfBtn();
+  perfBtn.addEventListener('click', () => {
+    const cur = saveState.graphicQuality || 'dynamic';
+    const next: 'dynamic' | 'performance' | 'quality' =
+      cur === 'dynamic' ? 'performance' : cur === 'performance' ? 'quality' : 'dynamic';
+    saveState.graphicQuality = next;
+    try {
+      persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+    } catch {
+      // ignore
+    }
+    dynamicDprScale = 1.0;
+    handleResize();
+    updatePerfBtn();
+    const label =
+      next === 'performance'
+        ? getGameString('graphicsPerf', currentLang)
+        : next === 'quality'
+          ? getGameString('graphicsSharp', currentLang)
+          : getGameString('graphicsAuto', currentLang);
+    const icon = next === 'performance' ? '🚀' : next === 'quality' ? '✨' : '⚡';
+    showToast(`${icon} ${label}`);
+  });
+
   const postcardBtn = document.createElement('button');
   postcardBtn.type = 'button';
   postcardBtn.className = 'hud-circle-btn postcard-btn';
@@ -300,7 +363,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   postcardBtn.title = getGameString('postcardView', currentLang);
   postcardBtn.addEventListener('click', () => setPostcardView(true));
 
-  buttonCluster.append(petsBtn, mapBtn, storeBtn, postcardBtn);
+  buttonCluster.append(petsBtn, mapBtn, storeBtn, perfBtn, postcardBtn);
 
   let exitBtn: HTMLButtonElement | null = null;
   if (options?.onExit) {
@@ -323,6 +386,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     mapBtn.title = getGameString('worldMap', currentLang);
     storeBtn.setAttribute('aria-label', getGameString('store', currentLang));
     storeBtn.title = getGameString('store', currentLang);
+    updatePerfBtn();
     postcardBtn.setAttribute('aria-label', getGameString('postcardView', currentLang));
     postcardBtn.title = getGameString('postcardView', currentLang);
     if (exitBtn) {
@@ -2524,7 +2588,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     const loadCanvas = document.createElement('canvas');
     loadCanvas.className = 'teleport-loading-canvas';
-    const dpr = Math.min(3, window.devicePixelRatio || 2);
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     loadCanvas.width = Math.round(340 * dpr);
     loadCanvas.height = Math.round(250 * dpr);
     loadCanvas.style.width = '340px';
@@ -2631,7 +2695,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   const ctx = worldCanvas.getContext('2d');
   if (!ctx) return () => {};
 
-  const handleResize = () => {
+  handleResize = () => {
     const prevCenterWorldX = cameraX + viewportWidth * 0.5;
     // Size from the real canvas box (the container), not the window, and keep the bitmap
     // aspect identical to the CSS box so nothing is ever stretched.
@@ -2643,12 +2707,25 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     viewScale = cssH / LOGICAL_VIEW_HEIGHT;
     viewportHeight = LOGICAL_VIEW_HEIGHT;
     viewportWidth = cssW / viewScale;
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+
+    // Dynamic resolution scaling according to hardware quality mode and real-time FPS
+    const quality = saveState.graphicQuality || 'dynamic';
+    const nativeDpr = window.devicePixelRatio || 1;
+    let effectiveDpr = 1.0;
+    if (quality === 'performance') {
+      effectiveDpr = Math.min(1.05, nativeDpr);
+    } else if (quality === 'quality') {
+      effectiveDpr = Math.min(1.85, nativeDpr);
+    } else {
+      // Dynamic mode: scale smoothly based on live load
+      effectiveDpr = Math.max(0.85, Math.min(1.4, nativeDpr) * dynamicDprScale);
+    }
+    const dpr = Math.round(effectiveDpr * 100) / 100;
     worldCanvas.width = Math.round(cssW * dpr);
     worldCanvas.height = Math.round(cssH * dpr);
     ctx.setTransform(dpr * viewScale, 0, 0, dpr * viewScale, 0, 0);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = dpr > 1.2 ? 'high' : 'medium';
     targetCameraX = clamp(
       prevCenterWorldX - viewportWidth * 0.5,
       0,
@@ -2948,9 +3025,41 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   }
 
   function frameLoop(now: number): void {
+    if (isDestroyed) return;
+    if (!isTabVisible) {
+      animFrameId = window.requestAnimationFrame(frameLoop);
+      return;
+    }
+
     try {
       const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameTime) / 1000));
       lastFrameTime = now;
+
+      // Dynamic Resolution Scaling: monitor rolling average frame times
+      recentFrameTimes.push(dt);
+      if (recentFrameTimes.length > 35) recentFrameTimes.shift();
+
+      if (
+        saveState.graphicQuality === 'dynamic' &&
+        recentFrameTimes.length >= 25 &&
+        now - lastDprAdjustmentTime > 1800
+      ) {
+        const avgFrameDt = recentFrameTimes.reduce((a, b) => a + b, 0) / recentFrameTimes.length;
+        if (avgFrameDt > 0.022) {
+          // Under 45 FPS: downscale resolution dynamically
+          const nextScale = Math.max(0.68, dynamicDprScale - 0.12);
+          if (dynamicDprScale - nextScale > 0.04) {
+            dynamicDprScale = nextScale;
+            lastDprAdjustmentTime = now;
+            handleResize();
+          }
+        } else if (avgFrameDt < 0.0168 && dynamicDprScale < 1.0) {
+          // Stable 60 FPS: restore resolution smoothly
+          dynamicDprScale = Math.min(1.0, dynamicDprScale + 0.08);
+          lastDprAdjustmentTime = now;
+          handleResize();
+        }
+      }
 
       cameraZoom += (targetCameraZoom - cameraZoom) * Math.min(1, dt * 10);
       stepSimulation(dt);
@@ -3006,6 +3115,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     window.removeEventListener('pointerup', onWindowPointerUp);
     window.removeEventListener('resize', handleResize);
     containerResizeObserver?.disconnect();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
     window.removeEventListener('unplastica-sync-game-balance', handleExternalBalanceSync);
     window.removeEventListener('unplastica-sync-game-language', handleLangSync);
     root.innerHTML = '';

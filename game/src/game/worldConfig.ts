@@ -1967,5 +1967,6 @@ export function createInitialSaveState(): SaveState {
     autoCycleWeather: true,
     soundMuted: false,
     weatherLocationLabel: 'Kuala Lumpur, MY',
+    graphicQuality: 'dynamic',
   };
 }

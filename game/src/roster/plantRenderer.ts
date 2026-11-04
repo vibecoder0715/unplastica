@@ -57,7 +57,7 @@ export function drawRealisticGrassBlade(
   height: number,
   baseWidth: number,
   bendX: number,
-  cLight: string,
+  _cLight: string,
   cMid: string,
   cDark: string,
   outline = '#122612',
@@ -65,7 +65,7 @@ export function drawRealisticGrassBlade(
   ctx.save();
   ctx.translate(x, y);
 
-  // 1. Basal clasping leaf sheath (coleoptile wrap) at root collar
+  // 1. Basal clasping leaf sheath at root collar
   const sheathH = Math.min(10, height * 0.22);
   ctx.fillStyle = cDark;
   ctx.strokeStyle = outline;
@@ -79,10 +79,10 @@ export function drawRealisticGrassBlade(
   ctx.fill();
   ctx.stroke();
 
-  // 2. Gracefully arched monocot lamina blade
-  const blade = new Path2D();
-  blade.moveTo(-baseWidth * 0.5, 0);
-  blade.bezierCurveTo(
+  // 2. Gracefully arched monocot lamina blade (drawn directly on ctx - zero heap allocations)
+  ctx.beginPath();
+  ctx.moveTo(-baseWidth * 0.5, 0);
+  ctx.bezierCurveTo(
     -baseWidth * 0.42 + bendX * 0.28,
     -height * 0.45,
     bendX * 0.68 - baseWidth * 0.18,
@@ -90,7 +90,7 @@ export function drawRealisticGrassBlade(
     bendX,
     -height,
   );
-  blade.bezierCurveTo(
+  ctx.bezierCurveTo(
     bendX * 0.68 + baseWidth * 0.22,
     -height * 0.80,
     baseWidth * 0.42 + bendX * 0.28,
@@ -98,28 +98,24 @@ export function drawRealisticGrassBlade(
     baseWidth * 0.5,
     0,
   );
-  blade.closePath();
+  ctx.closePath();
 
-  const g = ctx.createLinearGradient(0, -height, 0, 0);
-  g.addColorStop(0, cLight);
-  g.addColorStop(0.55, cMid);
-  g.addColorStop(1, cDark);
-  ctx.fillStyle = g;
-  ctx.fill(blade);
+  ctx.fillStyle = cMid;
+  ctx.fill();
 
-  // 3. Central vascular midrib & sunlit cuticle edge (70% botanical realism + 30% crisp charm)
-  ctx.strokeStyle = 'rgba(236, 253, 245, 0.58)';
-  ctx.lineWidth = Math.max(0.9, baseWidth * 0.16);
+  // 3. Central vascular midrib & sunlit cuticle edge
+  ctx.strokeStyle = 'rgba(236, 253, 245, 0.55)';
+  ctx.lineWidth = Math.max(0.85, baseWidth * 0.15);
   ctx.beginPath();
   ctx.moveTo(0, -2);
   ctx.quadraticCurveTo(bendX * 0.42, -height * 0.52, bendX * 0.95, -height * 0.94);
   ctx.stroke();
 
   ctx.strokeStyle = outline;
-  ctx.lineWidth = Math.max(1.3, baseWidth * 0.24);
+  ctx.lineWidth = Math.max(1.1, baseWidth * 0.22);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.stroke(blade);
+  ctx.stroke();
 
   ctx.restore();
 }

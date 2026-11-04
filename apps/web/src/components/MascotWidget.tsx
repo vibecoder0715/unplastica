@@ -73,9 +73,16 @@ function TurtleFrontHeadCanvas({ emotion, isOpen }: TurtleFrontHeadCanvasProps) 
     const startTime = performance.now();
     let nextBlinkAt = startTime + 2400 + Math.random() * 1800;
     const blinkDur = 170;
+    let lastRenderNow = 0;
+    const minFrameInterval = 31; // Throttle mascot widget to smooth 32 FPS, avoiding 60 FPS battery/GPU drain
 
     const render = (now: number) => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      rafId = requestAnimationFrame(render);
+      if (document.hidden) return;
+      if (now - lastRenderNow < minFrameInterval) return;
+      lastRenderNow = now;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const size = 62;
       const targetW = Math.round(size * dpr);
       if (canvas.width !== targetW || canvas.height !== targetW) {
@@ -502,8 +509,6 @@ function TurtleFrontHeadCanvas({ emotion, isOpen }: TurtleFrontHeadCanvasProps) 
 
       ctx.restore(); // end head group
       ctx.restore();
-
-      rafId = requestAnimationFrame(render);
     };
 
     rafId = requestAnimationFrame(render);

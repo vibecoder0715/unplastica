@@ -47,7 +47,8 @@ export function TurtleCanvas({
 
     let animId: number;
     let lastTime = performance.now();
-    const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 3);
+    let isVisible = true;
+    const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 1.5);
     const targetW = Math.round(width * dpr);
     const targetH = Math.round(height * dpr);
     if (canvas.width !== targetW || canvas.height !== targetH) {
@@ -55,9 +56,37 @@ export function TurtleCanvas({
       canvas.height = targetH;
     }
 
+    // Only render when canvas is in viewport
+    let observer: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver !== "undefined") {
+      observer = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        isVisible = entry ? entry.isIntersecting : true;
+      }, { threshold: 0.05 });
+      observer.observe(canvas);
+    }
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        isVisible = false;
+      } else {
+        isVisible = true;
+        lastTime = performance.now();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    const minFrameInterval = 25; // Target up to 40 FPS max for preview canvas, saving 50% GPU load
+    let lastRenderTime = 0;
+
     const loop = (now: number) => {
+      animId = requestAnimationFrame(loop);
+      if (!isVisible || document.hidden) return;
+      if (now - lastRenderTime < minFrameInterval) return;
+
       const dt = Math.min((now - lastTime) / 1000, 0.08);
       lastTime = now;
+      lastRenderTime = now;
 
       if (rigRef.current) {
         const pose = rigRef.current.update(dt);
@@ -76,11 +105,14 @@ export function TurtleCanvas({
         );
         ctx.restore();
       }
-      animId = requestAnimationFrame(loop);
     };
 
     animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
+    return () => {
+      cancelAnimationFrame(animId);
+      observer?.disconnect();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [width, height]);
 
   return (

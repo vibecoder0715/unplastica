@@ -230,4 +230,5 @@ export interface SaveState {
   cameraY?: number;
   dailyEarnedGreenbits?: number;
   lastEarnDayStamp?: string;
+  graphicQuality?: 'dynamic' | 'performance' | 'quality';
 }
