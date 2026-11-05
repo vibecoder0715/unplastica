@@ -1,4 +1,10 @@
 import { ROSTER_ASSETS } from '../roster/catalog';
+import {
+  type GameLanguage,
+  getLocalizedAssetName,
+  getLocalizedZoneName,
+  getLocalizedFoodName,
+} from './i18n';
 import type {
   ActivityPattern,
   AssetEcoMetadata,
@@ -1898,21 +1904,48 @@ export function isFloatingPlantAsset(assetId: string): boolean {
  * Checks where a plant can physically grow at worldX.
  * Returns an empty string when the spot is fine, otherwise the reason it is not.
  */
-export function getPlantPlacementProblem(assetId: string, worldX: number): string {
+export function getPlantPlacementProblem(assetId: string, worldX: number, lang: GameLanguage = 'English'): string {
   const meta = ASSET_ECO_CONFIG[assetId];
   if (!meta || meta.kind !== 'plant') return '';
   const depth = getWaterDepthNorm(worldX);
   const placement = meta.plantPlacement ?? 'land';
+  const displayName = getLocalizedAssetName(assetId, meta.name, lang);
   if (placement === 'land' && depth > 0) {
-    return `${meta.name} needs dry ground. Plant it on the bank, not in the water.`;
+    return lang === '中文'
+      ? `${displayName} 需要生长在干燥陆地上，请种植在岸边，不要种在水里。`
+      : lang === 'Bahasa Melayu'
+      ? `${displayName} memerlukan tanah kering. Tanam di tebing, bukan dalam air.`
+      : lang === 'தமிழ்'
+      ? `${displayName} உலர்ந்த நிலத்தில் மட்டுமே வளரும். கரையில் நடுங்கள், தண்ணீரில் அல்ல.`
+      : `${displayName} needs dry ground. Plant it on the bank, not in the water.`;
   }
   if ((placement === 'floating' || placement === 'submerged') && depth <= 0) {
-    return `${meta.name} needs open fresh water.`;
+    return lang === '中文'
+      ? `${displayName} 需要开阔淡水水域。`
+      : lang === 'Bahasa Melayu'
+      ? `${displayName} memerlukan air tawar terbuka.`
+      : lang === 'தமிழ்'
+      ? `${displayName} திறந்த நன்னீரில் மட்டுமே வளரும்.`
+      : `${displayName} needs open fresh water.`;
   }
   if (placement === 'shallow_marine') {
-    if (depth <= 0) return `${meta.name} needs shallow sea water.`;
+    if (depth <= 0) {
+      return lang === '中文'
+        ? `${displayName} 需要浅海海水。`
+        : lang === 'Bahasa Melayu'
+        ? `${displayName} memerlukan air laut cetek.`
+        : lang === 'தமிழ்'
+        ? `${displayName} ஆழமற்ற கடல் நீர் தேவை.`
+        : `${displayName} needs shallow sea water.`;
+    }
     if (depth > SHALLOW_SUNLIT_DEPTH_NORM) {
-      return `${meta.name} needs sunlight. It cannot grow in the deep sea; plant it on the shallow reef flat.`;
+      return lang === '中文'
+        ? `${displayName} 需要阳光照射，无法生长在深海，请种植在向阳的浅海礁坪上。`
+        : lang === 'Bahasa Melayu'
+        ? `${displayName} memerlukan cahaya matahari. Tanam di terumbu cetek, bukan laut dalam.`
+        : lang === 'தமிழ்'
+        ? `${displayName} சூரிய ஒளி தேவை. ஆழ்கடலில் வளராது; ஆழமற்ற பவளப்பாறையில் நடுங்கள்.`
+        : `${displayName} needs sunlight. It cannot grow in the deep sea; plant it on the shallow reef flat.`;
     }
   }
   return '';
@@ -1926,6 +1959,7 @@ export function validateAssetDropZone(
   assetId: string,
   zoneId: HabitatZoneId,
   worldX?: number,
+  lang: GameLanguage = 'English',
 ): {
   valid: boolean;
   allowedZones: HabitatZoneId[];
@@ -1936,18 +1970,29 @@ export function validateAssetDropZone(
     return { valid: false, allowedZones: [], reason: 'Unknown asset' };
   }
   const valid = meta.allowedZones.includes(zoneId);
+  const displayName = getLocalizedAssetName(assetId, meta.name, lang);
   if (!valid) {
-    const allowedNames = meta.allowedZones.map((z) => getZoneSpec(z).name).join(' or ');
+    const allowedNames = meta.allowedZones
+      .map((z) => getLocalizedZoneName(z, lang))
+      .join(lang === '中文' ? ' 或 ' : lang === 'Bahasa Melayu' ? ' atau ' : lang === 'தமிழ்' ? ' அல்லது ' : ' or ');
+    const reason =
+      lang === '中文'
+        ? `${displayName} 应生活在 ${allowedNames}。`
+        : lang === 'Bahasa Melayu'
+        ? `${displayName} hidup di ${allowedNames}.`
+        : lang === 'தமிழ்'
+        ? `${displayName} ${allowedNames} பகுதியில் வசிக்க வேண்டும்.`
+        : `${displayName} belongs in ${allowedNames}.`;
     return {
       valid: false,
       allowedZones: meta.allowedZones,
-      reason: `${meta.name} belongs in ${allowedNames}.`,
+      reason,
     };
   }
 
   // Plants must be on ground they can actually grow on (dry bank, open water, or sunlit shallows)
   if (worldX !== undefined && meta.kind === 'plant') {
-    const problem = getPlantPlacementProblem(assetId, worldX);
+    const problem = getPlantPlacementProblem(assetId, worldX, lang);
     if (problem) {
       return { valid: false, allowedZones: meta.allowedZones, reason: problem };
     }
@@ -1960,17 +2005,33 @@ export function validateAssetDropZone(
     const bounds = getAquaticSafeBoundsX(assetId, zoneId);
     const depth = getWaterDepthNorm(worldX);
     if (!canGoOnMudOrLand && depth < getRequiredWaterDepthNorm(meta.visualSize)) {
+      const reason =
+        lang === '中文'
+          ? `${displayName} 是水生物种，无法在浅滩或泥岸上生存，请放入更深的水域。`
+          : lang === 'Bahasa Melayu'
+          ? `${displayName} adalah spesies akuatik dan tidak boleh hidup di tebing lumpur atau pantai cetek. Lepaskan di air lebih dalam.`
+          : lang === 'தமிழ்'
+          ? `${displayName} ஒரு நீர்வாழ் இனம், சேற்றுப் பகுதியிலோ ஆழமற்ற கரையிலோ வாழ முடியாது. ஆழமான நீரில் விடுங்கள்.`
+          : `${displayName} is an aquatic species and cannot live on muddy banks or shallow shores. Drop it in deeper water.`;
       return {
         valid: false,
         allowedZones: meta.allowedZones,
-        reason: `${meta.name} is an aquatic species and cannot live on muddy banks or shallow shores. Drop it in deeper water.`,
+        reason,
       };
     }
     if (bounds.blocksShallowShore && (worldX < bounds.minX || worldX > bounds.maxX)) {
+      const reason =
+        lang === '中文'
+          ? `${displayName} 需要更深的水域，请将其放入更开阔深水处。`
+          : lang === 'Bahasa Melayu'
+          ? `${displayName} memerlukan air lebih dalam. Lepaskan lebih jauh ke tengah.`
+          : lang === 'தமிழ்'
+          ? `${displayName} ஆழமான நீர் தேவைப்படுகிறது. இன்னும் ஆழமான பகுதியில் விடுங்கள்.`
+          : `${displayName} needs deeper water than this. Drop it further out.`;
       return {
         valid: false,
         allowedZones: meta.allowedZones,
-        reason: `${meta.name} needs deeper water than this. Drop it further out.`,
+        reason,
       };
     }
   }
@@ -1978,7 +2039,7 @@ export function validateAssetDropZone(
   return {
     valid: true,
     allowedZones: meta.allowedZones,
-    reason: `${meta.name} loves the ${getZoneSpec(zoneId).name}.`,
+    reason: `${displayName} loves the ${getLocalizedZoneName(zoneId, lang)}.`,
   };
 }
 
@@ -1990,6 +2051,7 @@ export function validateFoodDropZone(
   foodId: string,
   zoneId: HabitatZoneId,
   worldX?: number,
+  lang: GameLanguage = 'English',
 ): {
   valid: boolean;
   allowedZones: HabitatZoneId[];
@@ -1999,29 +2061,48 @@ export function validateFoodDropZone(
   if (!food) {
     return { valid: false, allowedZones: [], reason: 'Unknown food item' };
   }
+  const foodName = getLocalizedFoodName(foodId, food.name, lang);
   if (!food.allowedZones.includes(zoneId)) {
-    const allowedNames = food.allowedZones.map((z) => getZoneSpec(z).name).join(' or ');
+    const allowedNames = food.allowedZones
+      .map((z) => getLocalizedZoneName(z, lang))
+      .join(lang === '中文' ? ' 或 ' : lang === 'Bahasa Melayu' ? ' atau ' : lang === 'தமிழ்' ? ' அல்லது ' : ' or ');
+    const reason =
+      lang === '中文'
+        ? `${foodName} 只能投喂在 ${allowedNames}。`
+        : lang === 'Bahasa Melayu'
+        ? `${foodName} hanya boleh diletakkan di ${allowedNames}.`
+        : lang === 'தமிழ்'
+        ? `${foodName} ${allowedNames} பகுதியில் மட்டுமே இட முடியும்.`
+        : `${foodName} can only be placed in ${allowedNames}.`;
     return {
       valid: false,
       allowedZones: food.allowedZones,
-      reason: `${food.name} can only be placed in ${allowedNames}.`,
+      reason,
     };
   }
   if (worldX !== undefined) {
     const isStrictlyAquaticFood =
       !food.allowedZones.includes('forest') && !food.allowedZones.includes('mud');
     if (isStrictlyAquaticFood && getWaterDepthNorm(worldX) < 0.06) {
+      const reason =
+        lang === '中文'
+          ? `${foodName} 属于水生食物，不能放在干燥或泥泞的岸上。`
+          : lang === 'Bahasa Melayu'
+          ? `${foodName} adalah makanan akuatik, bukan di tebing kering atau lumpur.`
+          : lang === 'தமிழ்'
+          ? `${foodName} நீர்வாழ் உணவு, உலர்ந்த கரையிலோ சேற்றிலோ இட முடியாது.`
+          : `${foodName} belongs in open water, not on the dry or muddy bank.`;
       return {
         valid: false,
         allowedZones: food.allowedZones,
-        reason: `${food.name} belongs in open water, not on the dry or muddy bank.`,
+        reason,
       };
     }
   }
   return {
     valid: true,
     allowedZones: food.allowedZones,
-    reason: `Dropped ${food.name} in ${getZoneSpec(zoneId).name}.`,
+    reason: `Dropped ${foodName} in ${getLocalizedZoneName(zoneId, lang)}.`,
   };
 }
 
@@ -2225,6 +2306,7 @@ export function createInitialSaveState(): SaveState {
         blinkActiveSec: 0,
       },
     ],
+    bagAnimals: [],
     placedPlants: createDefaultSanctuaryPlants(),
     droppedFoods: [],
     discoveredEcoDex: ['animal_28_green_sea_turtle'],

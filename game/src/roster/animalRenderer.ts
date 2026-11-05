@@ -889,7 +889,7 @@ export interface AnimalRenderOptions {
       setActiveAnimalEyeScale(1.0);
       renderTurtle(ctx, width, height, pose, tearDrops, false, preview3D ? { yaw: preview3D.yaw ?? 0, pitch: preview3D.pitch ?? 0 } : undefined, {
         skipClear: preview3D?.skipClear,
-        framingScale: preview3D?.framingScale,
+        framingScale: preview3D?.framingScale ?? 1.04,
       });
       return;
     }
@@ -905,7 +905,7 @@ export interface AnimalRenderOptions {
         preview3D ? { yaw: preview3D.yaw ?? 0, pitch: preview3D.pitch ?? 0 } : undefined,
         {
           skipClear: preview3D?.skipClear,
-          framingScale: preview3D?.framingScale,
+          framingScale: preview3D?.framingScale ?? 1.04,
         },
       );
       return;
@@ -921,7 +921,7 @@ export interface AnimalRenderOptions {
         tearDrops,
         {
           skipClear: preview3D?.skipClear,
-          framingScale: preview3D?.framingScale,
+          framingScale: preview3D?.framingScale ?? 1.04,
         },
       );
       return;

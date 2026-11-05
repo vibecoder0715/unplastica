@@ -414,6 +414,43 @@ export function loadSaveState(
             })
         : base.placedAnimals;
 
+    const bagSources = [
+      parsed.bagAnimals,
+      localParsed.bagAnimals,
+      safeCloud?.bagAnimals,
+    ];
+    let candidateBagAnimals: any[] | undefined = undefined;
+    for (const src of bagSources) {
+      if (Array.isArray(src) && src.length > 0) {
+        candidateBagAnimals = src;
+        break;
+      }
+    }
+    const sanitizedBagAnimals: PlacedAnimal[] =
+      candidateBagAnimals && candidateBagAnimals.length > 0
+        ? candidateBagAnimals
+            .filter((a) => a && typeof a.assetId === 'string' && ASSET_ECO_CONFIG[a.assetId])
+            .map((a, idx) => ({
+              ...a,
+              uid: typeof a.uid === 'string' && a.uid.trim() ? a.uid.trim() : `bag_anim_${idx}`,
+              assetId: a.assetId,
+              customName: typeof a.customName === 'string' && a.customName.trim() ? a.customName.trim() : undefined,
+              zoneId: a.zoneId ?? 'forest',
+              x: typeof a.x === 'number' ? a.x : 0,
+              y: typeof a.y === 'number' ? a.y : 0,
+              targetX: typeof a.targetX === 'number' ? a.targetX : 0,
+              targetY: typeof a.targetY === 'number' ? a.targetY : 0,
+              facing: (a.facing === -1 ? -1 : 1) as 1 | -1,
+              hunger: typeof a.hunger === 'number' && Number.isFinite(a.hunger) ? Math.max(0, Math.min(100, a.hunger)) : 85,
+              happiness: typeof a.happiness === 'number' && Number.isFinite(a.happiness) ? Math.max(0, Math.min(100, a.happiness)) : 90,
+              bondXp: typeof a.bondXp === 'number' && Number.isFinite(a.bondXp) ? a.bondXp : 100,
+              careStartTimestampMs: typeof a.careStartTimestampMs === 'number' ? a.careStartTimestampMs : Date.now(),
+              careDaysCount: typeof a.careDaysCount === 'number' ? a.careDaysCount : 1,
+              lastCareDayStamp: typeof a.lastCareDayStamp === 'string' ? a.lastCareDayStamp : new Date().toISOString().slice(0, 10),
+              showBabyCompanion: Boolean(a.showBabyCompanion),
+            }))
+        : [];
+
     const plantSources = [
       parsed.placedPlants,
       localParsed.placedPlants,
@@ -487,6 +524,11 @@ export function loadSaveState(
         ownedAssetsMap[a.assetId] = Math.max(1, ownedAssetsMap[a.assetId] ?? 1);
       }
     }
+    for (const a of sanitizedBagAnimals) {
+      if (a?.assetId && ASSET_ECO_CONFIG[a.assetId]) {
+        ownedAssetsMap[a.assetId] = (ownedAssetsMap[a.assetId] ?? 0) + 1;
+      }
+    }
     for (const p of finalPlants) {
       if (p?.assetId && !p.isDefaultScenery && ASSET_ECO_CONFIG[p.assetId]) {
         ownedAssetsMap[p.assetId] = Math.max(1, ownedAssetsMap[p.assetId] ?? 1);
@@ -555,6 +597,7 @@ export function loadSaveState(
       ownedAssets: ownedAssetsMap,
       foodInventory: mergedFood,
       placedAnimals: finalAnimals,
+      bagAnimals: sanitizedBagAnimals,
       placedPlants: finalPlants,
       droppedFoods: Array.isArray(parsed.droppedFoods)
         ? parsed.droppedFoods
@@ -584,6 +627,7 @@ export function loadSaveState(
           ? Math.max(0, parsed.dailyEarnedGreenbits)
           : 0,
       lastEarnDayStamp: typeof parsed.lastEarnDayStamp === 'string' ? parsed.lastEarnDayStamp : '',
+      lastFoodSpawnDayStamp: typeof parsed.lastFoodSpawnDayStamp === 'string' ? parsed.lastFoodSpawnDayStamp : undefined,
       fieldExpansions:
         typeof parsed.fieldExpansions === 'number' && Number.isFinite(parsed.fieldExpansions)
           ? Math.max(0, Math.floor(parsed.fieldExpansions))

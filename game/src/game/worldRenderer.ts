@@ -3210,19 +3210,18 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
           ? 1.02
           : rig.pose.headScaleY;
 
-    const pose: TurtlePose = {
-      ...rig.pose,
-      blinkAmount: isSeaTurtleAsset
-        ? rig.pose.blinkAmount
-        : Math.max(rig.pose.blinkAmount, animal.blinkActiveSec > 0 ? 0.96 : 0),
-      mouthOpen: chewMouth,
-      mouthSmile: animal.eatingStage !== 'none' ? 0.85 : rig.pose.mouthSmile,
-      blushAlpha: animal.eatingStage !== 'none' ? 0.65 : rig.pose.blushAlpha,
-      headScaleY: chewScaleY,
-      questionMarkAlpha: rig.pose.questionMarkAlpha,
-      laughMarksAlpha: rig.pose.laughMarksAlpha,
-      angryVeinAlpha: rig.pose.angryVeinAlpha,
-    };
+    const pose: TurtlePose = isSeaTurtleAsset && animal.eatingStage === 'none'
+      ? rig.pose
+      : {
+          ...rig.pose,
+          blinkAmount: isSeaTurtleAsset
+            ? rig.pose.blinkAmount
+            : Math.max(rig.pose.blinkAmount, animal.blinkActiveSec > 0 ? 0.96 : 0),
+          mouthOpen: chewMouth,
+          mouthSmile: animal.eatingStage !== 'none' ? 0.85 : rig.pose.mouthSmile,
+          blushAlpha: animal.eatingStage !== 'none' ? 0.65 : rig.pose.blushAlpha,
+          headScaleY: chewScaleY,
+        };
 
     const drawW = 220 * worldScale;
     const drawH = 200 * worldScale;

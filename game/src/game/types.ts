@@ -173,6 +173,7 @@ export interface PlacedPlant {
   grazingBitesRemaining: number; // for aquatic food plants
   isDefaultScenery?: boolean;
   lastGrowthDayStamp?: string; // Tracks calendar day for 1 day = 1 round growth
+  lastFruitRegenDayStamp?: string; // Tracks calendar day for once-per-day fruit growth
   plantedTimestampMs?: number;
 }
 
@@ -226,6 +227,7 @@ export interface SaveState {
   ownedAssets: Record<string, number>; // assetId -> total owned count
   foodInventory: Record<string, number>; // foodId -> count in bag
   placedAnimals: PlacedAnimal[];
+  bagAnimals?: PlacedAnimal[]; // Stored animals in bag preserving custom name, level, attributes
   placedPlants: PlacedPlant[];
   droppedFoods: DroppedFood[];
   discoveredEcoDex: string[]; // assetIds placed at least once
@@ -243,6 +245,7 @@ export interface SaveState {
   cameraY?: number;
   dailyEarnedGreenbits?: number;
   lastEarnDayStamp?: string;
+  lastFoodSpawnDayStamp?: string; // Tracks once-per-day natural food spawn
   graphicQuality?: 'dynamic' | 'performance' | 'quality';
   fieldExpansions?: number;
   userMeterSeed?: number;

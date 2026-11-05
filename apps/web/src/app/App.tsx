@@ -50,7 +50,7 @@ const habitImages: Record<HabitCode, string> = {
 };
 
 declare const __APP_BUILD_VERSION__: string | undefined;
-export const APP_BUILD_VERSION = (typeof __APP_BUILD_VERSION__ !== "undefined" && __APP_BUILD_VERSION__) ? __APP_BUILD_VERSION__ : "0.5.0";
+export const APP_BUILD_VERSION = (typeof __APP_BUILD_VERSION__ !== "undefined" && __APP_BUILD_VERSION__) ? __APP_BUILD_VERSION__ : "0.5.1";
 
 export function parseSemVer(v: string): number[] {
   return v.replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);

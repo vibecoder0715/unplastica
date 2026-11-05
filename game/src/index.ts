@@ -257,9 +257,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   root.appendChild(worldCanvas);
 
   const storedLang = (typeof localStorage !== 'undefined' ? localStorage.getItem('unplastica-language') : null) as GameLanguage | null;
-  let currentLang: GameLanguage = (storedLang === 'Bahasa Melayu' || storedLang === '中文' || storedLang === 'தமிழ்' || storedLang === 'English')
-    ? storedLang
-    : (options?.language ?? 'English');
+  let currentLang: GameLanguage = (options?.language === 'Bahasa Melayu' || options?.language === '中文' || options?.language === 'தமிழ்' || options?.language === 'English')
+    ? options.language
+    : ((storedLang === 'Bahasa Melayu' || storedLang === '中文' || storedLang === 'தமிழ்' || storedLang === 'English')
+      ? storedLang
+      : 'English');
 
   // Dynamic Performance & Resolution Scaling state
   let handleResize = () => {};
@@ -354,6 +356,10 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     if (detail && (detail === 'English' || detail === 'Bahasa Melayu' || detail === '中文' || detail === 'தமிழ்')) {
       currentLang = detail;
       updateHudTooltips();
+      if (dockSearchInput) {
+        dockSearchInput.placeholder = getDockSearchPlaceholder(currentLang);
+        dockSearchInput.setAttribute('aria-label', getDockSearchPlaceholder(currentLang));
+      }
       renderEntityCard();
       renderDockCards();
     }
@@ -364,6 +370,10 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       if (e.newValue === 'English' || e.newValue === 'Bahasa Melayu' || e.newValue === '中文' || e.newValue === 'தமிழ்') {
         currentLang = e.newValue as GameLanguage;
         updateHudTooltips();
+        if (dockSearchInput) {
+          dockSearchInput.placeholder = getDockSearchPlaceholder(currentLang);
+          dockSearchInput.setAttribute('aria-label', getDockSearchPlaceholder(currentLang));
+        }
         renderEntityCard();
         renderDockCards();
       }
@@ -689,7 +699,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
       const title = document.createElement('div');
       title.className = 'dock-card-title';
-      title.textContent = food.name;
+      title.textContent = getLocalizedFoodName(food.id, food.name, currentLang);
 
       card.append(dragPop, countSpan, img, title);
 
@@ -698,7 +708,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         return {
           kind: 'food',
           id: food.id,
-          label: food.name,
+          label: getLocalizedFoodName(food.id, food.name, currentLang),
           thumbUrl: img.src,
           pointerX: clientX,
           pointerY: clientY,
@@ -749,7 +759,14 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
       const title = document.createElement('div');
       title.className = 'dock-card-title';
-      title.textContent = localizedName;
+      const bagAnimal = saveState.bagAnimals?.find((a) => a.assetId === asset.id);
+      const displayTitle = bagAnimal?.customName || localizedName;
+      if (bagAnimal) {
+        const lv = computeAnimalLoveLevel(bagAnimal);
+        title.textContent = lv > 1 ? `${displayTitle} (Lv.${lv})` : displayTitle;
+      } else {
+        title.textContent = displayTitle;
+      }
 
       card.append(dragPop, countSpan, img, title);
 
@@ -763,7 +780,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         return {
           kind: 'asset',
           id: asset.id,
-          label: localizedName,
+          label: displayTitle,
           thumbUrl: getAssetThumbnailDataUrl(asset.id),
           pointerX: clientX,
           pointerY: clientY,
@@ -835,20 +852,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         const idx = saveState.placedAnimals.findIndex((a) => a.uid === item.placedUid);
         if (idx !== -1) {
           const removed = saveState.placedAnimals.splice(idx, 1)[0];
+          if (!saveState.bagAnimals) saveState.bagAnimals = [];
+          saveState.bagAnimals.push(removed);
           if (selectedAnimalUid === removed.uid) {
             selectedAnimalUid = saveState.placedAnimals[0]?.uid ?? null;
           }
           soundEngine.playCoinChime();
           const animalName = removed.customName || getLocalizedAssetName(removed.assetId, 'Animal', currentLang);
-          showToast(
-            currentLang === '中文'
-              ? `已将 ${animalName} 收回背包`
-              : currentLang === 'Bahasa Melayu'
-              ? `${animalName} telah disimpan semula ke dalam beg`
-              : currentLang === 'தமிழ்'
-              ? `${animalName} பையில் சேர்க்கப்பட்டது`
-              : `Returned ${animalName} to your bag`
-          );
+          const loveLv = computeAnimalLoveLevel(removed);
+          showToast(getGameString('retainedBagStored', currentLang).replace('{name}', animalName).replace('{level}', String(loveLv)));
           renderEntityCard();
           renderDockCards();
           persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
@@ -918,7 +930,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const animal = saveState.placedAnimals.find((a) => a.uid === placedUid);
     if (!animal) return;
 
-    const validation = validateAssetDropZone(animal.assetId, zoneId, worldX);
+    const validation = validateAssetDropZone(animal.assetId, zoneId, worldX, currentLang);
     if (!validation.valid) {
       soundEngine.playRejectBoing();
       const start = clientToLogical(screenX, screenY);
@@ -973,7 +985,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     screenY: number,
     zoneId: HabitatZoneId,
   ): void {
-    const validation = validateAssetDropZone(assetId, zoneId, worldX);
+    const validation = validateAssetDropZone(assetId, zoneId, worldX, currentLang);
     if (!validation.valid) {
       soundEngine.playRejectBoing();
       const start = clientToLogical(screenX, screenY);
@@ -1012,45 +1024,65 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       );
       const releaseWorldY = screenToWorld(0, screenY).y;
       const dropStartY = Math.min(releaseWorldY, targetGroundY - 135);
-      const uid = `anim_${asset.code.toLowerCase()}_${Date.now()}`;
-      clearAnimalRestCache(uid);
       const night = isAnimalResting(asset.id, saveState.timeOfDayHours);
       const nowMs = Date.now();
-      const newAnimal: PlacedAnimal = {
-        uid,
-        assetId: asset.id,
-        customName: asset.name,
-        zoneId,
-        x: safeX,
-        y: dropStartY,
-        targetX: safeX + (Math.random() > 0.5 ? 160 : -160),
-        targetY: targetGroundY,
-        isFalling: true,
-        facing: Math.random() > 0.5 ? 1 : -1,
-        hunger: 88,
-        happiness: 95,
-        bondXp: 100,
-        showBabyCompanion: false,
-        currentEmotion: night ? 'sleepy' : 'waving',
-        emotionTimerSec: night ? 0 : 3.5,
-        eatingStage: 'none',
-        eatingTimerSec: 0,
-        petScratchAccum: 0,
-        lastGreenbitDropSec: 0,
-        blinkCountdownSec: 2.2,
-        blinkActiveSec: 0,
-        lastEmoteTriggerMs: nowMs,
-        emoteSpamCount: 0,
-        lastTapMs: nowMs,
-        locoBlend: night ? 0 : 0,
-        vx: 0,
-        vy: 20,
-        careStartTimestampMs: nowMs,
-        careDaysCount: 1,
-        lastCareDayStamp: new Date(nowMs).toISOString().slice(0, 10),
-      };
+
+      const storedIdx = saveState.bagAnimals?.findIndex((a) => a.assetId === asset.id);
+      let newAnimal: PlacedAnimal;
+      if (storedIdx !== undefined && storedIdx !== -1 && saveState.bagAnimals) {
+        newAnimal = saveState.bagAnimals.splice(storedIdx, 1)[0];
+        newAnimal.zoneId = zoneId;
+        newAnimal.x = safeX;
+        newAnimal.y = dropStartY;
+        newAnimal.targetX = safeX + (Math.random() > 0.5 ? 160 : -160);
+        newAnimal.targetY = targetGroundY;
+        newAnimal.isFalling = true;
+        newAnimal.vx = 0;
+        newAnimal.vy = 20;
+        newAnimal.eatingStage = 'none';
+        newAnimal.eatingTimerSec = 0;
+        newAnimal.currentEmotion = night ? 'sleepy' : 'waving';
+        newAnimal.emotionTimerSec = night ? 0 : 3.5;
+        clearAnimalRestCache(newAnimal.uid);
+      } else {
+        const uid = `anim_${asset.code.toLowerCase()}_${Date.now()}`;
+        clearAnimalRestCache(uid);
+        newAnimal = {
+          uid,
+          assetId: asset.id,
+          customName: asset.name,
+          zoneId,
+          x: safeX,
+          y: dropStartY,
+          targetX: safeX + (Math.random() > 0.5 ? 160 : -160),
+          targetY: targetGroundY,
+          isFalling: true,
+          facing: Math.random() > 0.5 ? 1 : -1,
+          hunger: 88,
+          happiness: 95,
+          bondXp: 100,
+          showBabyCompanion: false,
+          currentEmotion: night ? 'sleepy' : 'waving',
+          emotionTimerSec: night ? 0 : 3.5,
+          eatingStage: 'none',
+          eatingTimerSec: 0,
+          petScratchAccum: 0,
+          lastGreenbitDropSec: 0,
+          blinkCountdownSec: 2.2,
+          blinkActiveSec: 0,
+          lastEmoteTriggerMs: nowMs,
+          emoteSpamCount: 0,
+          lastTapMs: nowMs,
+          locoBlend: night ? 0 : 0,
+          vx: 0,
+          vy: 20,
+          careStartTimestampMs: nowMs,
+          careDaysCount: 1,
+          lastCareDayStamp: new Date(nowMs).toISOString().slice(0, 10),
+        };
+      }
       saveState.placedAnimals.push(newAnimal);
-      selectedAnimalUid = uid;
+      selectedAnimalUid = newAnimal.uid;
     } else {
       const placeY = getDefaultPlacementY(asset.id, zoneId, worldX, viewportHeight);
       const uid = `plant_${asset.code.toLowerCase()}_${Date.now()}`;
@@ -1132,7 +1164,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     // Food left on the ground must belong to that habitat and depth (no durians on the coral reef,
     // no fish & prawns on muddy shores or dry land)
-    const foodValidation = validateFoodDropZone(foodId, zoneId, worldX);
+    const foodValidation = validateFoodDropZone(foodId, zoneId, worldX, currentLang);
     if (!foodValidation.valid) {
       soundEngine.playRejectBoing();
       if (!foodSpec.allowedZones.includes(zoneId)) {
@@ -1748,18 +1780,13 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const idx = saveState.placedAnimals.findIndex((a) => a.uid === animal.uid);
       if (idx !== -1) {
         const removed = saveState.placedAnimals.splice(idx, 1)[0];
+        if (!saveState.bagAnimals) saveState.bagAnimals = [];
+        saveState.bagAnimals.push(removed);
         selectedAnimalUid = saveState.placedAnimals[0]?.uid ?? null;
         soundEngine.playCoinChime();
         const animalName = removed.customName || getLocalizedAssetName(removed.assetId, 'Animal', currentLang);
-        showToast(
-          currentLang === '中文'
-            ? `已将 ${animalName} 收回背包`
-            : currentLang === 'Bahasa Melayu'
-            ? `${animalName} telah disimpan semula ke dalam beg`
-            : currentLang === 'தமிழ்'
-            ? `${animalName} பையில் சேர்க்கப்பட்டது`
-            : `Returned ${animalName} to your bag`
-        );
+        const loveLv = computeAnimalLoveLevel(removed);
+        showToast(getGameString('retainedBagStored', currentLang).replace('{name}', animalName).replace('{level}', String(loveLv)));
         renderEntityCard();
         renderDockCards();
         persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
@@ -1947,7 +1974,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       dietLabel.className = 'info-popup-diet-label';
       dietLabel.style.fontWeight = '800';
       dietLabel.style.marginBottom = '6px';
-      dietLabel.textContent = 'Diet:';
+      dietLabel.textContent = getGameString('dietLabel', currentLang);
 
       dietBlock.appendChild(dietLabel);
 
@@ -2511,13 +2538,13 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     const expandTitle = document.createElement('div');
     expandTitle.className = 'tower-list-name';
-    expandTitle.innerHTML = `<span>+ Expand Fields</span> ${currentExpansions > 0 ? `<span style="font-size:11px;color:#15803d;">(Tier +${currentExpansions})</span>` : ''}`;
+    expandTitle.innerHTML = `<span>+ ${getGameString('expandFieldsTitle', currentLang)}</span> ${currentExpansions > 0 ? `<span style="font-size:11px;color:#15803d;">(${getGameString('expandTier', currentLang)} +${currentExpansions})</span>` : ''}`;
 
     const expandSub = document.createElement('div');
     expandSub.style.fontSize = '11px';
     expandSub.style.color = canUnlockExpand ? '#15803d' : '#64748b';
     expandSub.style.marginTop = '2px';
-    expandSub.innerHTML = `Lv.20+ Animals: <b>${lv20AnimalsCount}/20</b> • Cost: <span class="price-token-inline">${GB_LOGO_HTML}<b>${expandPrice}</b></span>`;
+    expandSub.innerHTML = `${getGameString('expandSubReq', currentLang).replace('{count}', String(lv20AnimalsCount))}<span class="price-token-inline">${GB_LOGO_HTML}<b>${expandPrice}</b></span>`;
 
     expandInfo.append(expandTitle, expandSub);
 
@@ -2529,11 +2556,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     plusBtn.style.fontSize = '18px';
     plusBtn.style.opacity = canUnlockExpand && saveState.greenbits >= expandPrice ? '1' : '0.65';
     plusBtn.textContent = '+';
-    plusBtn.title = 'Expand Sanctuary Fields';
+    plusBtn.title = getGameString('expandFieldsTitle', currentLang);
     plusBtn.addEventListener('click', () => {
       if (!canUnlockExpand) {
         soundEngine.playRejectBoing();
-        showToast(`Requires 20 animals at Lv. 20+ (${lv20AnimalsCount}/20)`, 2800);
+        showToast(getGameString('expandRequires', currentLang).replace('{count}', String(lv20AnimalsCount)), 2800);
         return;
       }
       if (saveState.greenbits < expandPrice) {
@@ -2542,7 +2569,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         return;
       }
       openBuyConfirmationDialog({
-        itemName: `Expand Sanctuary Fields (+Tier ${currentExpansions + 1})`,
+        itemName: `${getGameString('expandFieldsTitle', currentLang)} (+${getGameString('expandTier', currentLang)} ${currentExpansions + 1})`,
         price: expandPrice,
         thumbSrc: '/assets/aistudio/image_3961e3ca.png',
         onConfirm: () => {
@@ -2553,7 +2580,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           soundEngine.playCoinChime();
           persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
           syncHudDOM();
-          showToast(`Sanctuary Fields Expanded! (Tier +${saveState.fieldExpansions})`, 3000);
+          showToast(getGameString('expandSuccess', currentLang).replace('{tier}', String(saveState.fieldExpansions)), 3000);
           openTeleportMapModal(preselectedTowerId);
         },
       });
@@ -2926,78 +2953,105 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
   let lastFrameTime = performance.now();
   let totalElapsedSec = 0;
-  let naturalFoodSpawnTimerSec = 3.5;
 
   // Biological 6-hour hunger decay rate: 100 fullness points over 6 hours (21,600 seconds)
   const HUNGER_DECAY_PER_SEC = 100 / (6 * 3600);
 
+  const FRUIT_TO_TREE_MAP: Record<string, string> = {
+    food_durian_fruit: 'plant_03_durian_tree',
+    food_mangosteen_fruit: 'plant_04_mangosteen_tree',
+    food_banana_bunch: 'plant_05_banana_palm',
+    food_papaya_fruit: 'plant_06_papaya_tree',
+    food_rambutan_fruit: 'plant_07_rambutan_tree',
+    food_wild_figs: 'plant_14_banyan_fig',
+    mangrove_apple: 'plant_18_red_mangrove',
+    food_coconut: 'plant_11_sugar_palm',
+    food_bamboo_shoots: 'plant_08_bamboo_groves',
+  };
+
   /**
-   * Spawns sparse, low-density natural food sources across scenes so every food item in FOOD_CATALOG
-   * can be obtained randomly by clicking in its habitat, or eaten automatically by nearby animals.
+   * Logical daily food spawn:
+   * Mostly spawns on the side of the respective tree/plant for fruits,
+   * with a few native aquatic/wetland items, strictly once per day.
    */
-  function spawnSparseNaturalSceneFood(): void {
-    // Low density cap: max 8 wild food sources across the entire world (max 2 near current viewport)
-    const wildFoods = saveState.droppedFoods.filter((df) => df.uid.startsWith('wild_'));
-    if (wildFoods.length >= 8) return;
+  function spawnLogicalDailySceneFoods(): void {
+    const todayDateStamp = new Date().toISOString().slice(0, 10);
+    if (saveState.lastFoodSpawnDayStamp === todayDateStamp) return;
+    saveState.lastFoodSpawnDayStamp = todayDateStamp;
 
-    const currentCamCenterX = cameraX + viewportWidth * 0.5;
-    const currentZone = getZoneAtWorldX(currentCamCenterX);
-    const nearViewportCount = saveState.droppedFoods.filter(
-      (df) => Math.abs(df.x - currentCamCenterX) < viewportWidth * 0.9,
-    ).length;
-
-    // Choose either current camera zone (if < 2 nearby) or a zone withplaced animals
-    const targetZone: HabitatZoneId =
-      nearViewportCount < 2
-        ? currentZone
-        : (saveState.placedAnimals[Math.floor(Math.random() * saveState.placedAnimals.length)]?.zoneId ?? currentZone);
-
-    const eligibleFoods = foodList.filter((f) => f.allowedZones.includes(targetZone));
-    if (eligibleFoods.length === 0) return;
-
-    const chosenFood = eligibleFoods[Math.floor(Math.random() * eligibleFoods.length)];
-    const zSpec = getZoneSpec(targetZone);
-
-    let spawnX: number;
-    if (targetZone === currentZone && nearViewportCount < 2) {
-      const offset = (Math.random() - 0.5) * viewportWidth * 0.78;
-      spawnX = clamp(currentCamCenterX + offset, zSpec.xStart + 180, zSpec.xEnd - 180);
-    } else {
-      const zoneAnimals = saveState.placedAnimals.filter((a) => a.zoneId === targetZone);
-      if (zoneAnimals.length > 0) {
-        const anchor = zoneAnimals[Math.floor(Math.random() * zoneAnimals.length)];
-        spawnX = clamp(anchor.x + (Math.random() - 0.5) * 680, zSpec.xStart + 180, zSpec.xEnd - 180);
-      } else {
-        spawnX = zSpec.xStart + 400 + Math.random() * Math.max(400, zSpec.xEnd - zSpec.xStart - 800);
-      }
+    // Prune stale wild dropped foods so total does not exceed 8
+    const existingWild = saveState.droppedFoods.filter((df) => df.uid.startsWith('wild_'));
+    if (existingWild.length >= 6) {
+      saveState.droppedFoods = saveState.droppedFoods.filter(
+        (df) => !df.uid.startsWith('wild_') || existingWild.slice(-3).includes(df)
+      );
     }
 
-    // Keep low density and valid habitat depth: avoid spawning too close to any existing food or on invalid banks
-    if (saveState.droppedFoods.some((df) => Math.abs(df.x - spawnX) < 340)) return;
-    if (!validateFoodDropZone(chosenFood.id, targetZone, spawnX).valid) return;
+    // 1. Spawning fruits: mostly on the side of the tree!
+    for (const [fruitId, treeAssetId] of Object.entries(FRUIT_TO_TREE_MAP)) {
+      if (Math.random() < 0.4) continue; // Random daily variety
+      const foodSpec = FOOD_CATALOG[fruitId];
+      if (!foodSpec) continue;
+      const matchingTrees = saveState.placedPlants.filter((p) => p.assetId === treeAssetId);
+      if (matchingTrees.length === 0) continue;
 
-    const groundY = getFoodRestY(chosenFood.id, spawnX);
-    saveState.droppedFoods.push({
-      uid: `wild_${chosenFood.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      foodId: chosenFood.id,
-      zoneId: targetZone,
-      x: spawnX,
-      y: groundY,
-      vy: 0,
-      groundY,
-      isGolden: false,
-      bitesRemaining: 1,
-      createdAtSec: performance.now() / 1000,
-    });
+      const tree = matchingTrees[Math.floor(Math.random() * matchingTrees.length)];
+      const zSpec = getZoneSpec(tree.zoneId);
+      // Spawn on the side of the tree (42..75px to left or right)
+      const sideOffset = (Math.random() > 0.5 ? 1 : -1) * (42 + Math.random() * 55);
+      const spawnX = clamp(tree.x + sideOffset, zSpec.xStart + 120, zSpec.xEnd - 120);
+
+      if (saveState.droppedFoods.some((df) => Math.abs(df.x - spawnX) < 140)) continue;
+      if (!validateFoodDropZone(fruitId, tree.zoneId, spawnX, currentLang).valid) continue;
+
+      const groundY = getFoodRestY(fruitId, spawnX);
+      saveState.droppedFoods.push({
+        uid: `wild_${fruitId}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        foodId: fruitId,
+        zoneId: tree.zoneId,
+        x: spawnX,
+        y: groundY,
+        vy: 0,
+        groundY,
+        isGolden: false,
+        bitesRemaining: 1,
+        createdAtSec: performance.now() / 1000,
+      });
+    }
+
+    // 2. Also spawn 1-2 non-tree foods in aquatic and wetland habitats
+    const aquaticFoods = foodList.filter((f) => !FRUIT_TO_TREE_MAP[f.id]);
+    for (let i = 0; i < 2; i++) {
+      const chosenFood = aquaticFoods[Math.floor(Math.random() * aquaticFoods.length)];
+      if (!chosenFood) continue;
+      const targetZone = chosenFood.allowedZones[Math.floor(Math.random() * chosenFood.allowedZones.length)];
+      const zSpec = getZoneSpec(targetZone);
+      const spawnX = zSpec.xStart + 350 + Math.random() * Math.max(300, zSpec.xEnd - zSpec.xStart - 700);
+
+      if (saveState.droppedFoods.some((df) => Math.abs(df.x - spawnX) < 220)) continue;
+      if (!validateFoodDropZone(chosenFood.id, targetZone, spawnX, currentLang).valid) continue;
+
+      const groundY = getFoodRestY(chosenFood.id, spawnX);
+      saveState.droppedFoods.push({
+        uid: `wild_${chosenFood.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        foodId: chosenFood.id,
+        zoneId: targetZone,
+        x: spawnX,
+        y: groundY,
+        vy: 0,
+        groundY,
+        isGolden: false,
+        bitesRemaining: 1,
+        createdAtSec: performance.now() / 1000,
+      });
+    }
+
+    persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
   }
 
   function stepSimulation(dt: number): void {
     totalElapsedSec += dt;
-    naturalFoodSpawnTimerSec -= dt;
-    if (naturalFoodSpawnTimerSec <= 0) {
-      naturalFoodSpawnTimerSec = 22 + Math.random() * 12;
-      spawnSparseNaturalSceneFood();
-    }
+    spawnLogicalDailySceneFoods();
 
     // Smooth 2D camera interpolation
     cameraX += (targetCameraX - cameraX) * Math.min(1, dt * 10);
@@ -3017,19 +3071,21 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const todayDateStamp = new Date().toISOString().slice(0, 10);
       if (!plant.lastGrowthDayStamp) {
         plant.lastGrowthDayStamp = todayDateStamp;
+        plant.lastFruitRegenDayStamp = todayDateStamp;
       } else if (plant.lastGrowthDayStamp !== todayDateStamp && plant.growthStage < 3) {
         // A new calendar day has arrived -> advance 1 round!
         plant.growthStage = (plant.growthStage + 1) as 2 | 3;
         plant.growthProgress = plant.growthStage === 2 ? 50 : 100;
         plant.lastGrowthDayStamp = todayDateStamp;
+        plant.lastFruitRegenDayStamp = todayDateStamp;
         if (plant.growthStage === 3 && eco?.producesFruitId) {
-          plant.fruitCount = 3;
+          plant.fruitCount = Math.min(3, (plant.fruitCount || 0) + 1);
         }
       } else if (eco?.producesFruitId && plant.growthStage >= 3 && plant.fruitCount < 3) {
-        plant.fruitRegenTimerSec -= dt;
-        if (plant.fruitRegenTimerSec <= 0) {
-          plant.fruitCount += 1;
-          plant.fruitRegenTimerSec = 28;
+        // Once mature, plants strictly grow fruits only ONCE PER DAY on a new calendar day
+        if (plant.lastFruitRegenDayStamp !== todayDateStamp) {
+          plant.fruitCount = Math.min(3, plant.fruitCount + 1);
+          plant.lastFruitRegenDayStamp = todayDateStamp;
         }
       }
     }
