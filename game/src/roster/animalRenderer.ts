@@ -8,7 +8,9 @@ import {
   drawSoftCheekBlushes,
   IRIS_PALETTES,
   renderTurtle,
+  renderTurtleVariant,
   setActiveAnimalEyeScale,
+  TURTLE_VARIANT_PALETTES,
 } from '../turtle/renderer';
 
 function clamp(v: number, min: number, max: number): number {
@@ -851,9 +853,16 @@ export function isLandStandingAnimal(assetId: string): boolean {
 }
 
 export function getSpeciesFramingScale(assetId: string): number {
-  if (assetId.startsWith('animal_28_green_sea_turtle')) return 1.0;
+  if (
+    assetId.startsWith('animal_28_green_sea_turtle') ||
+    assetId === 'animal_29_hawksbill_sea_turtle'
+  ) {
+    return 1.0;
+  }
   return SPECIES_SCALE_MAP[assetId] ?? 1.0;
 }
+
+let currentAnimalClimbing = false;
 
 export interface AnimalRenderOptions {
     yaw?: number;
@@ -894,6 +903,22 @@ export interface AnimalRenderOptions {
         tearDrops,
         true,
         preview3D ? { yaw: preview3D.yaw ?? 0, pitch: preview3D.pitch ?? 0 } : undefined,
+        {
+          skipClear: preview3D?.skipClear,
+          framingScale: preview3D?.framingScale,
+        },
+      );
+      return;
+    }
+    if (assetId === 'animal_29_hawksbill_sea_turtle') {
+      setActiveAnimalEyeScale(1.0);
+      renderTurtleVariant(
+        ctx,
+        width,
+        height,
+        pose,
+        TURTLE_VARIANT_PALETTES.animal_29_hawksbill_sea_turtle,
+        tearDrops,
         {
           skipClear: preview3D?.skipClear,
           framingScale: preview3D?.framingScale,
@@ -949,33 +974,34 @@ export interface AnimalRenderOptions {
     // Iteration 1-4: Smooth C2-continuous 4-beat biological gait, vertical tree-climbing & hydrodynamic S-wave propulsion
     const isSeaTurtle = assetId.includes('sea_turtle') || assetId.includes('turtle');
     const isClimbing = Boolean(preview3D?.climbing);
-    const walkPhase = locoTime * (isClimbing ? 5.8 : 4.4);
+    currentAnimalClimbing = isClimbing && activityScale > 0.12;
+    const walkPhase = locoTime * (isClimbing ? 6.2 : 4.4);
     // Sea turtles already get their main-page swimming motion from TurtleRigController (rig.pose)
     const swimPhase = locoTime * (isSeaTurtle ? 1.35 : 2.6);
     const breathWave = Math.sin(locoTime * 2.3);
 
     // Smooth C2 harmonic vertical bob or tree-climbing pull-up heave
     const walkBob = isClimbing
-      ? Math.sin(walkPhase) * 7.2 * activityScale + breathWave * 1.1 * (1 - activityScale)
+      ? Math.sin(walkPhase) * 11.2 * activityScale + breathWave * 1.1 * (1 - activityScale)
       : -(0.5 - 0.5 * Math.cos(walkPhase * 2)) * 3.8 * activityScale + breathWave * 0.9 * (1 - activityScale);
     const walkSurge = isClimbing
-      ? Math.cos(walkPhase * 0.5) * 3.4 * activityScale
+      ? Math.cos(walkPhase * 0.5) * 4.2 * activityScale
       : (0.5 - 0.5 * Math.cos(walkPhase)) * 2.6 * activityScale;
     const walkPitch = isClimbing
-      ? (-0.24 + Math.sin(walkPhase) * 0.048) * activityScale
+      ? (-0.34 + Math.sin(walkPhase) * 0.065) * activityScale
       : Math.sin(walkPhase - 0.35) * 0.014 * activityScale;
     // 4-beat lateral gait stride OR hand-over-hand arboreal tree-climbing reach
     const walkStrideFrontNear = isClimbing
-      ? (-0.64 + Math.sin(walkPhase) * 0.62) * activityScale
+      ? (-1.08 + Math.sin(walkPhase) * 0.76) * activityScale
       : (Math.sin(walkPhase) + 0.14 * Math.sin(walkPhase * 2)) * 0.38 * activityScale;
     const walkStrideFrontFar = isClimbing
-      ? (-0.64 + Math.sin(walkPhase + Math.PI) * 0.62) * activityScale
+      ? (-1.08 + Math.sin(walkPhase + Math.PI) * 0.76) * activityScale
       : (Math.sin(walkPhase + Math.PI) + 0.14 * Math.sin((walkPhase + Math.PI) * 2)) * 0.38 * activityScale;
     const walkStrideHindNear = isClimbing
-      ? (0.28 + Math.sin(walkPhase + Math.PI) * 0.48) * activityScale
+      ? (-0.28 + Math.sin(walkPhase + Math.PI) * 0.58) * activityScale
       : (Math.sin(walkPhase + Math.PI * 0.82) + 0.14 * Math.sin((walkPhase + Math.PI * 0.82) * 2)) * 0.40 * activityScale;
     const walkStrideHindFar = isClimbing
-      ? (0.28 + Math.sin(walkPhase) * 0.48) * activityScale
+      ? (-0.28 + Math.sin(walkPhase) * 0.58) * activityScale
       : (Math.sin(walkPhase - Math.PI * 0.18) + 0.14 * Math.sin((walkPhase - Math.PI * 0.18) * 2)) * 0.40 * activityScale;
 
     const swimBob = isSeaTurtle ? 0 : Math.sin(swimPhase) * 5.6 * activityScale + breathWave * 1.6 * (1 - activityScale);
@@ -1882,17 +1908,37 @@ export interface AnimalRenderOptions {
       },
     }[species];
 
-    // 1. Far Hind & Far Front Limbs (Permanently socketed behind torso, turning right on emotes!)
+    // 1. Far Hind & Far Front Limbs (Permanently socketed behind torso, turning right on emotes or reaching overhead when climbing!)
     const farGestureAmt = Math.max(pose.farFlipperChinAmount, pose.farFlipperRaiseAmount);
-    drawSculptedPawLimb(ctx, -74, 74, pose.hindFarAngle * 0.45, 112, 46, pal.cMid, pal.cDark, pal.cDark, pal.outline, {
-      pawTipColor: pal.faceDark,
-    });
+    const climbFrontShoulderY = currentAnimalClimbing ? 34 : 70;
+    const climbArmLen = currentAnimalClimbing
+      ? species === 'orangutan'
+        ? 144
+        : 126
+      : species === 'orangutan'
+        ? 124
+        : 116;
     drawSculptedPawLimb(
       ctx,
-      52,
-      70,
-      pose.farFlipperAngle * 0.42 - 0.06 - 0.48 * farGestureAmt,
-      116,
+      -74,
+      currentAnimalClimbing ? 62 : 74,
+      pose.hindFarAngle * (currentAnimalClimbing ? 0.85 : 0.45),
+      112,
+      46,
+      pal.cMid,
+      pal.cDark,
+      pal.cDark,
+      pal.outline,
+      {
+        pawTipColor: pal.faceDark,
+      },
+    );
+    drawSculptedPawLimb(
+      ctx,
+      currentAnimalClimbing ? 60 : 52,
+      climbFrontShoulderY,
+      pose.farFlipperAngle * (currentAnimalClimbing ? 0.88 : 0.42) - 0.06 - 0.48 * farGestureAmt,
+      climbArmLen,
       species === 'orangutan' ? 52 : 46,
       pal.cLight,
       pal.cMid,
@@ -1961,18 +2007,33 @@ export interface AnimalRenderOptions {
     ctx.restore();
 
     // 4. Near Hind Leg & Near Front Leg
-    drawSculptedPawLimb(ctx, -112, 72, pose.hindNearAngle * 0.45, 114, 50, pal.cLight, pal.cMid, pal.cDark, pal.outline, {
-      pawTipColor: pal.faceDark,
-      stripesColor: species === 'langur' ? '#ffffff' : undefined,
-    });
+    drawSculptedPawLimb(
+      ctx,
+      -112,
+      currentAnimalClimbing ? 58 : 72,
+      pose.hindNearAngle * (currentAnimalClimbing ? 0.85 : 0.45),
+      114,
+      50,
+      pal.cLight,
+      pal.cMid,
+      pal.cDark,
+      pal.outline,
+      {
+        pawTipColor: pal.faceDark,
+        stripesColor: species === 'langur' ? '#ffffff' : undefined,
+      },
+    );
 
     const waveAmt = clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1);
     drawSculptedPawLimb(
       ctx,
-      8,
-      68,
-      pose.nearFlipperAngle * (0.42 + 0.2 * waveAmt) + 0.04 - 0.52 * waveAmt - 0.24 * pose.nearFlipperTuckAmount,
-      118,
+      currentAnimalClimbing ? 18 : 8,
+      currentAnimalClimbing ? 32 : 68,
+      pose.nearFlipperAngle * ((currentAnimalClimbing ? 0.88 : 0.42) + 0.2 * waveAmt) +
+        0.04 -
+        0.52 * waveAmt -
+        0.24 * pose.nearFlipperTuckAmount,
+      climbArmLen + 2,
       species === 'orangutan' ? 52 : 46,
       pal.cLight,
       pal.cMid,

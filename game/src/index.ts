@@ -18,6 +18,7 @@ import {
   getZoneAtWorldX,
   getZoneSpec,
   validateAssetDropZone,
+  validateFoodDropZone,
   getTerrainFloorY,
   canAnimalEatFood,
   canAnimalGrazePlant,
@@ -1129,13 +1130,18 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       return;
     }
 
-    // Food left on the ground must belong to that habitat (no durians on the coral reef,
-    // no honeycomb in the river)
-    if (!foodSpec.allowedZones.includes(zoneId)) {
+    // Food left on the ground must belong to that habitat and depth (no durians on the coral reef,
+    // no fish & prawns on muddy shores or dry land)
+    const foodValidation = validateFoodDropZone(foodId, zoneId, worldX);
+    if (!foodValidation.valid) {
       soundEngine.playRejectBoing();
-      const locFood = getLocalizedFoodName(foodId, foodSpec.name, currentLang);
-      const locZone = getLocalizedZoneName(zoneId, currentLang);
-      showToast(getGameString('doesNotBelongIn', currentLang).replace('{food}', locFood).replace('{zone}', locZone), 2600);
+      if (!foodSpec.allowedZones.includes(zoneId)) {
+        const locFood = getLocalizedFoodName(foodId, foodSpec.name, currentLang);
+        const locZone = getLocalizedZoneName(zoneId, currentLang);
+        showToast(getGameString('doesNotBelongIn', currentLang).replace('{food}', locFood).replace('{zone}', locZone), 2600);
+      } else {
+        showToast(foodValidation.reason, 2600);
+      }
       return;
     }
 
@@ -2966,8 +2972,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       }
     }
 
-    // Keep low density: avoid spawning too close to any existing food
+    // Keep low density and valid habitat depth: avoid spawning too close to any existing food or on invalid banks
     if (saveState.droppedFoods.some((df) => Math.abs(df.x - spawnX) < 340)) return;
+    if (!validateFoodDropZone(chosenFood.id, targetZone, spawnX).valid) return;
 
     const groundY = getFoodRestY(chosenFood.id, spawnX);
     saveState.droppedFoods.push({
@@ -3150,19 +3157,23 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         const desiredRestY = getAnimalRestY(animal, saveState.placedPlants, viewportHeight);
         const dyRest = desiredRestY - animal.y;
         const nearTree =
-          eco?.canopyHabit === 'canopy' ? findPerchTree(animal, saveState.placedPlants, 220) : null;
-        if (Math.abs(dyRest) > 4) {
-          const climbSpeed = nearTree ? 95 : 130;
+          eco?.canopyHabit === 'canopy' ? findPerchTree(animal, saveState.placedPlants, 280) : null;
+        const isWingedCanopy =
+          animal.assetId === 'animal_12_malayan_flying_fox' ||
+          animal.assetId === 'animal_15_rhinoceros_hornbill';
+        if (Math.abs(dyRest) > 3) {
+          const climbSpeed = nearTree ? 78 : 130;
           const stepY = Math.sign(dyRest) * Math.min(Math.abs(dyRest), climbSpeed * dt);
           animal.y += stepY;
-          animal.isClimbing = Boolean(nearTree && Math.abs(dyRest) > 7);
+          animal.isClimbing = Boolean(nearTree && !isWingedCanopy && Math.abs(dyRest) > 3.5);
         } else {
           animal.y = desiredRestY;
-          // Also show climbing motion when actively ascending/descending along the trunk center
+          // Show active climbing motion when climbing along trunk or canopy boughs
           animal.isClimbing = Boolean(
             nearTree &&
-              Math.abs(animal.x - nearTree.x) < 28 &&
-              (animal.locoBlend ?? 1) > 0.25 &&
+              !isWingedCanopy &&
+              Math.abs(animal.x - nearTree.x) < getPlantDrawSize(nearTree).w * 0.34 &&
+              (animal.locoBlend ?? 1) > 0.18 &&
               animal.emotionTimerSec <= 0,
           );
         }
@@ -3221,14 +3232,19 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           const dx = animal.targetX - animal.x;
           if (Math.abs(dx) < 16) {
             // Pick a new nearby wander waypoint within natural local span.
-            // Canopy animals keep to crown.
+            // Canopy animals actively seek out trees to climb up trunks and traverse boughs.
             const patrolSpan = animal.assetId.includes('sea_turtle') ? 380 : 340;
             let nextTarget = animal.x + (Math.random() - 0.5) * patrolSpan * 2;
             if (eco?.canopyHabit === 'canopy') {
-              const tree = findPerchTree(animal, saveState.placedPlants, 700);
+              const tree = findPerchTree(animal, saveState.placedPlants, 2200);
               if (tree) {
                 const crownHalf = getPlantDrawSize(tree).w * 0.24;
-                nextTarget = tree.x + (Math.random() - 0.5) * 2 * crownHalf;
+                // 45% of the time target the main trunk to climb vertically up & down; 55% clamber along canopy boughs
+                if (Math.random() < 0.45) {
+                  nextTarget = tree.x + (Math.random() - 0.5) * 32;
+                } else {
+                  nextTarget = tree.x + (Math.random() - 0.5) * 2 * crownHalf;
+                }
               }
             }
             animal.targetX = clamp(nextTarget, minX, maxX);

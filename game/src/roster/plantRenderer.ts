@@ -11,6 +11,7 @@ let activePlant3DPitch = 0;
 let activePlantGrowthStage: 1 | 2 | 3 = 3;
 let activePlantFruitCount = 3;
 let activePlantAssetId = '';
+let activePlantVariant = 0;
 
 /**
  * 3-Round Botanical Realism & 70% Realistic / 30% Cuteness Critique Registry
@@ -476,10 +477,10 @@ function drawDetailedLeaf(
     barkDark: string,
     buttress = false,
     branches: ReadonlyArray<readonly [number, number, number, number, number]> = [
-      [-0.45, -0.78, -82, -74, 18],
-      [0.45, -0.76, 82, -72, 18],
-      [-0.25, -0.92, -52, -56, 14],
-      [0.25, -0.9, 52, -54, 14],
+      [-0.45, -0.78, -80, -25, 18],
+      [0.45, -0.76, 80, -24, 18],
+      [-0.25, -0.92, -50, -44, 14],
+      [0.25, -0.9, 50, -42, 14],
     ],
     leafColors: readonly [string, string, string] = ['#86efac', '#22c55e', '#14532d'],
   ): void {
@@ -526,31 +527,35 @@ function drawDetailedLeaf(
       const trunkHalfW = baseW * (1 - tH) + topW * tH;
       const surfaceX = trunkCenterX + dir * trunkHalfW;
       const by = 148 + yFactor * trunkH;
-      // Anchor branch root smoothly inside trunk core
-      const bx = trunkCenterX + xFactor * trunkHalfW * 0.35;
-      const endX = bx + dx + sway * 22 + activePlant3DYaw * 14;
+      // Anchor branch root smoothly inside trunk core, while tip endX moves in 100% lockstep with drawCanopyCrown
+      const bxRest = xFactor * trunkHalfW * 0.35;
+      const bx = trunkCenterX + bxRest;
+      const endX = bxRest + dx + sway * 22 + activePlant3DYaw * 14;
       const endY = by + dy + activePlant3DPitch * -8;
 
-      // Exact mid-point along the bough's central axis so secondary forks never float disconnected
-      const midCtrlX = bx + dx * 0.48 + sway * 11 + activePlant3DYaw * 7;
-      const midCtrlY = by + dy * 0.42 + activePlant3DPitch * -4;
-      const forkX = 0.25 * surfaceX + 0.5 * midCtrlX + 0.25 * endX;
-      const forkY = 0.25 * by + 0.5 * midCtrlY + 0.25 * endY;
-      const subEndX = forkX + dir * Math.min(28, Math.abs(dx) * 0.34) + sway * 14 + activePlant3DYaw * 10;
-      const subEndY = forkY - 24 + dy * 0.18 + activePlant3DPitch * -5;
+      const c1x = surfaceX + (endX - surfaceX) * 0.32;
+      const c1y = by + (endY - by) * 0.16;
+      const c2x = surfaceX + (endX - surfaceX) * 0.68;
+      const c2y = by + (endY - by) * 0.66;
+
+      // Exact mid-point along the bough's upper axis so secondary forks never float disconnected
+      const forkX = surfaceX + (endX - surfaceX) * 0.56;
+      const forkY = by + (endY - by) * 0.48;
+      const subEndX = forkX + dir * Math.min(26, Math.abs(dx) * 0.30);
+      const subEndY = forkY - 18 + dy * 0.16;
       const subW = bw * 0.44;
 
       // 1. Solid filled branch path overlapping deep into trunk interior
       const bP = new Path2D();
       bP.moveTo(surfaceX, by - bw * 0.65);
-      bP.quadraticCurveTo(surfaceX + dir * 6, by - bw * 0.35, bx + dx * 0.3, by + dy * 0.15);
-      bP.bezierCurveTo(bx + dx * 0.65, by + dy * 0.65, endX - dir * 4, endY - bw * 0.22, endX, endY);
+      bP.quadraticCurveTo(surfaceX + dir * 6, by - bw * 0.35, c1x, c1y);
+      bP.bezierCurveTo(c2x, c2y, endX - dir * 4, endY - bw * 0.22, endX, endY);
       bP.quadraticCurveTo(endX + dir * 4, endY + bw * 0.2, endX, endY + bw * 0.38);
       bP.bezierCurveTo(
-        bx + dx * 0.7,
-        by + dy * 0.75 + bw * 0.38,
-        bx + dx * 0.32,
-        by + dy * 0.28 + bw * 0.52,
+        c2x + dir * 2,
+        c2y + bw * 0.40,
+        c1x + dir * 2,
+        c1y + bw * 0.52,
         surfaceX + dir * 6,
         by + bw * 0.6,
       );
@@ -561,14 +566,14 @@ function drawDetailedLeaf(
       // 2. Open stroke path for seamless welded crotch outline (no stroke cutting through trunk throat)
       const openP = new Path2D();
       openP.moveTo(surfaceX, by - bw * 0.65);
-      openP.quadraticCurveTo(surfaceX + dir * 6, by - bw * 0.35, bx + dx * 0.3, by + dy * 0.15);
-      openP.bezierCurveTo(bx + dx * 0.65, by + dy * 0.65, endX - dir * 4, endY - bw * 0.22, endX, endY);
+      openP.quadraticCurveTo(surfaceX + dir * 6, by - bw * 0.35, c1x, c1y);
+      openP.bezierCurveTo(c2x, c2y, endX - dir * 4, endY - bw * 0.22, endX, endY);
       openP.quadraticCurveTo(endX + dir * 4, endY + bw * 0.2, endX, endY + bw * 0.38);
       openP.bezierCurveTo(
-        bx + dx * 0.7,
-        by + dy * 0.75 + bw * 0.38,
-        bx + dx * 0.32,
-        by + dy * 0.28 + bw * 0.52,
+        c2x + dir * 2,
+        c2y + bw * 0.40,
+        c1x + dir * 2,
+        c1y + bw * 0.52,
         surfaceX + dir * 6,
         by + bw * 0.6,
       );
@@ -576,13 +581,13 @@ function drawDetailedLeaf(
 
       const subP = new Path2D();
       subP.moveTo(forkX - dir * subW * 0.6, forkY + subW * 0.2);
-      subP.quadraticCurveTo(forkX + dir * 10, forkY - 14, subEndX, subEndY);
+      subP.quadraticCurveTo(forkX + dir * 10, forkY - 12, subEndX, subEndY);
       subP.quadraticCurveTo(subEndX + dir * 2, subEndY + subW * 0.35, forkX + dir * subW * 0.65, forkY + subW * 0.25);
       subP.closePath();
 
       const openSubP = new Path2D();
       openSubP.moveTo(forkX - dir * subW * 0.45, forkY - subW * 0.15);
-      openSubP.quadraticCurveTo(forkX + dir * 10, forkY - 14, subEndX, subEndY);
+      openSubP.quadraticCurveTo(forkX + dir * 10, forkY - 12, subEndX, subEndY);
       openSubP.quadraticCurveTo(subEndX + dir * 2, subEndY + subW * 0.35, forkX + dir * subW * 0.55, forkY + subW * 0.1);
 
       boughItems.push({ bP, subP, openP, openSubP, bx, by, endX, endY, forkX, forkY, subEndX, subEndY, dir, surfaceX, bw });
@@ -684,7 +689,7 @@ function drawDetailedLeaf(
 
     const [lLight, lMid, lDark] = leafColors;
     for (const item of boughItems) {
-      const { forkX, forkY, endX, endY, dir } = item;
+      const { forkX, forkY, subEndX, subEndY, endX, endY, dir } = item;
       drawDetailedLeaf(
         ctx,
         forkX,
@@ -692,6 +697,20 @@ function drawDetailedLeaf(
         dir > 0 ? -0.45 + sway * 0.1 : -2.68 + sway * 0.1,
         24,
         9.5,
+        lLight,
+        lMid,
+        lDark,
+        'rgba(240,255,220,0.6)',
+        '#152914',
+        false,
+      );
+      drawDetailedLeaf(
+        ctx,
+        subEndX,
+        subEndY,
+        dir > 0 ? -0.72 + sway * 0.11 : -2.42 + sway * 0.11,
+        26,
+        10,
         lLight,
         lMid,
         lDark,
@@ -717,8 +736,8 @@ function drawDetailedLeaf(
   }
 
   /**
-   * Draws an authentic Pokok Pisang banana leaf: a grand, continuous broad elongated paddle frond
-   * with prominent pale midrib, dense transverse parallel veins, and realistic natural wind notches.
+   * Draws an authentic Pokok Pisang banana leaf: a grand, naturally arching elongated paddle frond
+   * with curved pale-green midrib keel, dense transverse parallel veins, and natural wind splits.
    */
   function drawBananaPaddleLeaf(
     ctx: CanvasRenderingContext2D,
@@ -736,55 +755,86 @@ function drawDetailedLeaf(
     ctx.translate(x + activePlant3DYaw * 6, y + activePlant3DPitch * 4);
     ctx.rotate(angle + activePlant3DYaw * 0.04);
 
-    // 1. One continuous expansive broad paddle lamina (Pokok Pisang leaf blade)
+    // Natural gravity arch: in rotated frame, +y is downward when cos(angle) >= 0 (right side), -y is downward when cos(angle) < 0 (left side)
+    const gravSign = Math.cos(angle) >= 0 ? 1 : -1;
+    const archMidY = gravSign * width * 0.12;
+    const archTipY = gravSign * width * 0.62;
+    const midribYAt = (t: number) => 2 * (1 - t) * t * archMidY + t * t * archTipY;
+
+    // 1. One continuous expansive arching paddle lamina (Pokok Pisang leaf blade)
     const lamina = new Path2D();
     lamina.moveTo(0, 0);
-    // Upper margin: smooth arching curve expanding out to wide paddle with downward curvature towards tip
-    lamina.bezierCurveTo(length * 0.16, -width * 0.85, length * 0.58, -width * 1.02, length * 0.88, -width * 0.45);
-    lamina.bezierCurveTo(length * 0.96, -width * 0.22, length * 1.02, -width * 0.05, length, 0);
-    // Lower margin: matching expansive tropical curved blade with natural gravity sag
-    lamina.bezierCurveTo(length * 0.98, width * 0.08, length * 0.92, width * 0.38, length * 0.82, width * 0.62);
-    lamina.bezierCurveTo(length * 0.55, width * 0.98, length * 0.18, width * 0.82, 0, 0);
+    // Upper/outer margin along the arching midrib
+    lamina.bezierCurveTo(
+      length * 0.18,
+      midribYAt(0.18) - width * 0.86,
+      length * 0.58,
+      midribYAt(0.58) - width * 1.02,
+      length * 0.88,
+      midribYAt(0.88) - width * 0.44,
+    );
+    lamina.bezierCurveTo(
+      length * 0.96,
+      midribYAt(0.96) - width * 0.20,
+      length * 1.01,
+      archTipY - width * 0.05,
+      length,
+      archTipY,
+    );
+    // Lower/inner margin with natural gravity sag
+    lamina.bezierCurveTo(
+      length * 0.98,
+      archTipY + width * 0.08,
+      length * 0.90,
+      midribYAt(0.90) + width * 0.40,
+      length * 0.80,
+      midribYAt(0.80) + width * 0.64,
+    );
+    lamina.bezierCurveTo(
+      length * 0.54,
+      midribYAt(0.54) + width * 0.98,
+      length * 0.18,
+      midribYAt(0.18) + width * 0.82,
+      0,
+      0,
+    );
     lamina.closePath();
 
-    fillRimAndStroke(ctx, lamina, 0, -width, length, width, cLight, cMid, cDark, outline, 2.4);
+    fillRimAndStroke(ctx, lamina, 0, -width * 1.1, length, width * 1.3, cLight, cMid, cDark, outline, 2.4);
 
-    // 2. Continuous prominent pale-green midrib running from stem base to apex
+    // 2. Continuous prominent pale-green curved midrib keel running from petiole base to apex
     ctx.strokeStyle = '#d9f99d';
-    ctx.lineWidth = Math.max(3.0, width * 0.14);
+    ctx.lineWidth = Math.max(3.2, width * 0.14);
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(length * 0.5, -width * 0.04, length * 0.98, 0);
+    ctx.quadraticCurveTo(length * 0.5, archMidY, length * 0.98, archTipY);
     ctx.stroke();
 
-    // 3. Dense parallel transverse veins running strictly perpendicular from midrib to edge
-    ctx.strokeStyle = 'rgba(236, 252, 203, 0.45)';
+    // 3. Dense parallel transverse veins running strictly perpendicular from curved midrib to margin
+    ctx.strokeStyle = 'rgba(236, 252, 203, 0.48)';
     ctx.lineWidth = 1.0;
     ctx.beginPath();
     const veinCount = 14;
     for (let i = 1; i <= veinCount; i++) {
       const t = i / (veinCount + 1);
       const vx = length * t;
-      const vy = -width * 0.04 * (4 * t * (1 - t));
+      const vy = midribYAt(t);
       const vDist = width * (1 - Math.pow(t - 0.5, 2) * 1.8) * 0.82;
-      // Upper transverse vein
       ctx.moveTo(vx, vy - 1.5);
       ctx.lineTo(vx + 3, vy - vDist);
-      // Lower transverse vein
       ctx.moveTo(vx, vy + 1.5);
       ctx.lineTo(vx + 3, vy + vDist);
     }
     ctx.stroke();
 
-    // 4. Subtle natural transverse wind-incisions (realistic natural leaf splits, without breaking continuity)
+    // 4. Subtle natural transverse wind-incisions along the curved lamina
     ctx.strokeStyle = outline;
     ctx.lineWidth = 1.6;
     ctx.beginPath();
-    const splitPositions = [0.38, 0.68];
-    for (const st of splitPositions) {
+    for (const st of [0.38, 0.68]) {
       const sx = length * st;
-      const sy = -width * 0.04 * (4 * st * (1 - st));
+      const sy = midribYAt(st);
       const sDist = width * (1 - Math.pow(st - 0.5, 2) * 1.8) * 0.82;
       ctx.moveTo(sx + 2, sy - sDist * 0.95);
       ctx.lineTo(sx - 2, sy - sDist * 0.35);
@@ -797,8 +847,8 @@ function drawDetailedLeaf(
   }
 
   /**
-   * Draws a non-clumpy, open architectural tree bough network with distinct species-specific individual leaves
-   * (zero round cartoon tree clumps!).
+   * Draws a cohesive, architectural tree bough & foliage crown where the supporting bough
+   * seamlessly forks into internal limbs wrapped in multi-tiered foliage and distinct species leaves.
    */
   function drawCanopyCrown(
     ctx: CanvasRenderingContext2D,
@@ -815,11 +865,12 @@ function drawDetailedLeaf(
   ): void {
     const hubX = 0;
     const hubY = ry * 0.64;
+    const vMod = ((activePlantVariant % 4) - 1.5) * 0.025;
 
     ctx.save();
     ctx.translate(cx + sway * 22 + activePlant3DYaw * 14, cy + activePlant3DPitch * -8);
     ctx.translate(hubX, hubY);
-    ctx.rotate(sway * 0.05 + activePlant3DYaw * 0.03);
+    ctx.rotate(sway * 0.05 + activePlant3DYaw * 0.03 + vMod);
     ctx.translate(-hubX, -hubY);
 
     const isTualang = activePlantAssetId.includes('tualang');
@@ -851,17 +902,19 @@ function drawDetailedLeaf(
       ];
     };
 
-    // 0. Lush, layered under-canopy foliage silhouette cushion behind the upper branch network
-    // (Leaves the lower basal hub (0, hubY) open so the trunk/bough visibly enters and forks!)
+    // 0. Lush, layered under-canopy foliage silhouette cushion behind BOTH the lower fork & upper branch network
     const backClusters: ReadonlyArray<readonly [number, number, number, number]> = [
-      [-rx * 0.56, -ry * 0.08, rx * 0.38, ry * 0.42],
-      [rx * 0.56, -ry * 0.08, rx * 0.38, ry * 0.42],
-      [-rx * 0.32, -ry * 0.44, rx * 0.42, ry * 0.44],
-      [rx * 0.32, -ry * 0.44, rx * 0.42, ry * 0.44],
-      [0, -ry * 0.56, rx * 0.46, ry * 0.44],
-      [0, -ry * 0.16, rx * 0.52, ry * 0.42],
+      [-rx * 0.44, ry * 0.14, rx * 0.38, ry * 0.36],
+      [rx * 0.44, ry * 0.14, rx * 0.38, ry * 0.36],
+      [0, ry * 0.16, rx * 0.52, ry * 0.38],
+      [-rx * 0.58, -ry * 0.08, rx * 0.40, ry * 0.42],
+      [rx * 0.58, -ry * 0.08, rx * 0.40, ry * 0.42],
+      [-rx * 0.34, -ry * 0.44, rx * 0.44, ry * 0.44],
+      [rx * 0.34, -ry * 0.44, rx * 0.44, ry * 0.44],
+      [0, -ry * 0.56, rx * 0.48, ry * 0.44],
+      [0, -ry * 0.16, rx * 0.56, ry * 0.44],
     ];
-    const backGrad = ctx.createLinearGradient(0, -ry * 1.02, 0, ry * 0.36);
+    const backGrad = ctx.createLinearGradient(0, -ry * 1.02, 0, ry * 0.54);
     backGrad.addColorStop(0, cMid);
     backGrad.addColorStop(0.55, cDark);
     backGrad.addColorStop(1, '#091c0d');
@@ -874,21 +927,22 @@ function drawDetailedLeaf(
       ctx.ellipse(bx, by, brx, bry, 0, 0, Math.PI * 2);
     }
     ctx.fill();
+    ctx.stroke();
 
-    // 1. Primary limbs originating from the exact basal hub (hubX, hubY)
-    const pLeftLow = [hubX, hubY, -rx * 0.42, ry * 0.22, -rx * 0.86, 0, 7.8] as const;
-    const pRightLow = [hubX, hubY, rx * 0.42, ry * 0.22, rx * 0.86, 0, 7.8] as const;
+    // 1. Primary limbs originating from the exact basal hub (hubX, hubY) with thick bough-matched bases
+    const pLeftLow = [hubX, hubY, -rx * 0.42, ry * 0.22, -rx * 0.86, 0, 9.2] as const;
+    const pRightLow = [hubX, hubY, rx * 0.42, ry * 0.22, rx * 0.86, 0, 9.2] as const;
     const [lFork1X, lFork1Y] = evalQuad(pLeftLow[0], pLeftLow[1], pLeftLow[2], pLeftLow[3], pLeftLow[4], pLeftLow[5], 0.36);
     const [rFork1X, rFork1Y] = evalQuad(pRightLow[0], pRightLow[1], pRightLow[2], pRightLow[3], pRightLow[4], pRightLow[5], 0.36);
     const [lFork2X, lFork2Y] = evalQuad(pLeftLow[0], pLeftLow[1], pLeftLow[2], pLeftLow[3], pLeftLow[4], pLeftLow[5], 0.66);
     const [rFork2X, rFork2Y] = evalQuad(pRightLow[0], pRightLow[1], pRightLow[2], pRightLow[3], pRightLow[4], pRightLow[5], 0.66);
 
-    const pLeftMid = [lFork1X, lFork1Y, -rx * 0.48, -ry * 0.14, -rx * 0.72, -ry * 0.48, 6.0] as const;
-    const pRightMid = [rFork1X, rFork1Y, rx * 0.48, -ry * 0.14, rx * 0.72, -ry * 0.48, 6.0] as const;
-    const pCenter = [hubX, hubY, 0, -ry * 0.12, 0, -ry * 0.84, 7.0] as const;
+    const pLeftMid = [lFork1X, lFork1Y, -rx * 0.48, -ry * 0.14, -rx * 0.72, -ry * 0.48, 6.8] as const;
+    const pRightMid = [rFork1X, rFork1Y, rx * 0.48, -ry * 0.14, rx * 0.72, -ry * 0.48, 6.8] as const;
+    const pCenter = [hubX, hubY, 0, -ry * 0.12, 0, -ry * 0.84, 8.4] as const;
     const [cForkX, cForkY] = evalQuad(pCenter[0], pCenter[1], pCenter[2], pCenter[3], pCenter[4], pCenter[5], 0.28);
-    const pLeftHigh = [cForkX, cForkY, -rx * 0.20, -ry * 0.28, -rx * 0.38, -ry * 0.74, 5.6] as const;
-    const pRightHigh = [cForkX, cForkY, rx * 0.20, -ry * 0.28, rx * 0.38, -ry * 0.74, 5.6] as const;
+    const pLeftHigh = [cForkX, cForkY, -rx * 0.20, -ry * 0.28, -rx * 0.38, -ry * 0.74, 6.0] as const;
+    const pRightHigh = [cForkX, cForkY, rx * 0.20, -ry * 0.28, rx * 0.38, -ry * 0.74, 6.0] as const;
 
     const branchCoords: ReadonlyArray<readonly [number, number, number, number, number, number, number]> = [
       pLeftLow,
@@ -928,13 +982,13 @@ function drawDetailedLeaf(
     // Pass 1: Dark bark outline for all primary/secondary limbs and connected tertiary twigs
     ctx.strokeStyle = branchWoodStroke;
     for (const [x0, y0, cx1, cy1, x2, y2, w] of branchCoords) {
-      ctx.lineWidth = w + 2.4;
+      ctx.lineWidth = w + 2.6;
       ctx.beginPath();
       ctx.moveTo(x0, y0);
       ctx.quadraticCurveTo(cx1, cy1, x2, y2);
       ctx.stroke();
     }
-    ctx.lineWidth = 5.0;
+    ctx.lineWidth = 5.2;
     ctx.beginPath();
     for (const [lx, ly, , , px, py] of leafSprays) {
       ctx.moveTo(px, py);
@@ -952,7 +1006,7 @@ function drawDetailedLeaf(
       ctx.quadraticCurveTo(cx1, cy1, x2, y2);
       ctx.stroke();
     }
-    ctx.lineWidth = 3.0;
+    ctx.lineWidth = 3.2;
     ctx.beginPath();
     for (const [lx, ly, , , px, py] of leafSprays) {
       ctx.moveTo(px, py);
@@ -960,10 +1014,29 @@ function drawDetailedLeaf(
     }
     ctx.stroke();
 
-    // Basal hub wood union cap where the trunk/bough enters the crown
+    // Sculpted woody fork union collar at (hubX, hubY) welding the supporting bough directly into the 3 primary crown limbs
     ctx.fillStyle = branchWoodFill;
     ctx.beginPath();
-    ctx.ellipse(hubX, hubY, 8.5, 5.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(hubX, hubY + 1, 11.5, 7.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mid-canopy illuminated foliage volume cushions around the outer branch nodes
+    const midGrad = ctx.createLinearGradient(0, -ry * 0.95, 0, ry * 0.25);
+    midGrad.addColorStop(0, cLight);
+    midGrad.addColorStop(0.55, cMid);
+    midGrad.addColorStop(1, cDark);
+    ctx.fillStyle = midGrad;
+    ctx.beginPath();
+    for (const [mx, my, mrx, mry] of [
+      [-rx * 0.64, -ry * 0.14, rx * 0.30, ry * 0.28],
+      [rx * 0.64, -ry * 0.14, rx * 0.30, ry * 0.28],
+      [-rx * 0.38, -ry * 0.48, rx * 0.34, ry * 0.30],
+      [rx * 0.38, -ry * 0.48, rx * 0.34, ry * 0.30],
+      [0, -ry * 0.58, rx * 0.36, ry * 0.32],
+    ] as const) {
+      ctx.moveTo(mx + mrx, my);
+      ctx.ellipse(mx, my, mrx, mry, 0, 0, Math.PI * 2);
+    }
     ctx.fill();
 
     for (let idx = 0; idx < leafSprays.length; idx++) {
@@ -1342,6 +1415,7 @@ function drawDetailedLeaf(
     isDragging?: boolean;
     growthStage?: 1 | 2 | 3;
     fruitCount?: number;
+    variant?: number;
     skipClear?: boolean;
     framingScale?: number;
   }
@@ -1383,6 +1457,7 @@ function drawDetailedLeaf(
     activePlant3DPitch = pitch;
     activePlantGrowthStage = preview3D?.growthStage ?? 2;
     activePlantFruitCount = preview3D?.fruitCount ?? 0;
+    activePlantVariant = ((preview3D?.variant ?? 0) % 4 + 4) % 4;
     activePlantAssetId = assetId;
 
     const cx = width * 0.5;
@@ -1419,6 +1494,7 @@ function drawDetailedLeaf(
         pitch,
         growthStage: activePlantGrowthStage,
         fruitCount: activePlantFruitCount,
+        variant: activePlantVariant,
       });
       ctx.restore();
       return;
@@ -1602,17 +1678,14 @@ function drawDetailedLeaf(
        * to the underside of the main boughs.
        * ====================================================================== */
       case 'plant_02_tualang_tree': {
-        // 6 primary structural boughs:
-        // - 2 wide lower horizontal honey-bearing boughs reaching (-104, -44) & (104, -42)
-        // - 2 mid ascending boughs reaching (-78, -74) & (78, -72)
-        // - 2 tall central ascending leader boughs converging into the top umbrella crown hub (0, -108)
+        // 6 primary structural boughs whose tips (bxRest + dx, by + dy) match the 5 crown basal hubs (cx, cy + ry * 0.64) 1:1!
         drawWoodyTrunkAndBranches(ctx, sway, 258, 34, 15, '#d6d3c9', '#9e9a8e', '#5c584f', true, [
           [-0.44, -0.66, -98, -28, 18],
           [0.44, -0.65, 98, -27, 18],
           [-0.34, -0.80, -74, -36, 15],
           [0.34, -0.80, 74, -35, 15],
-          [-0.18, -0.94, -22, -36, 13],
-          [0.18, -0.94, 22, -36, 13],
+          [-0.18, -0.94, -14, -16, 14],
+          [0.18, -0.94, 14, -16, 14],
         ]);
 
         // Wild Apis dorsata Tualang honeycombs attached directly flush against the underside of the lower horizontal boughs
@@ -1624,8 +1697,8 @@ function drawDetailedLeaf(
               : 0;
         for (const [hxBase, hyBase, boughSlope] of (
           [
-            [-58 + sway * 19, -23, -0.22],
-            [60 + sway * 19, -20, 0.22],
+            [-58 + sway * 20, -23, -0.22],
+            [60 + sway * 20, -20, 0.22],
           ] as const
         ).slice(0, combCount)) {
           const hx = hxBase + yaw * 14;
@@ -1675,62 +1748,62 @@ function drawDetailedLeaf(
         }
 
         // 5 tiered umbrella crowns positioned so their basal hubs (cx, cy + ry * 0.64)
-        // sit directly on the exact endpoints of the 6 primary boughs!
-        drawCanopyCrown(ctx, -104, -64, 58, 34, sway * 0.95, '#86efac', '#16a34a', '#14532d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
-        drawCanopyCrown(ctx, 104, -62, 58, 34, sway * 0.95, '#86efac', '#16a34a', '#14532d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
-        drawCanopyCrown(ctx, -78, -102, 78, 44, sway, '#86efac', '#22c55e', '#15803d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
-        drawCanopyCrown(ctx, 78, -98, 78, 44, sway, '#86efac', '#22c55e', '#15803d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
-        drawCanopyCrown(ctx, 0, -144, 116, 56, sway * 1.12, '#bbf7d0', '#4ade80', '#166534', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
+        // sit directly on the exact endpoints of the 6 primary boughs and move with identical sway!
+        drawCanopyCrown(ctx, -101, -72, 58, 34, sway, '#86efac', '#16a34a', '#14532d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
+        drawCanopyCrown(ctx, 101, -68, 58, 34, sway, '#86efac', '#16a34a', '#14532d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
+        drawCanopyCrown(ctx, -76, -122, 78, 44, sway, '#86efac', '#22c55e', '#15803d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
+        drawCanopyCrown(ctx, 76, -121, 78, 44, sway, '#86efac', '#22c55e', '#15803d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
+        drawCanopyCrown(ctx, 0, -145, 116, 56, sway, '#bbf7d0', '#4ade80', '#166534', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
         break;
       }
 
       /* ========================================================================
        * P03: DURIAN TREE (plant_03_durian_tree)
        * Tall orchard hardwood trunk, connected horizontal & ascending boughs
-       * bearing cauliflorous Durian fruits hanging directly from the bough
-       * undersides via stout woody peduncles with abscission rings, and realistic
-       * 5-carpel lobed ovoid husks with contiguous 3D pyramidal thorns.
+       * bearing cauliflorous Durian fruits hanging directly from the thick lower
+       * bough undersides via stout woody peduncles with abscission rings, and
+       * 5-carpel lobed ovoid husks with contiguous meridian 3D pyramidal thorns.
        * ====================================================================== */
       case 'plant_03_durian_tree': {
         drawWoodyTrunkAndBranches(ctx, sway, 215, 30, 15, '#966F4B', '#66462C', '#3B2514', false, [
-          [-0.38, -0.68, -86, -24, 18],
-          [0.38, -0.66, 86, -22, 18],
-          [-0.26, -0.86, -50, -44, 15],
-          [0.26, -0.86, 50, -44, 15],
+          [-0.38, -0.68, -82, -26, 18],
+          [0.38, -0.66, 82, -24, 18],
+          [-0.26, -0.86, -48, -42, 15],
+          [0.26, -0.86, 48, -42, 15],
         ]);
-        // Connected side sub-crowns at the ends of the lower horizontal boughs + main upper orchard dome
-        drawCanopyCrown(ctx, -84, -48, 62, 36, sway * 0.95, '#a3e635', '#4d7c0f', '#1a2e05', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
-        drawCanopyCrown(ctx, 84, -44, 62, 36, sway * 0.95, '#a3e635', '#4d7c0f', '#1a2e05', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
-        drawCanopyCrown(ctx, 0, -114, 128, 72, sway, '#a3e635', '#65a30d', '#365314', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
+        // Connected side sub-crowns at the exact ends of the lower horizontal boughs + main upper orchard dome
+        drawCanopyCrown(ctx, -84, -47, 62, 36, sway, '#a3e635', '#4d7c0f', '#1a2e05', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
+        drawCanopyCrown(ctx, 84, -41, 62, 36, sway, '#a3e635', '#4d7c0f', '#1a2e05', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
+        drawCanopyCrown(ctx, 0, -113, 128, 72, sway, '#a3e635', '#65a30d', '#365314', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
 
-        // Cauliflorous Durian fruits positioned so their peduncles attach directly into the underside of the 4 boughs!
+        // Cauliflorous Durian fruits hanging directly from the visible undersides of the thick lower horizontal hardwood boughs!
         for (const [dx, boughUnderY, scaleF] of (
           [
-            [-58, -10, 1.08],
-            [56, -6, 1.04],
-            [-32, -52, 0.94],
-            [32, -52, 0.98],
+            [-58, -11, 1.08],
+            [56, -7, 1.04],
+            [-32, -2, 0.96],
+            [32, 1, 0.98],
           ] as const
         ).slice(0, activePlantGrowthStage >= 3 && activePlantFruitCount > 0 ? activePlantFruitCount : 0)) {
-          const fx = dx + sway * 19 + yaw * 18;
-          const attachY = boughUnderY + pitch * -10;
+          const fx = dx + sway * 20 + yaw * 14;
+          const attachY = boughUnderY + pitch * -8;
           const rx = 20 * scaleF;
           const ry = 24 * scaleF;
-          const cyFruit = attachY + 15 * scaleF + ry * 0.85;
+          const cyFruit = attachY + 14 * scaleF + ry * 0.85;
 
           // 1. Thick curved woody peduncle stalk (tangkai) anchored inside the bough underside + swollen abscission ring (buku tangkai)
           ctx.strokeStyle = '#26170a';
           ctx.lineWidth = 6.8 * scaleF;
           ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.moveTo(fx + (dx < 0 ? 2 : -2), attachY - 3);
+          ctx.moveTo(fx + (dx < 0 ? 2 : -2), attachY - 4);
           ctx.quadraticCurveTo(fx, attachY + 5 * scaleF, fx, cyFruit - ry * 0.88);
           ctx.stroke();
 
           ctx.strokeStyle = '#78522b';
           ctx.lineWidth = 4.2 * scaleF;
           ctx.beginPath();
-          ctx.moveTo(fx + (dx < 0 ? 2 : -2), attachY - 3);
+          ctx.moveTo(fx + (dx < 0 ? 2 : -2), attachY - 4);
           ctx.quadraticCurveTo(fx, attachY + 5 * scaleF, fx, cyFruit - ry * 0.88);
           ctx.stroke();
 
@@ -1739,7 +1812,7 @@ function drawDetailedLeaf(
           ctx.strokeStyle = '#26170a';
           ctx.lineWidth = 1.6;
           ctx.beginPath();
-          ctx.ellipse(fx, attachY + 6.5 * scaleF, 5.4 * scaleF, 2.6 * scaleF, 0, 0, Math.PI * 2);
+          ctx.ellipse(fx, attachY + 6.2 * scaleF, 5.4 * scaleF, 2.6 * scaleF, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
@@ -1786,23 +1859,21 @@ function drawDetailedLeaf(
             2.4,
           );
 
-          // 3. Contiguous Tessellated 3D Pyramidal Thorns along curved carpel meridians
-          for (let row = -3; row <= 3; row++) {
-            const normY = row / 3.4;
-            const ty = cyFruit + normY * ry * 0.78;
-            const rowHalfW = Math.sqrt(Math.max(0, 1 - normY * normY)) * rx * 0.82;
-            const stepX = 4.8 * scaleF;
-            const stagger = Math.abs(row) % 2 === 1 ? stepX * 0.5 : 0;
-            for (let ox = -rowHalfW + stagger; ox <= rowHalfW - stagger + 0.1; ox += stepX) {
-              const tx = fx + ox;
+          // 3. Contiguous 3D Pyramidal Thorns arranged along curved meridian arcs (following the 5 convex carpel lobes!)
+          for (const meridianFrac of [-0.74, -0.44, -0.15, 0.15, 0.44, 0.74]) {
+            for (let row = -3; row <= 3; row++) {
+              const normY = row / 3.5;
+              const arcFactor = Math.sqrt(Math.max(0.08, 1 - normY * normY));
+              const tx = fx + meridianFrac * rx * 0.88 * arcFactor;
+              const ty = cyFruit + normY * ry * 0.80;
               const radX = (tx - fx) / rx;
               const radY = (ty - cyFruit) / ry;
-              const tipX = tx + radX * 3.8 * scaleF;
-              const tipY = ty + (radY - 0.35) * 4.2 * scaleF;
-              const baseW = 2.8 * scaleF;
-              const baseH = 2.5 * scaleF;
+              const tipX = tx + radX * 4.0 * scaleF;
+              const tipY = ty + (radY - 0.30) * 4.2 * scaleF;
+              const baseW = 2.9 * scaleF;
+              const baseH = 2.6 * scaleF;
 
-              // Left sunlit pyramid facet
+              // Left sunlit lime-gold pyramid facet
               ctx.fillStyle = '#ecfccb';
               ctx.beginPath();
               ctx.moveTo(tx - baseW, ty);
@@ -1834,12 +1905,12 @@ function drawDetailedLeaf(
           }
 
           // 4. Curved longitudinal 5-carpel suture valleys & Musang King bottom 5-point star seam (tapak bintang)
-          ctx.strokeStyle = 'rgba(41, 30, 10, 0.72)';
+          ctx.strokeStyle = 'rgba(41, 30, 10, 0.75)';
           ctx.lineWidth = 1.65;
           ctx.beginPath();
-          for (const sutureOff of [-0.48, 0, 0.48]) {
+          for (const sutureOff of [-0.56, 0, 0.56]) {
             ctx.moveTo(fx, cyFruit - ry * 0.86);
-            ctx.quadraticCurveTo(fx + sutureOff * rx * 1.35, cyFruit, fx, cyFruit + ry * 0.86);
+            ctx.quadraticCurveTo(fx + sutureOff * rx * 1.25, cyFruit, fx, cyFruit + ry * 0.86);
           }
           ctx.stroke();
 
@@ -1847,7 +1918,7 @@ function drawDetailedLeaf(
           ctx.strokeStyle = '#1a2e05';
           ctx.lineWidth = 1.2;
           ctx.beginPath();
-          ctx.ellipse(fx, cyFruit + ry * 0.86, 4.2 * scaleF, 2.0 * scaleF, 0, 0, Math.PI * 2);
+          ctx.ellipse(fx, cyFruit + ry * 0.86, 4.4 * scaleF, 2.1 * scaleF, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
         }
@@ -2004,27 +2075,27 @@ function drawDetailedLeaf(
 
         // 5. Arching pendulous peduncle & notched rachis stalk (tandan pisang), tiered crescent banana hands (sisir), & Jantung bell
         if (activePlantGrowthStage >= 2) {
-          const bx = 48 + sway * 20;
-          const by = -18;
+          const bx = 32 + sway * 18;
+          const by = -16;
 
-          // Stout arched peduncle emerging from crown throat and hanging vertically to hold hands + terminal bell
+          // Stout arched peduncle emerging tightly from crown throat and hanging vertically alongside the upper pseudostem
           ctx.strokeStyle = '#1a2e05';
-          ctx.lineWidth = 9.2;
+          ctx.lineWidth = 9.4;
           ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.moveTo(crownX + 4, crownY + 2);
-          ctx.bezierCurveTo(crownX + 34, crownY - 16, bx + 4, by - 22, bx, by + 62);
+          ctx.bezierCurveTo(crownX + 26, crownY - 14, bx + 2, by - 20, bx, by + 66);
           ctx.stroke();
 
           ctx.strokeStyle = '#65a30d';
-          ctx.lineWidth = 5.8;
+          ctx.lineWidth = 6.0;
           ctx.beginPath();
           ctx.moveTo(crownX + 4, crownY + 2);
-          ctx.bezierCurveTo(crownX + 34, crownY - 16, bx + 4, by - 22, bx, by + 62);
+          ctx.bezierCurveTo(crownX + 26, crownY - 14, bx + 2, by - 20, bx, by + 66);
           ctx.stroke();
 
           // Notched bract-scar internode rings on the bare lower rachis above the Jantung bell
-          for (const ny of [by + 36, by + 46, by + 55]) {
+          for (const ny of [by + 42, by + 51, by + 59]) {
             ctx.fillStyle = '#3f6212';
             ctx.strokeStyle = '#1a2e05';
             ctx.lineWidth = 1.4;
@@ -2034,10 +2105,10 @@ function drawDetailedLeaf(
             ctx.stroke();
           }
 
-          // Tiered crescent hands (sisir pisang) where ALL fingers curve outward and UPWARD (negative gravitropism!)
+          // Tiered crescent hands (sisir pisang) with plump parallel-curved 5-faceted banana fingers
           const handsCount =
             activePlantGrowthStage >= 3 && activePlantFruitCount > 0
-              ? Math.min(3, Math.max(1, activePlantFruitCount))
+              ? Math.min(3, Math.max(2, activePlantFruitCount))
               : 1;
           const isRipe = activePlantGrowthStage >= 3 && activePlantFruitCount > 0;
           const bLight = isRipe ? '#fef9c3' : '#ecfccb';
@@ -2046,65 +2117,79 @@ function drawDetailedLeaf(
           const bOut = isRipe ? '#713f12' : '#1a2e05';
 
           for (let r = 0; r < handsCount; r++) {
-            const handY = by + 4 + r * 17;
+            const handY = by + 2 + r * 17;
 
-            // Curved green-gold fibrous crown cushion (tampuk sisir) clasping the rachis stalk
-            const crown = new Path2D();
-            crown.moveTo(bx - 13, handY + 2);
-            crown.quadraticCurveTo(bx, handY - 3, bx + 13, handY + 2);
-            crown.quadraticCurveTo(bx, handY + 6, bx - 13, handY + 2);
-            crown.closePath();
-            fillRimAndStroke(ctx, crown, bx - 13, handY - 3, bx + 13, handY + 6, '#a3e635', '#65a30d', '#365314', '#1a2e05', 1.6);
-
-            // Back row + front row of plump, snug, 5-faceted banana fingers curving outward and UPWARD
+            // Back row + front row of plump, curved 5-sided banana fingers hanging from the crown cushion and curving outward & upward
             for (const [rowOffY, count, fingerScale] of [
-              [-2, 5, 0.92],
-              [1, 6, 1.0],
+              [-1.5, 6, 0.94],
+              [1.5, 7, 1.04],
             ] as const) {
               for (let i = 0; i < count; i++) {
                 const frac = i / (count - 1) - 0.5; // -0.5 to +0.5 across the crescent hand
-                const baseX = bx + frac * 20;
-                const baseY = handY + rowOffY + Math.abs(frac) * 2.2;
-                // Natural upward-curving crescent arc (negative gravitropism of real bananas on a stalk!)
-                const spreadX = frac * 11;
-                const ctrlX = baseX + spreadX * 0.8 + 3;
-                const ctrlY = baseY - 6 * fingerScale;
-                const tipX = baseX + spreadX * 1.15 + 5;
-                const tipY = baseY - 14.5 * fingerScale + Math.abs(frac) * 2.5;
-                const wF = 3.6 * fingerScale;
+                const baseX = bx + frac * 22;
+                const baseY = handY + rowOffY + Math.abs(frac) * 2.5;
+                // Natural J-curve: drops slightly from the crown cushion then curves outward & upward
+                const spreadX = frac * 14 + 4;
+                const ctrlX = baseX + spreadX * 0.65;
+                const ctrlY = baseY + 6.5 * fingerScale;
+                const tipX = baseX + spreadX * 1.15 + 3.5;
+                const tipY = baseY - 10.5 * fingerScale + Math.abs(frac) * 3.0;
+                const wF = 4.5 * fingerScale;
 
                 const finger = new Path2D();
-                finger.moveTo(baseX - wF * 0.55, baseY);
-                finger.quadraticCurveTo(ctrlX - wF * 0.95, ctrlY, tipX - 1.3, tipY);
-                finger.lineTo(tipX + 1.3, tipY + 0.5);
-                finger.quadraticCurveTo(ctrlX + wF * 0.85, ctrlY + 1.4, baseX + wF * 0.55, baseY);
+                finger.moveTo(baseX - wF * 0.5, baseY);
+                finger.bezierCurveTo(
+                  baseX - wF * 0.9,
+                  baseY + 5 * fingerScale,
+                  ctrlX - wF * 0.8,
+                  ctrlY,
+                  tipX - 1.4,
+                  tipY + 0.5,
+                );
+                finger.lineTo(tipX + 1.4, tipY - 0.6);
+                finger.bezierCurveTo(
+                  ctrlX + wF * 0.8,
+                  ctrlY - 2.5 * fingerScale,
+                  baseX + wF * 0.6,
+                  baseY + 2 * fingerScale,
+                  baseX + wF * 0.5,
+                  baseY,
+                );
                 finger.closePath();
-                fillRimAndStroke(ctx, finger, baseX - 6, tipY, tipX + 4, baseY, bLight, bMid, bDark, bOut, 1.5);
+                fillRimAndStroke(ctx, finger, baseX - 8, tipY - 2, tipX + 6, ctrlY + 4, bLight, bMid, bDark, bOut, 1.55);
 
                 // Longitudinal 5-sided banana facet highlight ridge
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.58)';
-                ctx.lineWidth = 0.95;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.62)';
+                ctx.lineWidth = 1.0;
                 ctx.beginPath();
-                ctx.moveTo(baseX, baseY - 1.5);
-                ctx.quadraticCurveTo(ctrlX - 0.4, ctrlY, tipX, tipY + 1.2);
+                ctx.moveTo(baseX, baseY + 1.0);
+                ctx.quadraticCurveTo(ctrlX, ctrlY - 1.5, tipX, tipY);
                 ctx.stroke();
 
                 // Dark floral stylar remnant dot at banana apex (tampuk hujung pisang)
                 ctx.fillStyle = '#291504';
                 ctx.beginPath();
-                ctx.arc(tipX + 0.1, tipY + 0.2, 1.35, 0, Math.PI * 2);
+                ctx.arc(tipX + 0.1, tipY - 0.1, 1.45, 0, Math.PI * 2);
                 ctx.fill();
               }
             }
+
+            // Curved green-gold fibrous crown cushion (tampuk sisir) clasping the rachis stalk at the top of each hand
+            const crown = new Path2D();
+            crown.moveTo(bx - 14, handY);
+            crown.quadraticCurveTo(bx, handY - 4.5, bx + 14, handY);
+            crown.quadraticCurveTo(bx, handY + 4.5, bx - 14, handY);
+            crown.closePath();
+            fillRimAndStroke(ctx, crown, bx - 14, handY - 4.5, bx + 14, handY + 4.5, '#a3e635', '#65a30d', '#365314', '#1a2e05', 1.7);
           }
 
           // Lifting crimson bract scale on the side of the Jantung Pisang revealing tubular cream banana florets
           const liftBract = new Path2D();
-          liftBract.moveTo(bx - 2, by + 58);
-          liftBract.bezierCurveTo(bx - 24, by + 50, bx - 34, by + 34, bx - 26, by + 24);
-          liftBract.bezierCurveTo(bx - 16, by + 34, bx - 10, by + 48, bx - 2, by + 62);
+          liftBract.moveTo(bx - 2, by + 62);
+          liftBract.bezierCurveTo(bx - 24, by + 54, bx - 34, by + 38, bx - 26, by + 28);
+          liftBract.bezierCurveTo(bx - 16, by + 38, bx - 10, by + 52, bx - 2, by + 66);
           liftBract.closePath();
-          fillRimAndStroke(ctx, liftBract, bx - 34, by + 24, bx - 2, by + 62, '#fda4af', '#be123c', '#4c0519', '#2b040e', 2.0);
+          fillRimAndStroke(ctx, liftBract, bx - 34, by + 28, bx - 2, by + 66, '#fda4af', '#be123c', '#4c0519', '#2b040e', 2.0);
 
           // Row of tubular creamy-yellow banana flowers (bunga pisang) nestled in the axil of the lifted bract
           for (const fOff of [0, 3.5, 7]) {
@@ -2112,18 +2197,18 @@ function drawDetailedLeaf(
             ctx.strokeStyle = '#713f12';
             ctx.lineWidth = 1.1;
             ctx.beginPath();
-            ctx.ellipse(bx - 10 - fOff * 1.1, by + 52 - fOff * 1.4, 2.2, 6.2, -0.55, 0, Math.PI * 2);
+            ctx.ellipse(bx - 10 - fOff * 1.1, by + 56 - fOff * 1.4, 2.2, 6.2, -0.55, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
           }
 
           // Pendulous tear-drop crimson-purple Jantung Pisang male bud attached at the bottom of the rachis
           const bell = new Path2D();
-          bell.moveTo(bx, by + 56);
-          bell.bezierCurveTo(bx - 20, by + 70, bx - 16, by + 100, bx, by + 116);
-          bell.bezierCurveTo(bx + 16, by + 100, bx + 20, by + 70, bx, by + 56);
+          bell.moveTo(bx, by + 60);
+          bell.bezierCurveTo(bx - 20, by + 74, bx - 16, by + 104, bx, by + 120);
+          bell.bezierCurveTo(bx + 16, by + 104, bx + 20, by + 74, bx, by + 60);
           bell.closePath();
-          fillRimAndStroke(ctx, bell, bx - 19, by + 56, bx + 19, by + 116, '#fb7185', '#9f1239', '#4c0519', '#2b040e', 2.8);
+          fillRimAndStroke(ctx, bell, bx - 19, by + 60, bx + 19, by + 120, '#fb7185', '#9f1239', '#4c0519', '#2b040e', 2.8);
 
           // Overlapping imbricate waxy bract seams on the Jantung Pisang bell
           ctx.strokeStyle = 'rgba(255, 228, 230, 0.42)';
@@ -2707,22 +2792,22 @@ function drawDetailedLeaf(
        * ====================================================================== */
       case 'plant_14_banyan_fig': {
         drawWoodyTrunkAndBranches(ctx, sway, 190, 44, 24, '#a88b73', '#6e5239', '#3d2b1c', true, [
-          [-0.52, -0.68, -116, -34, 20],
-          [0.52, -0.68, 116, -32, 20],
-          [-0.32, -0.88, -74, -48, 16],
-          [0.32, -0.88, 74, -48, 16],
+          [-0.52, -0.68, -88, -54, 20],
+          [0.52, -0.68, 88, -50, 20],
+          [-0.32, -0.88, -68, -52, 16],
+          [0.32, -0.88, 68, -52, 16],
         ]);
         // Sculpted tapering aerial prop roots merging seamlessly from the horizontal boughs to the ground
         for (const rx of [-88, -62, -40, 40, 62, 88]) {
-          const topRx = rx + sway * 18;
+          const topRx = rx + sway * 20;
           const botRx = rx * 0.88;
           const propP = new Path2D();
-          propP.moveTo(topRx - 3.5, -52);
+          propP.moveTo(topRx - 3.5, -34);
           propP.quadraticCurveTo(rx * 0.78 + sway * 8 - 4.5, 48, botRx - 6.5, 154);
           propP.lineTo(botRx + 6.5, 154);
-          propP.quadraticCurveTo(rx * 0.78 + sway * 8 + 4.5, 48, topRx + 3.5, -52);
+          propP.quadraticCurveTo(rx * 0.78 + sway * 8 + 4.5, 48, topRx + 3.5, -34);
           propP.closePath();
-          fillRimAndStroke(ctx, propP, topRx - 6, -52, botRx + 6, 154, '#9c7e65', '#6e5239', '#3d2b1c', '#26170c', 2.4);
+          fillRimAndStroke(ctx, propP, topRx - 6, -34, botRx + 6, 154, '#9c7e65', '#6e5239', '#3d2b1c', '#26170c', 2.4);
 
           // Anastomosing horizontal fibrous root bridges connecting prop roots to trunk
           ctx.strokeStyle = 'rgba(74, 48, 28, 0.45)';
@@ -2734,7 +2819,7 @@ function drawDetailedLeaf(
         }
         drawCanopyCrown(ctx, -92, -64, 74, 44, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#991b1b']);
         drawCanopyCrown(ctx, 92, -60, 74, 44, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#991b1b']);
-        drawCanopyCrown(ctx, 0, -118, 124, 64, sway * 1.1, '#bbf7d0', '#22c55e', '#166534', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#991b1b']);
+        drawCanopyCrown(ctx, 0, -118, 124, 64, sway, '#bbf7d0', '#22c55e', '#166534', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#991b1b']);
         // Paired crimson-scarlet Banyan syconia figs with ostiole pore & lenticel speckles
         for (const [fx, fy] of (
           [
@@ -3497,6 +3582,15 @@ function drawDetailedLeaf(
        * stems swaying gracefully with tiny axillary achene fruits.
        * ====================================================================== */
       case 'plant_29_hornwort': {
+        // Continuous creeping submerged stolon uniting all 4 Hornwort stems at the seabed
+        ctx.strokeStyle = '#14532d';
+        ctx.lineWidth = 6.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-82, 166);
+        ctx.quadraticCurveTo(0, 162, 82, 166);
+        ctx.stroke();
+
         for (const [sx, h, tilt] of [
           [-76, 205, -0.14],
           [-24, 245, -0.04],
@@ -3504,7 +3598,7 @@ function drawDetailedLeaf(
           [78, 210, 0.15],
         ] as const) {
           ctx.save();
-          ctx.translate(sx, 168);
+          ctx.translate(sx, 166);
           ctx.rotate(tilt + sway * 0.15);
           ctx.strokeStyle = '#15803d';
           ctx.lineWidth = 5.5;
@@ -3515,6 +3609,17 @@ function drawDetailedLeaf(
           ctx.moveTo(0, -h * 0.45);
           ctx.quadraticCurveTo(22, -h * 0.58, 32, -h * 0.72);
           ctx.stroke();
+
+          // Whorled forked needle leaves along the lateral sub-branch so no bare stick protrudes
+          for (const [bxSub, bySub] of [
+            [18, -h * 0.57],
+            [32, -h * 0.72],
+          ] as const) {
+            for (const ang of [-1.85, -1.15, -0.45]) {
+              drawDetailedLeaf(ctx, bxSub, bySub, ang + sway * 0.1, 30, 5.5, '#bef264', '#22c55e', '#14532d', 'rgba(240,255,220,0.65)', '#142914', true);
+            }
+          }
+
           for (let y = -20; y >= -h; y -= 20) {
             for (const ang of [-2.55, -2.05, -1.1, -0.58]) {
               drawDetailedLeaf(ctx, 0, y, ang + sway * 0.1, 38, 6.5, '#bef264', '#22c55e', '#14532d', 'rgba(240,255,220,0.65)', '#142914', true);

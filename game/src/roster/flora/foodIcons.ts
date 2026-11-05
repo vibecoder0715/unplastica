@@ -7,20 +7,24 @@ import type { FoodIcon } from './types';
 export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
   // 1. Spiky Durian (Durio zibethinus — authentic 5-carpel Musang King thorny husk + open golden aril locule)
   food_durian_fruit: (ctx) => {
-    // 1. Stout curved woody peduncle stem + swollen abscission ring (tangkai & buku tangkai) + basal perianth collar
+    const rx = 17.6;
+    const ry = 19.8;
+    const cy = 2.4;
+
+    // 1. Thick curved woody peduncle stem (tangkai) + swollen abscission ring (buku tangkai) + basal perianth collar
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#241407';
-    ctx.lineWidth = 5.4;
+    ctx.lineWidth = 5.8;
     ctx.beginPath();
-    ctx.moveTo(2.5, -24.5);
-    ctx.quadraticCurveTo(0, -20.5, 0, -15.5);
+    ctx.moveTo(2.8, -24.8);
+    ctx.quadraticCurveTo(0.2, -20.5, 0, -15.2);
     ctx.stroke();
 
     ctx.strokeStyle = '#785027';
-    ctx.lineWidth = 3.4;
+    ctx.lineWidth = 3.6;
     ctx.beginPath();
-    ctx.moveTo(2.5, -24.5);
-    ctx.quadraticCurveTo(0, -20.5, 0, -15.5);
+    ctx.moveTo(2.8, -24.8);
+    ctx.quadraticCurveTo(0.2, -20.5, 0, -15.2);
     ctx.stroke();
 
     // Swollen abscission ring (buku tangkai)
@@ -28,34 +32,31 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
     ctx.strokeStyle = '#241407';
     ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.ellipse(0.6, -19.5, 4.4, 2.1, -0.12, 0, Math.PI * 2);
+    ctx.ellipse(0.7, -19.6, 4.6, 2.2, -0.12, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Basal woody perianth collar at fruit apex
+    // Basal woody perianth collar uniting peduncle and fruit apex
     ctx.fillStyle = '#5c3d1e';
     ctx.beginPath();
-    ctx.ellipse(0, -15.5, 5.6, 2.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -15.2, 6.0, 2.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 2. 5-lobed ovoid-pear husk silhouette with radially oriented pyramidal perimeter thorns
-    const rx = 17.2;
-    const ry = 19.8;
-    const cy = 2.2;
-    const numSpikes = 28;
+    // 2. 5-carpel lobed ovoid husk silhouette with contiguous radially-oriented pyramidal perimeter thorns
+    const numSpikes = 30;
     const rim = new Path2D();
     for (let i = 0; i < numSpikes; i++) {
       const a0 = (i / numSpikes) * Math.PI * 2;
       const aMid = ((i + 0.5) / numSpikes) * Math.PI * 2;
       const a1 = ((i + 1) / numSpikes) * Math.PI * 2;
-      const lobeMod = 1 + 0.055 * Math.cos(aMid * 5 - Math.PI * 0.5);
-      const pearMod = 1 + 0.055 * Math.sin(aMid);
+      const lobeMod = 1 + 0.06 * Math.cos(aMid * 5 - Math.PI * 0.5);
+      const pearMod = 1 + 0.06 * Math.sin(aMid);
       const mod = lobeMod * pearMod;
       const bx0 = Math.cos(a0) * rx * 0.88 * mod;
       const by0 = cy + Math.sin(a0) * ry * 0.88 * mod;
-      const tx = Math.cos(aMid) * (rx + 4.4) * mod;
-      const ty = cy + Math.sin(aMid) * (ry + 4.4) * mod;
+      const tx = Math.cos(aMid) * (rx + 4.6) * mod;
+      const ty = cy + Math.sin(aMid) * (ry + 4.6) * mod;
       const bx1 = Math.cos(a1) * rx * 0.88 * mod;
       const by1 = cy + Math.sin(a1) * ry * 0.88 * mod;
       if (i === 0) rim.moveTo(bx0, by0);
@@ -66,29 +67,31 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
 
     const dGrad = ctx.createRadialGradient(-6, -4, 2, 0, cy, 23);
     dGrad.addColorStop(0, '#d9f99d');
-    dGrad.addColorStop(0.52, '#65a30d');
-    dGrad.addColorStop(1, '#2e480a');
+    dGrad.addColorStop(0.48, '#65a30d');
+    dGrad.addColorStop(0.84, '#3f6212');
+    dGrad.addColorStop(1, '#263c08');
     ctx.fillStyle = dGrad;
     ctx.fill(rim);
     ctx.strokeStyle = '#182805';
-    ctx.lineWidth = 1.85;
+    ctx.lineWidth = 1.9;
     ctx.stroke(rim);
 
-    // 3. Contiguous Tessellated 3D Pyramidal Thorns along curved carpel meridians
-    for (let row = -3; row <= 3; row++) {
-      const normY = row / 3.4;
-      const ty = cy + normY * ry * 0.78;
-      const halfW = Math.sqrt(Math.max(0, 1 - normY * normY)) * rx * 0.8;
-      const stepX = 4.1;
-      const stagger = Math.abs(row) % 2 === 1 ? stepX * 0.5 : 0;
-      for (let ox = -halfW + stagger; ox <= halfW - stagger + 0.1; ox += stepX) {
-        if (ox > -1.5 && ty > -6 && ty < 14) continue; // open carpel window on right lobe
+    // 3. Contiguous 3D Pyramidal Thorns arranged along curved meridian arcs (following the 5 carpel lobes!)
+    for (const meridianFrac of [-0.74, -0.44, -0.16, 0.16, 0.46, 0.74]) {
+      for (let step = -3; step <= 3; step++) {
+        const normY = step / 3.5;
+        const arcFactor = Math.sqrt(Math.max(0.08, 1 - normY * normY));
+        const ox = meridianFrac * rx * 0.88 * arcFactor;
+        const ty = cy + normY * ry * 0.80;
+        // Leave space on the front-right lobe for the dehisced open golden aril chamber
+        if (ox > -2.2 && ty > -8.5 && ty < 15.0) continue;
+
         const radX = ox / rx;
         const radY = (ty - cy) / ry;
-        const tipX = ox + radX * 3.2;
-        const tipY = ty + (radY - 0.32) * 3.6;
-        const bw = 2.35;
-        const bh = 2.15;
+        const tipX = ox + radX * 3.5;
+        const tipY = ty + (radY - 0.28) * 3.8;
+        const bw = 2.55;
+        const bh = 2.35;
 
         // Left sunlit lime-gold pyramid facet
         ctx.fillStyle = '#ecfccb';
@@ -99,7 +102,7 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
         ctx.closePath();
         ctx.fill();
 
-        // Right shaded olive-green pyramid facet
+        // Right shaded olive-brown pyramid facet
         ctx.fillStyle = '#3f6212';
         ctx.beginPath();
         ctx.moveTo(ox, ty + bh);
@@ -108,9 +111,9 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
         ctx.closePath();
         ctx.fill();
 
-        // Crisp 3D pyramid edge
+        // Crisp 3D pyramid arris & outline
         ctx.strokeStyle = '#1a2e05';
-        ctx.lineWidth = 0.8;
+        ctx.lineWidth = 0.85;
         ctx.beginPath();
         ctx.moveTo(ox - bw, ty);
         ctx.lineTo(tipX, tipY);
@@ -122,46 +125,46 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
     }
 
     // Curved carpel suture seam on left lobe + bottom 5-point Musang King star seam (tapak bintang)
-    ctx.strokeStyle = 'rgba(26, 46, 5, 0.75)';
-    ctx.lineWidth = 1.35;
+    ctx.strokeStyle = 'rgba(26, 46, 5, 0.78)';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(0, -15);
-    ctx.quadraticCurveTo(-11, cy, 0, cy + ry * 0.88);
+    ctx.moveTo(0, -14.8);
+    ctx.quadraticCurveTo(-11.5, cy, 0, cy + ry * 0.88);
     ctx.stroke();
 
     ctx.fillStyle = '#5c3d1e';
     ctx.strokeStyle = '#1a2e05';
     ctx.lineWidth = 1.1;
     ctx.beginPath();
-    ctx.ellipse(0, cy + ry * 0.88, 3.6, 1.6, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, cy + ry * 0.88, 3.8, 1.7, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 4. Dehisced open carpel locule revealing thick creamy-white inner rind (mesocarp) & golden Musang King arils
+    // 4. Dehisced open carpel locule revealing thick creamy-white pith rind (empulur) & golden Musang King arils
     const rindP = new Path2D();
-    rindP.moveTo(0.5, -11.5);
-    rindP.bezierCurveTo(13.5, -7.5, 14.8, 10.5, 1.5, 16.5);
-    rindP.bezierCurveTo(-4.2, 11.5, -3.8, -6.5, 0.5, -11.5);
+    rindP.moveTo(0.2, -12.0);
+    rindP.bezierCurveTo(14.2, -8.0, 15.4, 11.0, 1.2, 17.2);
+    rindP.bezierCurveTo(-4.8, 11.8, -4.4, -6.8, 0.2, -12.0);
     rindP.closePath();
     ctx.fillStyle = '#fefce8';
     ctx.fill(rindP);
     ctx.strokeStyle = '#365314';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.6;
     ctx.stroke(rindP);
 
     // Recessed warm shadow inside the carpel chamber cavity
     ctx.fillStyle = '#fde68a';
     ctx.beginPath();
-    ctx.moveTo(1.2, -8.5);
-    ctx.bezierCurveTo(10.8, -5.0, 11.5, 8.5, 2.0, 13.5);
-    ctx.bezierCurveTo(-1.8, 9.0, -1.5, -4.5, 1.2, -8.5);
+    ctx.moveTo(1.0, -9.0);
+    ctx.bezierCurveTo(11.4, -5.2, 12.2, 8.8, 1.8, 14.2);
+    ctx.bezierCurveTo(-2.2, 9.2, -1.8, -4.8, 1.0, -9.0);
     ctx.closePath();
     ctx.fill();
 
-    // Two plump, kidney-shaped, wrinkled golden-yellow custard aril pods (ulas durian) nestled inside the chamber
+    // Two plump, kidney-shaped, custard-wrinkled golden-yellow aril pods (ulas durian) nestled inside the chamber
     for (const [ax, ay, arx, ary, rot] of [
-      [4.6, -2.0, 4.4, 5.4, -0.15],
-      [4.4, 7.2, 4.6, 5.5, 0.16],
+      [4.6, -2.2, 4.6, 5.6, -0.14],
+      [4.5, 7.2, 4.8, 5.7, 0.15],
     ] as const) {
       ctx.save();
       ctx.translate(ax, ay);
@@ -169,32 +172,32 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
 
       const aGrad = ctx.createRadialGradient(-1.4, -1.6, 0.5, 0, 0, ary * 1.1);
       aGrad.addColorStop(0, '#fef9c3');
-      aGrad.addColorStop(0.45, '#facc15');
-      aGrad.addColorStop(0.85, '#eab308');
+      aGrad.addColorStop(0.42, '#facc15');
+      aGrad.addColorStop(0.84, '#eab308');
       aGrad.addColorStop(1, '#b45309');
       ctx.fillStyle = aGrad;
       ctx.strokeStyle = '#78350f';
-      ctx.lineWidth = 1.15;
+      ctx.lineWidth = 1.2;
 
       // Kidney-curved plump aril contour
       ctx.beginPath();
-      ctx.moveTo(-arx * 0.4, -ary * 0.95);
-      ctx.bezierCurveTo(arx * 1.15, -ary * 0.85, arx * 1.2, ary * 0.85, -arx * 0.35, ary * 0.95);
-      ctx.bezierCurveTo(-arx * 0.95, ary * 0.55, -arx * 0.95, -ary * 0.55, -arx * 0.4, -ary * 0.95);
+      ctx.moveTo(-arx * 0.42, -ary * 0.95);
+      ctx.bezierCurveTo(arx * 1.18, -ary * 0.85, arx * 1.22, ary * 0.85, -arx * 0.35, ary * 0.95);
+      ctx.bezierCurveTo(-arx * 0.96, ary * 0.55, -arx * 0.96, -ary * 0.55, -arx * 0.42, -ary * 0.95);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
       // Delicate creamy custard crease & glossy highlight
-      ctx.strokeStyle = 'rgba(180, 83, 9, 0.38)';
+      ctx.strokeStyle = 'rgba(180, 83, 9, 0.42)';
       ctx.lineWidth = 0.85;
       ctx.beginPath();
-      ctx.arc(0.5, 0, arx * 0.55, -0.6, 0.6);
+      ctx.arc(0.5, 0, arx * 0.55, -0.65, 0.65);
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.62)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.66)';
       ctx.beginPath();
-      ctx.ellipse(-1.0, -1.6, 1.3, 2.3, -0.1, 0, Math.PI * 2);
+      ctx.ellipse(-1.0, -1.6, 1.35, 2.4, -0.1, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -262,7 +265,7 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
     }
   },
 
-  // 3. Banana Bunch (Musa acuminata Pisang Emas / Cavendish — authentic 2-row curved crescent hand with snug 5-faceted fingers)
+  // 3. Banana Bunch (Musa acuminata Pisang Emas / Cavendish — authentic 2-row curved crescent hand with snug parallel 5-faceted fingers)
   food_banana_bunch: (ctx) => {
     const drawBananaFinger = (
       x0: number,
@@ -274,26 +277,26 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
       bellyW: number,
       isBackRow: boolean,
     ) => {
-      const neckW = bellyW * 0.44;
-      // Full curved banana silhouette: slender pedicel neck at crown -> plump curved 5-sided belly -> tapered floral tip
+      const neckW = bellyW * 0.42;
+      // Full curved banana silhouette: slender green-tipped pedicel neck at crown -> plump parallel curved 5-sided belly -> tapered floral tip
       const bodyP = new Path2D();
       bodyP.moveTo(x0 - neckW, y0);
       // Outer-left/lower convex curve
       bodyP.bezierCurveTo(
-        x0 - bellyW * 0.85,
-        y0 + (ctrlY - y0) * 0.42,
+        x0 - bellyW * 0.88,
+        y0 + (ctrlY - y0) * 0.45,
         ctrlX - bellyW * 1.15,
-        ctrlY + bellyW * 0.35,
-        xTip - 1.4,
-        yTip + 0.5,
+        ctrlY + bellyW * 0.42,
+        xTip - 1.3,
+        yTip + 0.6,
       );
       // Blunt dark floral apex (tampuk hujung pisang)
-      bodyP.lineTo(xTip + 1.5, yTip - 1.1);
+      bodyP.lineTo(xTip + 1.5, yTip - 1.0);
       // Inner-right/upper concave curve
       bodyP.bezierCurveTo(
-        ctrlX + bellyW * 0.72,
-        ctrlY - bellyW * 0.45,
-        x0 + bellyW * 0.55,
+        ctrlX + bellyW * 0.68,
+        ctrlY - bellyW * 0.42,
+        x0 + bellyW * 0.52,
         y0 + (ctrlY - y0) * 0.35,
         x0 + neckW,
         y0,
@@ -302,9 +305,9 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
 
       const bGrad = ctx.createLinearGradient(x0, y0, xTip, yTip);
       bGrad.addColorStop(0, '#84cc16'); // fresh green-gold pedicel neck
-      bGrad.addColorStop(0.18, isBackRow ? '#eab308' : '#fef08a');
-      bGrad.addColorStop(0.68, isBackRow ? '#ca8a04' : '#facc15');
-      bGrad.addColorStop(0.94, '#b45309');
+      bGrad.addColorStop(0.16, isBackRow ? '#eab308' : '#fef08a');
+      bGrad.addColorStop(0.66, isBackRow ? '#ca8a04' : '#facc15');
+      bGrad.addColorStop(0.92, '#b45309');
       bGrad.addColorStop(1, '#78350f');
       ctx.fillStyle = bGrad;
       ctx.fill(bodyP);
@@ -315,7 +318,7 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
       ctx.fillStyle = isBackRow ? 'rgba(161, 98, 7, 0.38)' : 'rgba(180, 83, 9, 0.24)';
       ctx.beginPath();
       ctx.moveTo(x0, y0);
-      ctx.quadraticCurveTo(ctrlX - bellyW * 0.18, ctrlY + bellyW * 0.08, xTip, yTip);
+      ctx.quadraticCurveTo(ctrlX - bellyW * 0.18, ctrlY + bellyW * 0.1, xTip, yTip);
       ctx.lineTo(xTip - bellyW * 2, yTip + bellyW);
       ctx.lineTo(x0 - bellyW * 2, y0);
       ctx.closePath();
@@ -323,40 +326,41 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
       ctx.restore();
 
       ctx.strokeStyle = '#3b1d06';
-      ctx.lineWidth = 1.65;
+      ctx.lineWidth = 1.6;
       ctx.lineJoin = 'round';
       ctx.stroke(bodyP);
 
       // Crisp sunlit longitudinal facet ridge line along the banana's central arris
-      ctx.strokeStyle = isBackRow ? 'rgba(254, 249, 195, 0.42)' : 'rgba(255, 255, 255, 0.72)';
+      ctx.strokeStyle = isBackRow ? 'rgba(254, 249, 195, 0.45)' : 'rgba(255, 255, 255, 0.76)';
       ctx.lineWidth = 1.15;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(x0 + 0.2, y0 + 2.5);
-      ctx.quadraticCurveTo(ctrlX - bellyW * 0.15, ctrlY, xTip - 0.5, yTip - 2.0);
+      ctx.quadraticCurveTo(ctrlX - bellyW * 0.14, ctrlY, xTip - 0.5, yTip - 1.8);
       ctx.stroke();
 
       // Dark brown withered floral perianth tip (tampuk hujung pisang)
       ctx.fillStyle = '#271102';
       ctx.beginPath();
-      ctx.ellipse(xTip + 0.1, yTip - 0.3, 1.85, 1.35, 0.35, 0, Math.PI * 2);
+      ctx.ellipse(xTip + 0.1, yTip - 0.2, 1.85, 1.35, 0.35, 0, Math.PI * 2);
       ctx.fill();
     };
 
-    // Back row of 4 plump banana fingers radiating from the compact crown and curving in unison
-    drawBananaFinger(-7.5, -11.5, -14.5, 1.5, -7.5, 14.5, 5.2, true);
-    drawBananaFinger(-3.5, -11.8, -8.5, 3.0, 0.5, 16.0, 5.4, true);
-    drawBananaFinger(0.5, -11.5, -2.0, 3.0, 8.5, 15.0, 5.4, true);
-    drawBananaFinger(4.5, -10.8, 4.5, 1.5, 15.5, 12.0, 5.0, true);
+    // Back row of 4 plump banana fingers sharing a harmonious parallel J-curve from the crown
+    drawBananaFinger(-9.0, -11.5, -15.5, 2.0, -4.5, 14.5, 5.0, true);
+    drawBananaFinger(-5.2, -11.8, -10.5, 3.0, 2.0, 15.8, 5.2, true);
+    drawBananaFinger(-1.4, -11.6, -5.2, 2.8, 8.5, 15.0, 5.2, true);
+    drawBananaFinger(2.4, -11.0, 0.0, 1.8, 14.5, 12.8, 4.9, true);
 
-    // Front row of 4 snug, overlapping plump banana fingers nested in a natural crescent hand (sesisir pisang)
-    drawBananaFinger(-9.5, -9.8, -17.5, 4.5, -10.5, 17.5, 5.6, false);
-    drawBananaFinger(-4.8, -10.0, -10.5, 6.5, -1.5, 19.5, 5.9, false);
-    drawBananaFinger(0.0, -9.8, -3.0, 6.2, 7.5, 18.5, 5.9, false);
-    drawBananaFinger(4.6, -9.0, 4.0, 4.2, 15.5, 14.8, 5.5, false);
+    // Front row of 5 snug, overlapping plump banana fingers nested in a cohesive crescent hand (sesisir pisang)
+    drawBananaFinger(-11.0, -9.6, -18.0, 4.8, -7.2, 17.5, 5.4, false);
+    drawBananaFinger(-7.2, -10.0, -13.0, 6.2, -0.5, 19.2, 5.7, false);
+    drawBananaFinger(-3.2, -10.0, -7.5, 6.4, 6.2, 18.8, 5.8, false);
+    drawBananaFinger(0.8, -9.6, -2.0, 5.4, 12.4, 16.8, 5.6, false);
+    drawBananaFinger(4.5, -8.8, 3.0, 3.6, 17.2, 13.5, 5.2, false);
 
     // Sculpted woody-green fibrous crescent crown collar (tampuk sisir) uniting all banana pedicel necks
-    const cGrad = ctx.createLinearGradient(-13, -17, 10, -8);
+    const cGrad = ctx.createLinearGradient(-14, -17, 9, -8);
     cGrad.addColorStop(0, '#a3e635');
     cGrad.addColorStop(0.5, '#65a30d');
     cGrad.addColorStop(1, '#3f6212');
@@ -364,9 +368,9 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
     ctx.strokeStyle = '#1a2e05';
     ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.moveTo(-12.5, -9.5);
-    ctx.bezierCurveTo(-11, -16.5, 5, -17.0, 9.5, -9.2);
-    ctx.bezierCurveTo(6, -6.5, -8, -6.8, -12.5, -9.5);
+    ctx.moveTo(-13.5, -9.2);
+    ctx.bezierCurveTo(-12, -16.8, 4, -17.2, 8.8, -8.8);
+    ctx.bezierCurveTo(5, -6.2, -9, -6.5, -13.5, -9.2);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
@@ -376,13 +380,13 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
     ctx.strokeStyle = '#291303';
     ctx.lineWidth = 1.3;
     ctx.beginPath();
-    ctx.ellipse(-1.5, -14.2, 5.4, 2.2, 0.06, 0, Math.PI * 2);
+    ctx.ellipse(-2.5, -14.2, 5.6, 2.2, 0.06, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = '#d6bfa3';
     ctx.beginPath();
-    ctx.ellipse(-1.5, -14.2, 3.2, 1.1, 0.06, 0, Math.PI * 2);
+    ctx.ellipse(-2.5, -14.2, 3.4, 1.1, 0.06, 0, Math.PI * 2);
     ctx.fill();
   },
 

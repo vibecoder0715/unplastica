@@ -50,7 +50,7 @@ const habitImages: Record<HabitCode, string> = {
 };
 
 declare const __APP_BUILD_VERSION__: string | undefined;
-export const APP_BUILD_VERSION = (typeof __APP_BUILD_VERSION__ !== "undefined" && __APP_BUILD_VERSION__) ? __APP_BUILD_VERSION__ : "0.2.4";
+export const APP_BUILD_VERSION = (typeof __APP_BUILD_VERSION__ !== "undefined" && __APP_BUILD_VERSION__) ? __APP_BUILD_VERSION__ : "0.5.0";
 
 export function parseSemVer(v: string): number[] {
   return v.replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
@@ -3781,10 +3781,10 @@ function UpdateNotice() {
     return null;
   });
 
-  const performClearCacheAndUpdate = async () => {
+  const performClearCacheAndUpdate = async (newVersion?: string) => {
     if (updating) return;
     setUpdating(true);
-    const targetVer = availableVersion || APP_BUILD_VERSION;
+    const targetVer = newVersion || availableVersion || APP_BUILD_VERSION;
     localStorage.removeItem("unplastica_update_available");
     localStorage.setItem("unplastica_acknowledged_update_ver", targetVer);
     localStorage.setItem("unplastica_app_version", targetVer);
@@ -3882,6 +3882,10 @@ function UpdateNotice() {
           const data = await res.json();
           const remoteVer = data?.version;
           if (remoteVer && isNewerVersion(remoteVer, APP_BUILD_VERSION)) {
+            if (data?.forceUpdate) {
+              void performClearCacheAndUpdate(remoteVer);
+              return;
+            }
             notifyUpdate(remoteVer);
           } else {
             // Already up-to-date! Dismiss update banners and reset pending state

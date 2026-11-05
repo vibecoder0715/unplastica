@@ -2818,15 +2818,22 @@ function drawShellScute(
         height: number,
         pose: TurtlePose,
         pal: TurtleVariantPalette,
+        tearDrops: TearDrop[] = [],
+        opts?: { skipClear?: boolean; framingScale?: number },
       ): void {
+        if (!opts?.skipClear) {
+          ctx.clearRect(0, 0, width, height);
+        }
+
         ctx.save();
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
 
         const cx = width * 0.5;
-        const cy = height * 0.48;
+        const cy = height * 0.45;
         const baseRadius = Math.min(width, height * 1.08);
-        const scale = clamp(baseRadius / 650, 0.35, 1.45);
+        const framing = opts?.framingScale ?? 1.0;
+        const scale = clamp((baseRadius / 650) * framing, 0.05, 1.45);
 
         ctx.translate(cx, cy);
         ctx.scale(scale, scale);
@@ -3302,7 +3309,7 @@ function drawShellScute(
         );
         drawEyebrows(ctx, pose, lookX, lookY);
         if (pose.tearsAlpha > 0.01) {
-          drawTearsAndDroplets(ctx, pose, [], lookX, lookY);
+          drawTearsAndDroplets(ctx, pose, tearDrops, lookX, lookY);
         }
         ctx.restore();
 

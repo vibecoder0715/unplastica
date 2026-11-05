@@ -1,4 +1,4 @@
-﻿import type { TurtlePose } from '../../turtle/types';
+import type { TurtlePose } from '../../turtle/types';
 
 /** Inputs for a refined plant rig. */
 export interface PlantRigInput {
@@ -11,6 +11,8 @@ export interface PlantRigInput {
   /** 1 vegetative, 2 flowering, 3 fruiting. */
   growthStage: 1 | 2 | 3;
   fruitCount: number;
+  /** Optional 0..3 per-instance morphological style variant so same-species plants are not copy-paste identical. */
+  variant?: number;
 }
 
 /**

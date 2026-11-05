@@ -464,17 +464,28 @@ export function getAssetThumbnailDataUrl(assetId: string): string {
 const foodThumbCache = new Map<string, string>();
 const plantSpriteCache = new Map<string, HTMLCanvasElement>();
 
+function getPlantInstanceVariant(plant: Pick<PlacedPlant, 'uid' | 'x' | 'assetId'>): number {
+  let h = Math.round(plant.x * 0.13);
+  const s = `${plant.uid || ''}_${plant.assetId}`;
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(h ^ s.charCodeAt(i), 16777619)) >>> 0;
+  }
+  return Math.abs(h) % 4;
+}
+
 function getCachedPlantSprite(
   assetId: string,
   drawW: number,
   drawH: number,
   growthStage: 1 | 2 | 3,
   fruitCount: number,
+  variant = 0,
 ): HTMLCanvasElement | null {
   if (typeof document === 'undefined') return null;
   const w = Math.max(64, Math.round(drawW));
   const h = Math.max(64, Math.round(drawH));
-  const key = `${assetId}|${w}x${h}|${growthStage}|${fruitCount}`;
+  const v = ((variant % 4) + 4) % 4;
+  const key = `${assetId}|${w}x${h}|${growthStage}|${fruitCount}|v${v}`;
   const cached = plantSpriteCache.get(key);
   if (cached) return cached;
 
@@ -488,9 +499,10 @@ function getCachedPlantSprite(
     if (!cCtx) return null;
     cCtx.save();
     cCtx.translate(padX, padY);
-    renderPlantAsset(cCtx, assetId, w, h, STATIC_PLANT_BASE_POSE, 1.0, {
+    renderPlantAsset(cCtx, assetId, w, h, STATIC_PLANT_BASE_POSE, 1.0 + v * 1.7, {
       growthStage,
       fruitCount,
+      variant: v,
       skipClear: true,
     });
     cCtx.restore();
@@ -2450,11 +2462,11 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
     ctx.clip();
 
     const cloudTopCol = isStorm
-      ? '#94a3b8'
+      ? '#cbd5e1'
       : nightFactor > 0.5
-        ? '#475569'
+        ? '#64748b'
         : sunsetFactor > 0.2
-          ? '#fff1e6'
+          ? '#fff7ed'
           : '#ffffff';
     const cloudMidCol = isStorm
       ? '#64748b'
@@ -2462,14 +2474,14 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
         ? '#334155'
         : sunsetFactor > 0.2
           ? '#fed7aa'
-          : '#f1f5f9';
+          : '#e2e8f0';
     const cloudBaseCol = isStorm
-      ? '#334155'
+      ? '#1e293b'
       : nightFactor > 0.5
-        ? '#1e293b'
+        ? '#0f172a'
         : sunsetFactor > 0.2
-          ? '#cbd5e1'
-          : '#cbd5e1';
+          ? '#94a3b8'
+          : '#94a3b8';
 
     const drawVolumetricCloud = (
       cx: number,
@@ -2495,107 +2507,133 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
 
       // 0. Distant virga rain shafts beneath storm clouds (strictly in sky above horizon)
       if (isStorm) {
-        const virgaGrad = ctx.createLinearGradient(0, 10, -18, 92);
-        virgaGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.34));
-        virgaGrad.addColorStop(0.6, hexToRgba(cloudMidCol, 0.14));
+        const virgaGrad = ctx.createLinearGradient(0, 12, -16, 86);
+        virgaGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.28));
+        virgaGrad.addColorStop(0.55, hexToRgba(cloudMidCol, 0.12));
         virgaGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
         ctx.fillStyle = virgaGrad;
         ctx.beginPath();
-        ctx.moveTo(-64, 12);
+        ctx.moveTo(-66, 12);
         ctx.lineTo(74, 12);
-        ctx.lineTo(48, 92);
-        ctx.lineTo(-90, 92);
+        ctx.lineTo(54, 86);
+        ctx.lineTo(-86, 86);
         ctx.closePath();
         ctx.fill();
       }
 
       // 1. Soft atmospheric vapor halo & diffused anvil mist around cloud base
-      const mistGrad = ctx.createRadialGradient(6, 8, 10, 6, 12, 112);
-      mistGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.65));
-      mistGrad.addColorStop(0.55, hexToRgba(cloudMidCol, 0.28));
+      const mistGrad = ctx.createRadialGradient(4, 8, 12, 4, 12, 118);
+      mistGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.42));
+      mistGrad.addColorStop(0.55, hexToRgba(cloudMidCol, 0.18));
       mistGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
       ctx.fillStyle = mistGrad;
       ctx.beginPath();
-      ctx.ellipse(6, 12, 108, 24, 0, 0, Math.PI * 2);
+      ctx.ellipse(4, 12, 114, 22, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Continuous sculpted cumulus silhouette path (seamless billowing domes + flat condensation base)
+      // 2. Multi-tiered realistic tropical cumulus / cumulonimbus silhouette
+      // (billowing cauliflower turrets on top + flat lifted-condensation-level base)
       const sil = new Path2D();
       if (variant === 0) {
-        sil.moveTo(-84, 15);
-        sil.bezierCurveTo(-92, 6, -78, -8, -60, -6);
-        sil.bezierCurveTo(-54, -22, -32, -28, -18, -18);
-        sil.bezierCurveTo(-8, -42, 26, -44, 38, -20);
-        sil.bezierCurveTo(52, -26, 74, -16, 76, -2);
-        sil.bezierCurveTo(92, -2, 100, 8, 90, 15);
-        sil.bezierCurveTo(42, 20, -36, 20, -84, 15);
+        sil.moveTo(-92, 15);
+        sil.bezierCurveTo(-104, 11, -100, -2, -84, -4);
+        sil.bezierCurveTo(-80, -18, -62, -24, -48, -16);
+        sil.bezierCurveTo(-42, -34, -18, -40, -4, -26);
+        sil.bezierCurveTo(6, -50, 38, -52, 48, -24);
+        sil.bezierCurveTo(62, -30, 82, -18, 82, -4);
+        sil.bezierCurveTo(98, -4, 106, 9, 94, 15);
+        sil.bezierCurveTo(46, 19, -42, 19, -92, 15);
       } else if (variant === 1) {
-        sil.moveTo(-88, 15);
-        sil.bezierCurveTo(-96, 5, -80, -10, -62, -8);
-        sil.bezierCurveTo(-50, -30, -18, -36, -2, -22);
-        sil.bezierCurveTo(10, -46, 46, -42, 56, -16);
-        sil.bezierCurveTo(72, -18, 90, -6, 86, 8);
-        sil.bezierCurveTo(96, 12, 92, 17, 78, 16);
-        sil.bezierCurveTo(28, 20, -40, 20, -88, 15);
+        sil.moveTo(-96, 15);
+        sil.bezierCurveTo(-108, 10, -102, -4, -84, -6);
+        sil.bezierCurveTo(-74, -24, -48, -30, -34, -18);
+        sil.bezierCurveTo(-22, -46, 14, -50, 28, -26);
+        sil.bezierCurveTo(42, -38, 70, -30, 76, -10);
+        sil.bezierCurveTo(94, -8, 104, 8, 90, 15);
+        sil.bezierCurveTo(38, 19, -44, 19, -96, 15);
       } else {
-        sil.moveTo(-80, 14);
-        sil.bezierCurveTo(-88, 4, -72, -12, -50, -10);
-        sil.bezierCurveTo(-36, -34, 2, -38, 16, -20);
-        sil.bezierCurveTo(28, -32, 60, -28, 68, -8);
-        sil.bezierCurveTo(84, -8, 94, 6, 82, 14);
-        sil.bezierCurveTo(32, 19, -32, 19, -80, 14);
+        sil.moveTo(-88, 14);
+        sil.bezierCurveTo(-98, 9, -92, -5, -74, -6);
+        sil.bezierCurveTo(-64, -26, -34, -34, -18, -20);
+        sil.bezierCurveTo(-6, -42, 26, -44, 38, -20);
+        sil.bezierCurveTo(52, -28, 76, -20, 80, -4);
+        sil.bezierCurveTo(96, -3, 102, 9, 88, 14);
+        sil.bezierCurveTo(36, 18, -36, 18, -88, 14);
       }
       sil.closePath();
 
-      const bodyGrad = ctx.createLinearGradient(0, -44, 0, 19);
+      const bodyGrad = ctx.createLinearGradient(0, -50, 0, 18);
       bodyGrad.addColorStop(0, cloudTopCol);
-      bodyGrad.addColorStop(0.52, cloudMidCol);
-      bodyGrad.addColorStop(0.84, cloudBaseCol);
-      bodyGrad.addColorStop(1, hexToRgba(cloudBaseCol, 0.88));
+      bodyGrad.addColorStop(0.46, cloudMidCol);
+      bodyGrad.addColorStop(0.82, cloudBaseCol);
+      bodyGrad.addColorStop(1, hexToRgba(cloudBaseCol, 0.92));
       ctx.fillStyle = bodyGrad;
       ctx.fill(sil);
 
-      // 3. Soft radial-gradient 3D volumetric puffs clipped inside and along the cumulus turrets
-      // (Zero hard concentric ellipse rings — every puff feathers smoothly to 0 alpha!)
+      // 3. Internal 3D volumetric cauliflower lobes & sunlit crests (clipped cleanly inside `sil`)
+      ctx.save();
+      ctx.clip(sil);
+
+      // Deeper internal shadow pockets at the lower joints of the cumulus towers
+      const shadowLobes: ReadonlyArray<readonly [number, number, number]> = [
+        [-54, 8, 28],
+        [-14, 6, 34],
+        [28, 7, 34],
+        [64, 9, 26],
+      ];
+      for (const [sx, sy, sr] of shadowLobes) {
+        const sGrad = ctx.createRadialGradient(sx, sy + sr * 0.2, sr * 0.1, sx, sy, sr);
+        sGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.52));
+        sGrad.addColorStop(0.6, hexToRgba(cloudBaseCol, 0.22));
+        sGrad.addColorStop(1, hexToRgba(cloudBaseCol, 0));
+        ctx.fillStyle = sGrad;
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Sunlit upper volumetric puffs (top-left solar illumination)
       const puffs: ReadonlyArray<readonly [number, number, number]> =
         variant === 0
           ? [
-              [-52, 0, 26],
-              [-24, -10, 32],
-              [10, -20, 38],
-              [44, -8, 30],
-              [70, 3, 22],
-              [-6, 2, 30],
-              [28, 3, 28],
+              [-62, -6, 24],
+              [-26, -18, 30],
+              [16, -26, 36],
+              [52, -10, 28],
+              [76, 2, 22],
+              [-6, -2, 28],
+              [30, 0, 26],
             ]
           : variant === 1
             ? [
-                [-56, 1, 25],
-                [-22, -14, 35],
-                [18, -22, 40],
-                [50, -8, 30],
-                [72, 4, 22],
-                [0, 2, 32],
+                [-64, -6, 24],
+                [-32, -14, 28],
+                [2, -26, 38],
+                [46, -16, 30],
+                [74, 1, 22],
+                [14, -2, 30],
               ]
             : [
-                [-46, -1, 28],
-                [-12, -16, 36],
-                [26, -14, 34],
-                [58, -2, 26],
-                [8, 3, 30],
+                [-56, -8, 26],
+                [-18, -18, 32],
+                [16, -24, 34],
+                [52, -10, 26],
+                [74, 2, 20],
+                [4, 0, 28],
               ];
 
       for (const [px, py, pr] of puffs) {
         const pGrad = ctx.createRadialGradient(
-          px - pr * 0.28,
-          py - pr * 0.32,
-          pr * 0.08,
+          px - pr * 0.3,
+          py - pr * 0.34,
+          pr * 0.06,
           px,
           py,
           pr,
         );
-        pGrad.addColorStop(0, hexToRgba(cloudTopCol, 0.92));
-        pGrad.addColorStop(0.55, hexToRgba(cloudMidCol, 0.45));
+        pGrad.addColorStop(0, hexToRgba(cloudTopCol, 0.96));
+        pGrad.addColorStop(0.52, hexToRgba(cloudTopCol, 0.48));
+        pGrad.addColorStop(0.82, hexToRgba(cloudMidCol, 0.15));
         pGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
         ctx.fillStyle = pGrad;
         ctx.beginPath();
@@ -2603,17 +2641,21 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
         ctx.fill();
       }
 
-      // 4. Flat atmospheric condensation base shadow band
-      ctx.save();
-      ctx.clip(sil);
-      const baseShadow = ctx.createLinearGradient(0, 2, 0, 20);
+      // 4. Flat atmospheric condensation base shadow band + subtle sky-bounce rim
+      const baseShadow = ctx.createLinearGradient(0, 1, 0, 19);
       baseShadow.addColorStop(0, hexToRgba(cloudBaseCol, 0));
-      baseShadow.addColorStop(0.65, hexToRgba(cloudBaseCol, 0.55));
-      baseShadow.addColorStop(1, hexToRgba(cloudBaseCol, 0.85));
+      baseShadow.addColorStop(0.62, hexToRgba(cloudBaseCol, 0.48));
+      baseShadow.addColorStop(0.9, hexToRgba(cloudBaseCol, 0.76));
+      baseShadow.addColorStop(1, hexToRgba(cloudMidCol, 0.55));
       ctx.fillStyle = baseShadow;
-      ctx.fillRect(-100, 2, 200, 20);
-      ctx.restore();
+      ctx.fillRect(-110, 1, 220, 19);
 
+      // 5. Crisp sunlit silver-lining rim highlight along the top cumulus domes
+      ctx.strokeStyle = hexToRgba('#ffffff', isStorm ? 0.38 : nightFactor > 0.5 ? 0.25 : 0.72);
+      ctx.lineWidth = 1.8;
+      ctx.stroke(sil);
+
+      ctx.restore();
       ctx.restore();
     };
 
@@ -2935,9 +2977,13 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
       waveRaysPhase: elapsedSec * (1.2 + windSwayBoost * 0.6),
     };
 
-    const plantSize = ASSET_ECO_CONFIG[plant.assetId]?.visualSize ?? 1;
-    const { w: drawW, h: drawH } = getPlantDrawSize(plant);
-    const stageScale = (drawW / 210) / plantSize;
+    const plantVariant = getPlantInstanceVariant(plant);
+    const variantScale = 0.94 + (plantVariant - 1.5) * 0.04;
+    const plantSize = (ASSET_ECO_CONFIG[plant.assetId]?.visualSize ?? 1) * variantScale;
+    const rawDrawSize = getPlantDrawSize(plant);
+    const drawW = rawDrawSize.w * variantScale;
+    const drawH = rawDrawSize.h * variantScale;
+    const stageScale = (drawW / 210) / Math.max(0.2, plantSize);
     const isFloatingPlant = isFloatingPlantAsset(plant.assetId) && getWaterSurfaceY(plant.x, viewportHeight) !== null;
     const meta = ASSET_ECO_CONFIG[plant.assetId];
 
@@ -2950,6 +2996,7 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
           drawH,
           plant.growthStage,
           plant.fruitCount,
+          plantVariant,
         );
         if (cachedSprite) {
           const w = Math.max(64, Math.round(drawW));
@@ -2973,6 +3020,7 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
           renderPlantAsset(ctx, plant.assetId, drawW, drawH, pose, elapsedSec, {
             growthStage: plant.growthStage,
             fruitCount: plant.fruitCount,
+            variant: plantVariant,
             skipClear: true,
           });
           ctx.restore();
@@ -3164,7 +3212,9 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
 
     const pose: TurtlePose = {
       ...rig.pose,
-      blinkAmount: Math.max(rig.pose.blinkAmount, animal.blinkActiveSec > 0 ? 0.96 : 0),
+      blinkAmount: isSeaTurtleAsset
+        ? rig.pose.blinkAmount
+        : Math.max(rig.pose.blinkAmount, animal.blinkActiveSec > 0 ? 0.96 : 0),
       mouthOpen: chewMouth,
       mouthSmile: animal.eatingStage !== 'none' ? 0.85 : rig.pose.mouthSmile,
       blushAlpha: animal.eatingStage !== 'none' ? 0.65 : rig.pose.blushAlpha,
@@ -3173,14 +3223,6 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
       laughMarksAlpha: rig.pose.laughMarksAlpha,
       angryVeinAlpha: rig.pose.angryVeinAlpha,
     };
-
-    if (isSeaTurtleAsset && targetEmotion === 'normal' && locoBlend > 0.1) {
-      const scullWave = Math.sin(elapsedSec * 3.2 + animal.x * 0.015);
-      pose.nearFlipperAngle += scullWave * 0.28 * locoBlend;
-      pose.farFlipperAngle -= scullWave * 0.28 * locoBlend;
-      pose.bodyY += Math.sin(elapsedSec * 2.2 + animal.x * 0.01) * 6 * locoBlend;
-      pose.bodyRot += Math.cos(elapsedSec * 2.2 + animal.x * 0.01) * 0.04 * locoBlend;
-    }
 
     const drawW = 220 * worldScale;
     const drawH = 200 * worldScale;
@@ -3598,7 +3640,7 @@ function renderWeatherScreenOverlay(
 
   // Sample across screen columns to build the exact Air-Above-Surface clipping polygon
   let maxAirBottomY = -9999;
-  const stepX = 32;
+  const stepX = 24;
   const samples: Array<{ sx: number; screenY: number; isWater: boolean }> = [];
   for (let sx = 0; sx <= w + stepX; sx += stepX) {
     const clampedSx = Math.min(w, sx);
@@ -3613,29 +3655,30 @@ function renderWeatherScreenOverlay(
     return;
   }
 
-  // When diving underwater (cameraY > 35), airborne rain streaks fade out rapidly so that
-  // underwater you only see the raindrop impact ripples on the surface above you!
-  const airStreakVisibility = clamp(1 - (cameraY - 35) / 75, 0, 1);
+  // When diving into the sea/river (cameraY > 8), airborne rain streaks fade out immediately
+  // so underwater you ONLY see raindrop ripples and meniscus splashes on the water surface!
+  const airStreakVisibility = clamp(1 - (cameraY - 8) / 28, 0, 1);
 
-  ctx.save();
-  // Clip strictly to the air column above the water surface / ground contour
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(w, 0);
-  for (let i = samples.length - 1; i >= 0; i--) {
-    ctx.lineTo(samples[i].sx, Math.min(h, samples[i].screenY + 2));
-  }
-  ctx.closePath();
-  ctx.clip();
+  if (airStreakVisibility > 0.01) {
+    ctx.save();
+    // Clip strictly to the air column above the water surface / ground contour (never 1px below!)
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(w, 0);
+    for (let i = samples.length - 1; i >= 0; i--) {
+      ctx.lineTo(samples[i].sx, Math.max(0, Math.min(h, samples[i].screenY - 0.5)));
+    }
+    ctx.closePath();
+    ctx.clip();
 
-  if (weather === 'windy') {
-    if (airStreakVisibility > 0.02) {
+    if (weather === 'windy') {
       ctx.lineCap = 'round';
       for (let i = 0; i < 18; i++) {
         const depth = (i % 3) / 2;
         const spd = 340 + depth * 220;
         const wx = ((elapsedSec * spd + i * 197) % (w + 320)) - 160;
-        const wy = ((i * 67) % Math.max(80, Math.min(h * 0.72, maxAirBottomY - 24))) + 24;
+        const wy = ((i * 67) % Math.max(80, Math.min(h * 0.72, maxAirBottomY - 28))) + 20;
+        if (wy >= getSurfaceInfoAtScreenX(wx).screenY - 12) continue;
         const len = 85 + depth * 65;
         const wGrad = ctx.createLinearGradient(wx, wy, wx + len, wy);
         wGrad.addColorStop(0, 'rgba(248, 250, 252, 0)');
@@ -3643,54 +3686,53 @@ function renderWeatherScreenOverlay(
         wGrad.addColorStop(0.7, `rgba(255, 255, 255, ${(0.22 + depth * 0.16) * airStreakVisibility})`);
         wGrad.addColorStop(1, 'rgba(248, 250, 252, 0)');
         ctx.strokeStyle = wGrad;
-        ctx.lineWidth = 1.1 + depth * 0.9;
+        ctx.lineWidth = 1.0 + depth * 0.85;
         ctx.beginPath();
         ctx.moveTo(wx, wy);
         ctx.bezierCurveTo(
           wx + len * 0.35,
-          wy - 8 - (i % 2) * 5,
+          wy - 7 - (i % 2) * 4,
           wx + len * 0.7,
-          wy + 7 + (i % 2) * 4,
+          wy + 6 + (i % 2) * 4,
           wx + len,
           wy - 2,
         );
         ctx.stroke();
       }
-    }
-  } else if (weather === 'rain') {
-    const clipBottomY = Math.min(h, maxAirBottomY);
+    } else if (weather === 'rain') {
+      const clipBottomY = Math.max(1, Math.min(h, maxAirBottomY));
 
-    if (airStreakVisibility > 0.02) {
-      // 1. Atmospheric rain-curtain mist & slanting precipitation shafts in the sky
+      // 1. Atmospheric rain-curtain mist & slanting precipitation shafts strictly in the sky above water
       const curtainGrad = ctx.createLinearGradient(0, 0, 0, clipBottomY);
-      curtainGrad.addColorStop(0, `rgba(148, 163, 184, ${0.15 * airStreakVisibility})`);
-      curtainGrad.addColorStop(0.65, `rgba(186, 230, 253, ${0.07 * airStreakVisibility})`);
-      curtainGrad.addColorStop(1, `rgba(224, 242, 254, ${0.14 * airStreakVisibility})`);
+      curtainGrad.addColorStop(0, `rgba(148, 163, 184, ${0.14 * airStreakVisibility})`);
+      curtainGrad.addColorStop(0.6, `rgba(186, 230, 253, ${0.06 * airStreakVisibility})`);
+      curtainGrad.addColorStop(1, `rgba(224, 242, 254, ${0.11 * airStreakVisibility})`);
       ctx.fillStyle = curtainGrad;
       ctx.fillRect(0, 0, w, clipBottomY);
 
       ctx.lineCap = 'round';
-      const windTilt = -0.18 + Math.sin(elapsedSec * 0.75) * 0.02;
+      // Realistic tropical downpour angle (~5 degrees wind shear, not artificial steep laser diagonals)
+      const windTilt = -0.088 + Math.sin(elapsedSec * 0.65) * 0.015;
 
-      // 2. 4 Depth Planes of 100% Realistic Tapered Optical Raindrop Needles
-      // Uses non-periodic hash distribution + 3-stage tapered alpha-gradient segments
-      // (feathered upper tail -> translucent mid -> crisp glistening lower meniscus tip)
+      // 2. 4 Depth Planes of 100% Realistic Optical Raindrop Streaks
+      // Every single raindrop is individually clamped at the water surface (`surfY`) so no raindrop
+      // ever crosses into the sea or river!
       const layers = [
-        { id: 1, count: 56, speedY: 760, speedX: -138, len: 24, width: 0.65, alpha: 0.24 },
-        { id: 2, count: 46, speedY: 980, speedX: -176, len: 34, width: 0.88, alpha: 0.38 },
-        { id: 3, count: 34, speedY: 1220, speedX: -220, len: 46, width: 1.12, alpha: 0.52 },
-        { id: 4, count: 20, speedY: 1480, speedX: -268, len: 58, width: 1.35, alpha: 0.68 },
+        { id: 1, count: 64, speedY: 780, speedX: -68, len: 22, width: 0.55, alpha: 0.22 },
+        { id: 2, count: 52, speedY: 1020, speedX: -88, len: 32, width: 0.75, alpha: 0.34 },
+        { id: 3, count: 38, speedY: 1260, speedX: -110, len: 42, width: 0.95, alpha: 0.46 },
+        { id: 4, count: 22, speedY: 1520, speedX: -134, len: 52, width: 1.15, alpha: 0.58 },
       ];
 
-      const spanW = w + 180;
-      const spanH = Math.max(160, clipBottomY + 90);
+      const spanW = w + 160;
+      const spanH = Math.max(140, clipBottomY + 40);
 
       for (const layer of layers) {
         const effAlpha = layer.alpha * airStreakVisibility;
 
-        // Pass A: Feathered upper-to-mid motion trail (top 100% of streak, slender & faint)
-        ctx.strokeStyle = `rgba(203, 232, 252, ${effAlpha * 0.36})`;
-        ctx.lineWidth = layer.width * 0.62;
+        // Pass A: Feathered upper motion wake (0% -> 100% of clipped drop)
+        ctx.strokeStyle = `rgba(203, 232, 252, ${effAlpha * 0.32})`;
+        ctx.lineWidth = layer.width * 0.58;
         ctx.beginPath();
         for (let i = 0; i < layer.count; i++) {
           const h1 = seededHash(i * 19.37 + layer.id * 71.3);
@@ -3698,17 +3740,21 @@ function renderWeatherScreenOverlay(
           const h3 = seededHash(i * 79.23 + layer.id * 37.9);
           const dLen = layer.len * (0.78 + h3 * 0.44);
           const spdMul = 0.9 + h3 * 0.2;
-          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 90;
-          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 60;
-          const dx = dLen * windTilt;
+          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 80;
+          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 50;
+          const surfY = getSurfaceInfoAtScreenX(clamp(rx, 0, w)).screenY - 1;
+          if (ry >= surfY - 2) continue;
+          const maxT = clamp((surfY - ry) / Math.max(1, dLen), 0, 1);
+          const dx = dLen * windTilt * maxT;
+          const dy = dLen * maxT;
           ctx.moveTo(rx, ry);
-          ctx.lineTo(rx + dx, ry + dLen);
+          ctx.lineTo(rx + dx, ry + dy);
         }
         ctx.stroke();
 
-        // Pass B: Translucent mid-to-lower body (bottom 58% of streak)
-        ctx.strokeStyle = `rgba(224, 242, 254, ${effAlpha * 0.68})`;
-        ctx.lineWidth = layer.width * 0.85;
+        // Pass B: Translucent mid-body optical refraction (45% -> 100% of clipped drop)
+        ctx.strokeStyle = `rgba(226, 242, 254, ${effAlpha * 0.62})`;
+        ctx.lineWidth = layer.width * 0.82;
         ctx.beginPath();
         for (let i = 0; i < layer.count; i++) {
           const h1 = seededHash(i * 19.37 + layer.id * 71.3);
@@ -3716,16 +3762,19 @@ function renderWeatherScreenOverlay(
           const h3 = seededHash(i * 79.23 + layer.id * 37.9);
           const dLen = layer.len * (0.78 + h3 * 0.44);
           const spdMul = 0.9 + h3 * 0.2;
-          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 90;
-          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 60;
+          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 80;
+          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 50;
+          const surfY = getSurfaceInfoAtScreenX(clamp(rx, 0, w)).screenY - 1;
+          if (ry + dLen * 0.45 >= surfY - 1) continue;
+          const maxT = clamp((surfY - ry) / Math.max(1, dLen), 0.45, 1);
           const dx = dLen * windTilt;
-          ctx.moveTo(rx + dx * 0.42, ry + dLen * 0.42);
-          ctx.lineTo(rx + dx, ry + dLen);
+          ctx.moveTo(rx + dx * 0.45, ry + dLen * 0.45);
+          ctx.lineTo(rx + dx * maxT, ry + dLen * maxT);
         }
         ctx.stroke();
 
-        // Pass C: Bright specular droplet tip (bottom 22% of streak)
-        ctx.strokeStyle = `rgba(248, 250, 252, ${Math.min(0.95, effAlpha * 1.12)})`;
+        // Pass C: Glistening lower raindrop meniscus tip (80% -> 100% of clipped drop)
+        ctx.strokeStyle = `rgba(248, 250, 252, ${Math.min(0.88, effAlpha * 0.98)})`;
         ctx.lineWidth = layer.width;
         ctx.beginPath();
         for (let i = 0; i < layer.count; i++) {
@@ -3734,17 +3783,18 @@ function renderWeatherScreenOverlay(
           const h3 = seededHash(i * 79.23 + layer.id * 37.9);
           const dLen = layer.len * (0.78 + h3 * 0.44);
           const spdMul = 0.9 + h3 * 0.2;
-          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 90;
-          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 60;
+          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 80;
+          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 50;
+          const surfY = getSurfaceInfoAtScreenX(clamp(rx, 0, w)).screenY - 1;
+          if (ry + dLen * 0.8 >= surfY - 1) continue;
+          const maxT = clamp((surfY - ry) / Math.max(1, dLen), 0.8, 1);
           const dx = dLen * windTilt;
-          ctx.moveTo(rx + dx * 0.78, ry + dLen * 0.78);
-          ctx.lineTo(rx + dx, ry + dLen);
+          ctx.moveTo(rx + dx * 0.8, ry + dLen * 0.8);
+          ctx.lineTo(rx + dx * maxT, ry + dLen * maxT);
         }
         ctx.stroke();
       }
-    }
-  } else if (weather === 'fog') {
-    if (airStreakVisibility > 0.02) {
+    } else if (weather === 'fog') {
       for (let band = 0; band < 4; band++) {
         const by = Math.min(maxAirBottomY - 25, h * (0.24 + band * 0.16));
         if (by < -40) continue;
@@ -3757,56 +3807,77 @@ function renderWeatherScreenOverlay(
         ctx.fillRect(-60 + driftX, by - 65, w + 120, 130);
       }
     }
+
+    ctx.restore();
   }
 
-  ctx.restore();
-
-  // 3. Water-Surface & Ground Rain Impacts (drawn right on the water surface meniscus / ground contour!)
-  // Visible whenever the surface line is on screen (0 < sy < h), even when looking at the surface from shallow water!
-  if (weather === 'rain' && seaLevelScreenY > -12 && seaLevelScreenY < h + 12) {
+  // 3. Water-Surface Meniscus & Ground Rain Impacts (drawn strictly along the water surface / ground contour!)
+  // When diving in the sea, rain is ONLY visible right on the water surface meniscus (`seaLevelScreenY`)!
+  if (weather === 'rain' && seaLevelScreenY > 2 && seaLevelScreenY < h - 2) {
     ctx.save();
-    for (let s = 0; s < 26; s++) {
-      const cycle = elapsedSec * 2.4 + s * 0.37;
+    // Subtle shimmering rain-pattered surface meniscus sheen when viewing the water surface
+    const underwaterViewFactor = clamp((cameraY - 8) / 35, 0, 1);
+    if (underwaterViewFactor > 0.02) {
+      const menGrad = ctx.createLinearGradient(0, seaLevelScreenY - 6, 0, seaLevelScreenY + 14);
+      menGrad.addColorStop(0, `rgba(224, 242, 254, ${0.22 * underwaterViewFactor})`);
+      menGrad.addColorStop(0.45, `rgba(186, 230, 253, ${0.34 * underwaterViewFactor})`);
+      menGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      ctx.fillStyle = menGrad;
+      ctx.fillRect(0, seaLevelScreenY - 6, w, 20);
+    }
+
+    for (let s = 0; s < 32; s++) {
+      const cycle = elapsedSec * 2.5 + s * 0.31;
       const phase = cycle % 1;
       const pulseIdx = Math.floor(cycle);
-      const sx = 16 + seededHash(s * 97.3 + pulseIdx * 31.7) * Math.max(60, w - 32);
+      const sx = 14 + seededHash(s * 97.3 + pulseIdx * 31.7) * Math.max(60, w - 28);
       const surf = getSurfaceInfoAtScreenX(sx);
-      const sy = surf.screenY + (surf.isWater ? (seededHash(s * 13.1) - 0.5) * 3 : (seededHash(s * 17.9) - 0.5) * 6);
-      if (sy < 2 || sy > h - 2) continue;
+      const sy = surf.screenY + (surf.isWater ? (seededHash(s * 13.1) - 0.5) * 2 : (seededHash(s * 17.9) - 0.5) * 4);
+      if (sy < 3 || sy > h - 3) continue;
 
       const fade = (1 - phase) * (1 - phase * 0.35);
-      const rx = (surf.isWater ? 4.5 : 3.0) + phase * (surf.isWater ? 20 : 11);
-      const ry = rx * (surf.isWater ? 0.22 : 0.26);
+      const rx = (surf.isWater ? 4.0 : 2.8) + phase * (surf.isWater ? 19 : 10);
+      const ry = rx * (surf.isWater ? 0.19 : 0.24);
 
-      // Outer expanding capillary wave ring
-      ctx.strokeStyle = `rgba(224, 242, 254, ${(surf.isWater ? 0.64 : 0.44) * fade})`;
-      ctx.lineWidth = surf.isWater ? 1.35 : 1.05;
+      // Outer expanding capillary wave ring on the surface plane
+      ctx.strokeStyle = `rgba(226, 242, 254, ${(surf.isWater ? 0.68 : 0.44) * fade})`;
+      ctx.lineWidth = surf.isWater ? 1.25 : 1.0;
       ctx.beginPath();
       ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // Secondary inner concentric ripple on water surface
-      if (surf.isWater && phase > 0.16) {
-        const innerRx = rx * 0.52;
-        const innerRy = ry * 0.52;
-        ctx.strokeStyle = `rgba(248, 250, 252, ${0.46 * fade})`;
-        ctx.lineWidth = 0.95;
+      if (surf.isWater && phase > 0.14) {
+        const innerRx = rx * 0.5;
+        const innerRy = ry * 0.5;
+        ctx.strokeStyle = `rgba(248, 250, 252, ${0.48 * fade})`;
+        ctx.lineWidth = 0.9;
         ctx.beginPath();
         ctx.ellipse(sx, sy, innerRx, innerRy, 0, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // Upward rebounding Worthington crown splash jet & micro-droplets at impact start
-      if (phase < 0.34) {
-        const crownT = phase / 0.34;
-        const lift = Math.sin(crownT * Math.PI) * (surf.isWater ? 9.0 : 5.5);
-        const spread = crownT * (surf.isWater ? 7.0 : 4.5);
-        ctx.fillStyle = `rgba(248, 250, 252, ${0.82 * (1 - crownT)})`;
-        ctx.beginPath();
-        ctx.arc(sx - spread, sy - lift * 0.85, 1.15, 0, Math.PI * 2);
-        ctx.arc(sx, sy - lift * 1.25, 1.35, 0, Math.PI * 2);
-        ctx.arc(sx + spread, sy - lift * 0.85, 1.15, 0, Math.PI * 2);
-        ctx.fill();
+      // Upward rebounding Worthington crown splash above surface + tiny entrained air bubble just 2-5px under the meniscus
+      if (phase < 0.36) {
+        const crownT = phase / 0.36;
+        const lift = Math.sin(crownT * Math.PI) * (surf.isWater ? 7.5 : 4.5);
+        const spread = crownT * (surf.isWater ? 6.0 : 4.0);
+        if (airStreakVisibility > 0.05) {
+          ctx.fillStyle = `rgba(248, 250, 252, ${0.8 * (1 - crownT) * airStreakVisibility})`;
+          ctx.beginPath();
+          ctx.arc(sx - spread, sy - lift * 0.85, 1.05, 0, Math.PI * 2);
+          ctx.arc(sx, sy - lift * 1.2, 1.25, 0, Math.PI * 2);
+          ctx.arc(sx + spread, sy - lift * 0.85, 1.05, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (surf.isWater) {
+          // Tiny silver dimple / micro-bubble right under the surface meniscus (2..5px below sy)
+          const bubbleDepth = 2 + Math.sin(crownT * Math.PI) * 3.5;
+          ctx.fillStyle = `rgba(224, 242, 254, ${0.72 * (1 - crownT)})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy + bubbleDepth, 1.2 * (1 - crownT * 0.4), 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
     ctx.restore();
@@ -3863,7 +3934,12 @@ const TURTLE_REFERENCE_FRAMING = 1.12;
  */
 export function getAnimalWorldScale(assetId: string): number {
   const size = ASSET_ECO_CONFIG[assetId]?.visualSize ?? 1;
-  if (assetId.startsWith('animal_28_green_sea_turtle')) return size;
+  if (
+    assetId.startsWith('animal_28_green_sea_turtle') ||
+    assetId === 'animal_29_hawksbill_sea_turtle'
+  ) {
+    return size;
+  }
   return (size * TURTLE_REFERENCE_FRAMING) / getSpeciesFramingScale(assetId);
 }
 
@@ -3927,7 +4003,7 @@ export function clearAnimalRestCache(uid?: string): void {
 
 /**
  * Where an animal rests vertically: firmly on the ground terrain, in the water column,
- * or climbing up into a host tree's canopy boughs when a canopy/arboreal species is near a perch tree.
+ * or climbing up and down a host tree's trunk and canopy boughs when a canopy/arboreal species is near a perch tree.
  */
 export function getAnimalRestY(
   animal: Pick<PlacedAnimal, 'assetId' | 'zoneId' | 'x'>,
@@ -3937,19 +4013,27 @@ export function getAnimalRestY(
   const groundY = getDefaultPlacementY(animal.assetId, animal.zoneId, animal.x, canvasHeight);
   const meta = ASSET_ECO_CONFIG[animal.assetId];
   if (meta?.canopyHabit === 'canopy') {
-    const tree = findPerchTree(animal, plants, 28);
+    const tree = findPerchTree(animal, plants, 36);
     if (tree) {
       const { w: treeW, h: treeH } = getPlantDrawSize(tree);
-      const maxReach = treeW * 0.36 + 28;
+      const maxReach = treeW * 0.36 + 36;
       const dx = Math.abs(animal.x - tree.x);
-      // Crown perch height in the main boughs
-      const crownPerchY = tree.y - treeH * 0.48 + (dx / Math.max(1, maxReach)) * (treeH * 0.14);
-      // Smoothly climb up the trunk as the animal moves from the outer reach into the trunk/crown
-      const trunkZone = treeW * 0.26;
+      const trunkZone = Math.max(18, treeW * 0.14);
+      const crownPerchY = tree.y - treeH * 0.50 + (dx / Math.max(1, maxReach)) * (treeH * 0.14);
+      // When right on the main trunk (`dx <= trunkZone`), climb vertically along the trunk between lower trunk and upper crown
       if (dx <= trunkZone) {
+        const trunkProgress = clamp(Math.sin((animal.x - tree.x) * 0.12) * 0.5 + 0.5, 0, 1);
+        const lowerTrunkY = groundY - treeH * 0.16;
+        const upperCrownY = tree.y - treeH * 0.54;
+        return Math.min(groundY, lowerTrunkY + (upperCrownY - lowerTrunkY) * trunkProgress);
+      }
+      // Across the main boughs (`trunkZone < dx <= treeW * 0.28`), perch and clamber along the bough arc
+      const boughSpan = treeW * 0.28;
+      if (dx <= boughSpan) {
         return Math.min(groundY, crownPerchY);
       }
-      const climbT = clamp(1 - (dx - trunkZone) / Math.max(1, maxReach - trunkZone), 0, 1);
+      // Outer approach: climb smoothly between ground and lower boughs
+      const climbT = clamp(1 - (dx - boughSpan) / Math.max(1, maxReach - boughSpan), 0, 1);
       return groundY + (Math.min(groundY, crownPerchY) - groundY) * climbT;
     }
   }

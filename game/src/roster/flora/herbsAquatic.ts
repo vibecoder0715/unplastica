@@ -787,13 +787,16 @@ const drawEnhalusSeagrass: PlantRig = (ctx, input) => {
   kitFillRimAndStroke(ctx, rhizP, -84, -3, 84, 11, '#a8a29e', '#57534e', '#292524', outline, 2.4);
 
   // 3. Wide thick leathery ribbon blades emerging from clasping sheaths at each rhizome node
+  const v = ((input.variant ?? 0) % 4 + 4) % 4;
+  const vSign = v % 2 === 0 ? 1 : -1;
+  const vShift = (v - 1.5) * 0.025;
   const blades = [
-    { x: -66, h: 215, w: 17, ang: -0.12 },
-    { x: -38, h: 248, w: 19, ang: -0.06 },
-    { x: -12, h: 265, w: 21, ang: -0.02 },
-    { x: 14, h: 258, w: 20, ang: 0.03 },
-    { x: 42, h: 242, w: 19, ang: 0.08 },
-    { x: 68, h: 212, w: 17, ang: 0.14 },
+    { x: -66, h: 215 + vSign * 14, w: 17, ang: -0.12 + vShift },
+    { x: -38, h: 248 - vSign * 12, w: 19, ang: -0.06 + vShift },
+    { x: -12, h: 265 + (v === 1 ? -16 : 8), w: 21, ang: -0.02 + vShift },
+    { x: 14, h: 258 + (v === 2 ? 14 : -8), w: 20, ang: 0.03 + vShift },
+    { x: 42, h: 242 + vSign * 12, w: 19, ang: 0.08 + vShift },
+    { x: 68, h: 212 - vSign * 14, w: 17, ang: 0.14 + vShift },
   ];
 
   for (const b of blades) {
@@ -819,89 +822,59 @@ const drawEnhalusSeagrass: PlantRig = (ctx, input) => {
       ctx.quadraticCurveTo(b.w * vx + sway * 24, -b.h * 0.5, b.w * vx + sway * 48, -b.h + 6);
       ctx.stroke();
     }
-
-    // Basal clasping pale leaf-sheath Collar
-    const sheathP = new Path2D();
-    sheathP.moveTo(-b.w * 0.56, 2);
-    sheathP.lineTo(-b.w * 0.5, -24);
-    sheathP.quadraticCurveTo(0, -28, b.w * 0.5, -24);
-    sheathP.lineTo(b.w * 0.56, 2);
-    sheathP.closePath();
-    kitFillRimAndStroke(ctx, sheathP, -b.w * 0.56, -28, b.w * 0.56, 2, '#d1fae5', '#6ee7b7', '#047857', outline, 1.8);
-
-    // Persistent coarse black Enhalus fibrous bristles wrapping tightly around THIS shoot sheath base
-    ctx.strokeStyle = '#18181b';
-    ctx.lineWidth = 1.9;
-    for (const fOff of [-5, -2, 2, 5]) {
-      ctx.beginPath();
-      ctx.moveTo(fOff, 3);
-      ctx.quadraticCurveTo(fOff * 1.3, -9, fOff * 1.15, -19);
-      ctx.stroke();
-    }
-
     ctx.restore();
   }
 
-  // 4. Connected Enhalus Seagrass Flowers / Bristled Seed Capsules ("spores") on spiral stalks from shoot sheaths!
+  // 4. Connected Enhalus Seagrass Flowers / Bristled Seed Capsules ("spores") on spiral stalks
+  // anchored directly at the actual shoot nodes (-38, 14) inside the clasping leaf sheaths!
   const enhalusPods =
     growthStage >= 2
       ? ([
-          [-25, -1, 58, 1.0],
-          [28, 1, 64, 1.0],
+          [-38, -1, 62 + (v % 2) * 8, 1.0],
+          [14, 1, 68 - (v % 2) * 6, 1.0],
         ] as const)
-      : ([[-25, -1, 46, 0.78]] as const);
+      : ([[-12, -1, 48, 0.82]] as const);
   for (const [nodeX, dir, hStalk, podScale] of enhalusPods) {
-    const capX = nodeX + dir * 12 + sway * 14;
+    const capX = nodeX + dir * 10 + sway * 14;
     const capY = -hStalk;
-    const rot = dir * 0.16 + sway * 0.08;
-    // Exact world-space point of the capsule's basal collar (0, 12 * podScale) in rotated frame
-    const baseAttachX = capX - Math.sin(rot) * (12 * podScale);
-    const baseAttachY = capY + Math.cos(rot) * (12 * podScale);
+    const rot = dir * 0.14 + sway * 0.08;
 
-    // Two-pass outlined spiral peduncle stalk emerging directly out of the shoot node's clasping sheath (nodeX, -16)
+    // Two-pass outlined spiral peduncle stalk originating inside the rhizome node (nodeX, 2),
+    // emerging through the shoot sheath mouth (nodeX, -22) and continuing into the capsule center (capX, capY)
     ctx.lineCap = 'round';
     ctx.strokeStyle = outline;
-    ctx.lineWidth = 5.4;
+    ctx.lineWidth = 5.6;
     ctx.beginPath();
-    ctx.moveTo(nodeX, -14);
+    ctx.moveTo(nodeX, 2);
     ctx.bezierCurveTo(
-      nodeX + dir * 14,
-      -hStalk * 0.42,
+      nodeX + dir * 12,
+      -hStalk * 0.38,
       nodeX - dir * 8 + sway * 7,
       -hStalk * 0.72,
-      baseAttachX,
-      baseAttachY,
+      capX,
+      capY,
     );
     ctx.stroke();
 
     ctx.strokeStyle = '#bef264';
-    ctx.lineWidth = 2.8;
+    ctx.lineWidth = 3.0;
     ctx.beginPath();
-    ctx.moveTo(nodeX, -14);
+    ctx.moveTo(nodeX, 2);
     ctx.bezierCurveTo(
-      nodeX + dir * 14,
-      -hStalk * 0.42,
+      nodeX + dir * 12,
+      -hStalk * 0.38,
       nodeX - dir * 8 + sway * 7,
       -hStalk * 0.72,
-      baseAttachX,
-      baseAttachY,
+      capX,
+      capY,
     );
     ctx.stroke();
 
-    // Ovoid ribbed & bristly Enhalus seed capsule / floral spathe physically welded to the stalk tip
+    // Ovoid ribbed & bristly Enhalus seed capsule / floral spathe physically welded over the stalk tip
     ctx.save();
     ctx.translate(capX, capY);
     ctx.rotate(rot);
     ctx.scale(podScale, podScale);
-
-    // Clasping basal calyx cup uniting stalk to capsule base
-    ctx.fillStyle = '#4d7c0f';
-    ctx.strokeStyle = outline;
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.ellipse(0, 12, 5.2, 3.0, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
 
     const capP = new Path2D();
     capP.moveTo(0, -14);
@@ -909,6 +882,15 @@ const drawEnhalusSeagrass: PlantRig = (ctx, input) => {
     capP.bezierCurveTo(-12, 6, -11, -10, 0, -14);
     capP.closePath();
     kitFillRimAndStroke(ctx, capP, -12, -14, 12, 12, '#d9f99d', '#65a30d', '#365314', outline, 2.0);
+
+    // Clasping basal calyx cup uniting stalk to capsule base
+    ctx.fillStyle = '#4d7c0f';
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.ellipse(0, 11.5, 5.4, 3.0, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
     // Longitudinal ribs & soft green-gold pericarp bristles on the capsule
     ctx.strokeStyle = '#fef08a';
@@ -935,6 +917,32 @@ const drawEnhalusSeagrass: PlantRig = (ctx, input) => {
     ctx.restore();
   }
 
+  // 5. Basal clasping pale leaf-sheath collars & black Enhalus fibrous bristles drawn OVER the blade & stalk bases
+  // so both blades and spore/seed capsule stalks visibly emerge from inside each shoot sheath on the rhizome!
+  for (const b of blades) {
+    ctx.save();
+    ctx.translate(b.x, 3);
+    ctx.rotate(b.ang + sway * 0.06);
+
+    const sheathP = new Path2D();
+    sheathP.moveTo(-b.w * 0.56, 2);
+    sheathP.lineTo(-b.w * 0.5, -24);
+    sheathP.quadraticCurveTo(0, -28, b.w * 0.5, -24);
+    sheathP.lineTo(b.w * 0.56, 2);
+    sheathP.closePath();
+    kitFillRimAndStroke(ctx, sheathP, -b.w * 0.56, -28, b.w * 0.56, 2, '#d1fae5', '#6ee7b7', '#047857', outline, 1.8);
+
+    ctx.strokeStyle = '#18181b';
+    ctx.lineWidth = 1.9;
+    for (const fOff of [-5, -2, 2, 5]) {
+      ctx.beginPath();
+      ctx.moveTo(fOff, 3);
+      ctx.quadraticCurveTo(fOff * 1.3, -9, fOff * 1.15, -19);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   ctx.restore();
 };
 
@@ -947,6 +955,8 @@ const drawEnhalusSeagrass: PlantRig = (ctx, input) => {
  * ========================================================================== */
 const drawThalassiaTurtleGrass: PlantRig = (ctx, input) => {
   const { sway, growthStage } = input;
+  const v = ((input.variant ?? 0) % 4 + 4) % 4;
+  const vSign = v % 2 === 0 ? 1 : -1;
   const outline = '#022c22';
 
   ctx.save();
@@ -986,13 +996,14 @@ const drawThalassiaTurtleGrass: PlantRig = (ctx, input) => {
     ctx.stroke();
   }
 
-  // 3. Erect short-shoot fans of curved (falcate) paddle-tipped blades emerging from basal sheaths
+  // 3. Erect short-shoot fans of curved (falcate) paddle-tipped blades
   for (let sIdx = 0; sIdx < shootNodes.length; sIdx++) {
     const nx = shootNodes[sIdx];
+    const hMod = ((sIdx + v) % 2 === 0 ? 14 : -8);
     const fanBlades = [
-      { offX: -4, h: 148 + (sIdx % 2) * 18, w: 14.5, curl: -16 },
-      { offX: 0, h: 176 + (sIdx % 2) * 14, w: 16, curl: -4 },
-      { offX: 4, h: 156 + (sIdx % 2) * 16, w: 15, curl: 12 },
+      { offX: -4, h: 148 + (sIdx % 2) * 18 + hMod, w: 14.5, curl: -16 * vSign },
+      { offX: 0, h: 176 + (sIdx % 2) * 14 + hMod, w: 16, curl: -4 * vSign },
+      { offX: 4, h: 156 + (sIdx % 2) * 16 + hMod, w: 15, curl: 12 * vSign },
     ];
 
     for (const b of fanBlades) {
@@ -1029,58 +1040,51 @@ const drawThalassiaTurtleGrass: PlantRig = (ctx, input) => {
 
       ctx.restore();
     }
-
-    // Clasping papery basal shoot sheath uniting the 3 blades onto the rhizome node
-    const shP = new Path2D();
-    shP.moveTo(nx - 11, 4);
-    shP.lineTo(nx - 9, -22);
-    shP.quadraticCurveTo(nx, -26, nx + 9, -22);
-    shP.lineTo(nx + 11, 4);
-    shP.closePath();
-    kitFillRimAndStroke(ctx, shP, nx - 11, -26, nx + 11, 4, '#ecfccb', '#a3e635', '#4d7c0f', outline, 1.8);
   }
 
-  // 4. Connected globose-echinate Thalassia seed pods borne on outlined basal pedicels emerging directly from the shoot sheaths!
+  // 4. Connected globose-echinate Thalassia seed pods borne on outlined basal pedicels
+  // originating inside the shoot nodes (nodeX, 2) and rising out of the clasping shoot sheaths!
   const thalassiaPods =
     growthStage >= 2
       ? ([
-          [-24, -42, -52, 1.0],
-          [22, 40, -56, 1.0],
+          [-24, -36, -54, 1.0],
+          [22, 34, -58, 1.0],
         ] as const)
-      : ([[-24, -38, -44, 0.8]] as const);
+      : ([[-24, -34, -46, 0.84]] as const);
   for (const [nodeX, targetX, py, podScale] of thalassiaPods) {
     const podX = targetX + sway * 10;
-    const rPod = 10.5 * podScale;
-    const baseAttachY = py + rPod * 0.92;
+    const rPod = 10.8 * podScale;
+    const baseAttachY = py + rPod * 0.88;
 
-    // Two-pass outlined sturdy basal pedicel stalk connecting the shoot sheath (nodeX, -18) directly into the pod base
+    // Two-pass outlined sturdy basal pedicel stalk starting inside the rhizome node (nodeX, 2),
+    // passing up through the shoot sheath (nodeX, -22) and continuing into the center of the pod (podX, py)
     ctx.lineCap = 'round';
     ctx.strokeStyle = outline;
-    ctx.lineWidth = 5.2;
+    ctx.lineWidth = 5.4;
     ctx.beginPath();
-    ctx.moveTo(nodeX, -18);
-    ctx.quadraticCurveTo((nodeX + podX) * 0.5, py * 0.55, podX, baseAttachY);
+    ctx.moveTo(nodeX, 2);
+    ctx.bezierCurveTo(nodeX, -22, (nodeX + podX) * 0.5, py * 0.65, podX, py);
     ctx.stroke();
 
     ctx.strokeStyle = '#d9f99d';
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = 2.8;
     ctx.beginPath();
-    ctx.moveTo(nodeX, -18);
-    ctx.quadraticCurveTo((nodeX + podX) * 0.5, py * 0.55, podX, baseAttachY);
+    ctx.moveTo(nodeX, 2);
+    ctx.bezierCurveTo(nodeX, -22, (nodeX + podX) * 0.5, py * 0.65, podX, py);
     ctx.stroke();
+
+    const podP = new Path2D();
+    podP.arc(podX, py, rPod, 0, Math.PI * 2);
+    kitFillRimAndStroke(ctx, podP, podX - rPod, py - rPod, podX + rPod, py + rPod, '#d9f99d', '#84cc16', '#3f6212', outline, 2.0);
 
     // Clasping basal bract collar uniting stalk and seed capsule
     ctx.fillStyle = '#4d7c0f';
     ctx.strokeStyle = outline;
     ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.ellipse(podX, baseAttachY, 4.6 * podScale, 2.4 * podScale, 0, 0, Math.PI * 2);
+    ctx.ellipse(podX, baseAttachY, 4.8 * podScale, 2.5 * podScale, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-
-    const podP = new Path2D();
-    podP.arc(podX, py, rPod, 0, Math.PI * 2);
-    kitFillRimAndStroke(ctx, podP, podX - rPod, py - rPod, podX + rPod, py + rPod, '#d9f99d', '#84cc16', '#3f6212', outline, 2.0);
 
     // 3-valved pericarp suture lines + fleshy echinate tubercles on Thalassia fruit capsule
     ctx.strokeStyle = 'rgba(26, 46, 5, 0.55)';
@@ -1104,6 +1108,17 @@ const drawThalassiaTurtleGrass: PlantRig = (ctx, input) => {
     }
   }
 
+  // 5. Clasping papery basal shoot sheaths drawn OVER the blade & pedicel bases at each node
+  for (const nx of shootNodes) {
+    const shP = new Path2D();
+    shP.moveTo(nx - 11, 4);
+    shP.lineTo(nx - 9, -22);
+    shP.quadraticCurveTo(nx, -26, nx + 9, -22);
+    shP.lineTo(nx + 11, 4);
+    shP.closePath();
+    kitFillRimAndStroke(ctx, shP, nx - 11, -26, nx + 11, 4, '#ecfccb', '#a3e635', '#4d7c0f', outline, 1.8);
+  }
+
   ctx.restore();
 };
 
@@ -1116,6 +1131,8 @@ const drawThalassiaTurtleGrass: PlantRig = (ctx, input) => {
  * ========================================================================== */
 const drawEelgrass: PlantRig = (ctx, input) => {
   const { sway, growthStage } = input;
+  const v = ((input.variant ?? 0) % 4 + 4) % 4;
+  const vSign = v % 2 === 0 ? 1 : -1;
   const outline = '#022c22';
 
   ctx.save();
@@ -1145,13 +1162,14 @@ const drawEelgrass: PlantRig = (ctx, input) => {
   rhizP.closePath();
   kitFillRimAndStroke(ctx, rhizP, -82, -2, 82, 8, '#a7f3d0', '#059669', '#064e3b', outline, 2.0);
 
-  // 3. Dense slender ribbon blades grouped into sheathed tufts at each rhizome node
+  // 3. Dense slender ribbon blades grouped into tufts at each rhizome node
   for (let i = 0; i < shootNodes.length; i++) {
     const nx = shootNodes[i];
     const centerFactor = 1 - Math.abs(nx) / 95;
+    const hVar = ((i + v) % 2 === 0 ? 12 : -10);
     const tuftBlades = [
-      { offX: -3, h: 175 + centerFactor * 55, w: 8.5, ang: -0.06 },
-      { offX: 2, h: 195 + centerFactor * 60, w: 9.5, ang: 0.04 },
+      { offX: -3, h: 175 + centerFactor * 55 + hVar, w: 8.5, ang: -0.06 + vSign * 0.02 },
+      { offX: 2, h: 195 + centerFactor * 60 - hVar * 0.5, w: 9.5, ang: 0.04 + vSign * 0.02 },
     ];
 
     for (const b of tuftBlades) {
@@ -1177,47 +1195,36 @@ const drawEelgrass: PlantRig = (ctx, input) => {
 
       ctx.restore();
     }
-
-    // Tubular basal leaf sheath clasping each tuft on the rhizome
-    const shP = new Path2D();
-    shP.moveTo(nx - 7.5, 4);
-    shP.lineTo(nx - 6.5, -18);
-    shP.quadraticCurveTo(nx, -21, nx + 6.5, -18);
-    shP.lineTo(nx + 7.5, 4);
-    shP.closePath();
-    kitFillRimAndStroke(ctx, shP, nx - 7.5, -21, nx + 7.5, 4, '#d1fae5', '#6ee7b7', '#047857', outline, 1.6);
   }
 
   // 4. Connected Zostera reproductive spadix sheaths (enclosing neat rows of golden-green seeds/spores
-  // attached along a central rachis axis) borne on outlined fertile stems rising directly from the shoot sheaths!
+  // attached along a central rachis axis) borne on outlined fertile stems rising directly from the shoot nodes!
   const eelSpathes =
     growthStage >= 2
       ? ([
-          [-14, -28, -92, 1.0],
-          [14, 28, -98, 1.0],
+          [-14, -24, -92, 1.0],
+          [14, 24, -98, 1.0],
         ] as const)
-      : ([[-14, -24, -76, 0.82]] as const);
+      : ([[-14, -22, -76, 0.84]] as const);
   for (const [nodeX, sx, sy, spScale] of eelSpathes) {
     const spX = sx + sway * 22;
     const rot = (sx < 0 ? -0.06 : 0.06) + sway * 0.1;
-    // Exact world-space point of the spathe's basal collar (0, 22 * spScale) in rotated frame
-    const baseAttachX = spX - Math.sin(rot) * (21 * spScale);
-    const baseAttachY = sy + Math.cos(rot) * (21 * spScale);
 
-    // Two-pass outlined fertile stem rising directly out of the shoot sheath (nodeX, -16) into the spathe base
+    // Two-pass outlined fertile stem starting inside the rhizome node (nodeX, 2),
+    // passing up through the tubular sheath (nodeX, -18) and continuing into the center of the spathe (spX, sy)
     ctx.lineCap = 'round';
     ctx.strokeStyle = outline;
-    ctx.lineWidth = 5.0;
+    ctx.lineWidth = 5.2;
     ctx.beginPath();
-    ctx.moveTo(nodeX, -15);
-    ctx.quadraticCurveTo(sx + sway * 11, sy * 0.5, baseAttachX, baseAttachY);
+    ctx.moveTo(nodeX, 2);
+    ctx.bezierCurveTo(nodeX, -20, sx + sway * 11, sy * 0.55, spX, sy);
     ctx.stroke();
 
     ctx.strokeStyle = '#bef264';
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = 2.8;
     ctx.beginPath();
-    ctx.moveTo(nodeX, -15);
-    ctx.quadraticCurveTo(sx + sway * 11, sy * 0.5, baseAttachX, baseAttachY);
+    ctx.moveTo(nodeX, 2);
+    ctx.bezierCurveTo(nodeX, -20, sx + sway * 11, sy * 0.55, spX, sy);
     ctx.stroke();
 
     ctx.save();
@@ -1227,49 +1234,60 @@ const drawEelgrass: PlantRig = (ctx, input) => {
 
     // Boat-shaped fertile spathe sheath enclosing the spadix
     const spadixP = new Path2D();
-    spadixP.ellipse(0, 0, 6.8, 22, 0, 0, Math.PI * 2);
-    kitFillRimAndStroke(ctx, spadixP, -6.8, -22, 6.8, 22, '#d9f99d', '#34d399', '#047857', outline, 1.9);
+    spadixP.ellipse(0, 0, 7.2, 22, 0, 0, Math.PI * 2);
+    kitFillRimAndStroke(ctx, spadixP, -7.2, -22, 7.2, 22, '#d9f99d', '#34d399', '#047857', outline, 1.9);
 
     // Clasping nodal bract collar at the base of the spathe (0, 21) uniting stem and spathe
     ctx.fillStyle = '#6ee7b7';
     ctx.strokeStyle = outline;
     ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.ellipse(0, 21, 4.2, 2.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 21, 4.4, 2.6, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     // Continuous central spadix axis (rachis) connecting all seeds/spores from the stem up to the apex!
-    ctx.strokeStyle = '#15803d';
-    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = '#064e3b';
+    ctx.lineWidth = 2.4;
     ctx.beginPath();
-    ctx.moveTo(0, 20);
-    ctx.lineTo(0, -17);
+    ctx.moveTo(0, 21);
+    ctx.lineTo(0, -18);
     ctx.stroke();
 
-    // Enclosed row of oval Eelgrass seeds/spores physically attached via short funicles to the central spadix axis
+    // Enclosed row of oval Eelgrass seeds/spores physically welded along the central spadix axis
     for (const [seedY, side] of [
       [-12, -1],
       [-4, 1],
       [4, -1],
       [12, 1],
     ] as const) {
-      ctx.strokeStyle = '#3f6212';
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = '#15803d';
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.moveTo(0, seedY + 2);
-      ctx.lineTo(side * 1.2, seedY);
+      ctx.moveTo(0, seedY + 2.5);
+      ctx.lineTo(side * 1.4, seedY);
       ctx.stroke();
 
       ctx.fillStyle = '#fde047';
-      ctx.strokeStyle = '#3f6212';
-      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = '#14532d';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.ellipse(side * 1.1, seedY, 2.7, 3.5, side * 0.12, 0, Math.PI * 2);
+      ctx.ellipse(side * 1.2, seedY, 2.8, 3.6, side * 0.1, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // 5. Tubular basal leaf sheaths clasping each tuft & fertile stem on the rhizome
+  for (const nx of shootNodes) {
+    const shP = new Path2D();
+    shP.moveTo(nx - 7.5, 4);
+    shP.lineTo(nx - 6.5, -18);
+    shP.quadraticCurveTo(nx, -21, nx + 6.5, -18);
+    shP.lineTo(nx + 7.5, 4);
+    shP.closePath();
+    kitFillRimAndStroke(ctx, shP, nx - 7.5, -21, nx + 7.5, 4, '#d1fae5', '#6ee7b7', '#047857', outline, 1.6);
   }
 
   ctx.restore();

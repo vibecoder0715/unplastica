@@ -4,8 +4,11 @@ import {
   createDefaultSanctuaryPlants,
   FOOD_CATALOG,
   createInitialSaveState,
+  getAquaticSafeBoundsX,
   getPlantPlacementProblem,
+  getZoneAtWorldX,
   getZoneSpec,
+  validateFoodDropZone,
   WORLD_SCALE_X,
   WORLD_WIDTH,
 } from './worldConfig';
@@ -266,7 +269,7 @@ function refreshDefaultScenery<T extends { uid?: string; assetId: string; isDefa
           ...d,
           growthStage: Math.max(d.growthStage, prev.growthStage) as 1 | 2 | 3,
           growthProgress: Math.max(d.growthProgress, prev.growthProgress),
-          fruitCount: prev.fruitCount,
+          fruitCount: Math.max(d.fruitCount, prev.fruitCount),
         }
       : d;
   });
@@ -358,12 +361,14 @@ export function loadSaveState(
               const nativeZone = allowedZones[0] ?? 'forest';
               const isZoneValid = Boolean(a.zoneId && getZoneSpec(a.zoneId) && allowedZones.includes(a.zoneId));
               const targetZone = isZoneValid ? a.zoneId : nativeZone;
-              const zoneSpec = getZoneSpec(targetZone);
-              const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
-              const migratedX = isZoneValid ? migrateWorldX(a.x, defaultCenter, saveVersion) : defaultCenter;
-              const migratedTargetX = isZoneValid
+              const safeBounds = getAquaticSafeBoundsX(a.assetId, targetZone);
+              const defaultCenter = (safeBounds.minX + safeBounds.maxX) * 0.5;
+              const rawMigratedX = isZoneValid ? migrateWorldX(a.x, defaultCenter, saveVersion) : defaultCenter;
+              const migratedX = Math.max(safeBounds.minX, Math.min(safeBounds.maxX, rawMigratedX));
+              const rawMigratedTargetX = isZoneValid
                 ? migrateWorldX(a.targetX, migratedX + 140, saveVersion)
                 : migratedX + 140;
+              const migratedTargetX = Math.max(safeBounds.minX, Math.min(safeBounds.maxX, rawMigratedTargetX));
               const rawHunger = typeof a.hunger === 'number' && Number.isFinite(a.hunger) ? a.hunger : 85;
               return {
                 uid: typeof a.uid === 'string' && a.uid.trim() ? a.uid.trim() : `anim_restored_${idx}`,
@@ -554,19 +559,25 @@ export function loadSaveState(
       droppedFoods: Array.isArray(parsed.droppedFoods)
         ? parsed.droppedFoods
           .filter((df) => df && typeof df.x === 'number' && Number.isFinite(df.x) && typeof df.y === 'number' && Number.isFinite(df.y))
-          .map((df) => ({
-            ...df,
-            foodId: migrateFoodId(df.foodId) ?? '',
-            x: migrateWorldX(df.x, 543600, saveVersion),
-          }))
-          .filter((df) => df.foodId !== '')
+          .map((df) => {
+            const migratedFoodId = migrateFoodId(df.foodId) ?? '';
+            const migratedFoodX = migrateWorldX(df.x, 543600, saveVersion);
+            const actualZoneId = getZoneAtWorldX(migratedFoodX);
+            return {
+              ...df,
+              foodId: migratedFoodId,
+              zoneId: actualZoneId,
+              x: migratedFoodX,
+            };
+          })
+          .filter((df) => df.foodId !== '' && validateFoodDropZone(df.foodId, df.zoneId, df.x).valid)
         : [],
       discoveredEcoDex: Array.from(ecoDexSet),
       discoveredFavoriteFoods: Array.from(favFoodsSet),
       discoveredEmotions: parsed.discoveredEmotions ?? base.discoveredEmotions,
       dailyQuests:
         Array.isArray(parsed.dailyQuests) && parsed.dailyQuests.length > 0
-          ? parsed.dailyQuests
+          ? parsed.dailyQuests.map((q) => ({ ...q, rewardGreenbits: 0 }))
           : base.dailyQuests,
       dailyEarnedGreenbits:
         typeof parsed.dailyEarnedGreenbits === 'number' && Number.isFinite(parsed.dailyEarnedGreenbits)

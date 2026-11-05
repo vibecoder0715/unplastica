@@ -397,7 +397,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'Orangutans, macaques, langurs, hornbills and giant squirrels eat the sweet translucent flesh and help spread the seeds.',
     ],
     searchQuery: 'Rambutan Nephelium lappaceum Malaysia fruit',
-    allowedZones: ['forest', 'river', 'mud'],
+    allowedZones: ['forest', 'mud'],
   },
   food_papaya_fruit: {
     id: 'food_papaya_fruit',
@@ -414,7 +414,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'Its soft sweet flesh and black seeds are eaten by box turtles and flying foxes.',
     ],
     searchQuery: 'Papaya Carica papaya Malaysia betik fruit',
-    allowedZones: ['forest', 'river', 'mud'],
+    allowedZones: ['forest', 'mud'],
   },
   food_wild_figs: {
     id: 'food_wild_figs',
@@ -431,7 +431,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'Hornbills, orangutans, langurs, tapirs, sambar deer and mousedeer depend on fallen and hanging wild figs.',
     ],
     searchQuery: 'Banyan fig Ficus keystone food hornbill Malaysia',
-    allowedZones: ['forest', 'river', 'mud'],
+    allowedZones: ['forest', 'mud'],
   },
   food_coconut: {
     id: 'food_coconut',
@@ -465,7 +465,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'They are the primary natural food source for Green Sea Turtles, Dugongs, and herbivorous river terrapins.',
     ],
     searchQuery: 'Tropical seagrass Thalassia Enhalus Malaysia marine life',
-    allowedZones: ['sea', 'river', 'mud'],
+    allowedZones: ['sea', 'river'],
   },
   food_plankton_bloom: {
     id: 'food_plankton_bloom',
@@ -499,7 +499,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'They feed otters, arowanas, snakeheads, dolphins, reef sharks, rays, cuttlefish, and the Malayan tiger.',
     ],
     searchQuery: 'Malaysian river fish and freshwater prawn ecosystem',
-    allowedZones: ['forest', 'river', 'mud', 'sea'],
+    allowedZones: ['river', 'sea'],
   },
   food_bamboo_shoots: {
     id: 'food_bamboo_shoots',
@@ -550,7 +550,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'The Sunda pangolin eats only ants and termites, and sun bears, firebacks, arowanas, and monitor lizards also hunt them.',
     ],
     searchQuery: 'Sunda pangolin diet ants termites Malaysia',
-    allowedZones: ['forest', 'river', 'mud'],
+    allowedZones: ['forest', 'mud'],
   },
   food_tender_forest_leaves: {
     id: 'food_tender_forest_leaves',
@@ -567,7 +567,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'Dusky leaf monkeys, Raffles’ banded langurs, tapirs, sambar deer, and mousedeer browse on these fresh leafy shoots daily.',
     ],
     searchQuery: 'Malaysian rainforest langur tapir young leaf shoots diet',
-    allowedZones: ['forest', 'river', 'mud'],
+    allowedZones: ['forest', 'mud'],
   },
   food_jungle_nuts_seeds: {
     id: 'food_jungle_nuts_seeds',
@@ -601,7 +601,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'In the sanctuary, ethically prepared game meat keeps obligate carnivores healthy and strong without harming other pets.',
     ],
     searchQuery: 'Malayan tiger reticulated python carnivore diet Malaysia',
-    allowedZones: ['forest', 'river', 'mud'],
+    allowedZones: ['forest', 'mud'],
   },
   food_crabs_clams: {
     id: 'food_crabs_clams',
@@ -618,7 +618,7 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
       'They are a staple food for long-tailed macaques, smooth-coated otters, ribbontail rays, coconut octopuses, and cuttlefish.',
     ],
     searchQuery: 'Mangrove crab shellfish diet otter ray octopus Malaysia',
-    allowedZones: ['forest', 'river', 'mud', 'sea'],
+    allowedZones: ['river', 'mud', 'sea'],
   },
   food_marine_sponge: {
     id: 'food_marine_sponge',
@@ -1295,7 +1295,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_01_rafflesia: {
     zones: ['forest'],
     price: 150,
-    passive: 9,
+    passive: 0,
     sentences: [
       'Rafflesia is the world’s largest single flower, growing up to a meter wide on the shaded rainforest floor.',
       'It has five thick terracotta-red petals speckled with white warts and no stems, leaves, or roots of its own.',
@@ -1304,7 +1304,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_02_tualang_tree: {
     zones: ['forest'],
     price: 150,
-    passive: 10,
+    passive: 0,
     // The tree itself has no edible fruit; giant honeybees build combs under its branches.
     producesFruitId: 'food_wild_honeycomb',
     sentences: [
@@ -1315,7 +1315,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_03_durian_tree: {
     zones: ['forest'],
     price: 150,
-    passive: 9,
+    passive: 0,
     producesFruitId: 'food_durian_fruit',
     sentences: [
       'The Durian Tree is a tall tropical hardwood with oblong leaves that are glossy green above and golden-coppery underneath.',
@@ -1325,7 +1325,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_04_mangosteen_tree: {
     zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     producesFruitId: 'food_mangosteen_fruit',
     sentences: [
       'The Mangosteen Tree has a dense pyramidal crown of large, opposite, dark-green leathery leaves with prominent veins.',
@@ -1335,7 +1335,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_05_banana_plant: {
     zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     producesFruitId: 'food_banana_bunch',
     sentences: [
       'The Banana Plant grows from a tightly wrapped green pseudostem topped with giant paddle leaves that split naturally in the wind.',
@@ -1345,7 +1345,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_06_papaya_tree: {
     zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     producesFruitId: 'food_papaya_fruit',
     sentences: [
       'The Papaya Tree has a straight, leaf-scarred hollow trunk crowned with an umbrella of deeply 7-lobed palmate leaves.',
@@ -1356,7 +1356,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     // Bamboo grows on dry ground, including river banks, never in open water.
     zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     producesFruitId: 'food_bamboo_shoots',
     sentences: [
       'Tropical Bamboo grows in graceful clumps of hollow, jointed green-and-gold culm stalks ringed by raised nodes.',
@@ -1364,9 +1364,9 @@ const PLANT_ZONE_OVERRIDES: Record<
     ],
   },
   plant_08_tropical_pitcher_plant: {
-    zones: ['forest', 'mud'],
+    zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     sentences: [
       'Known locally as Periuk Kera, the Nepenthes Pitcher Plant has smooth lance-shaped leaves that extend into curling tendrils.',
       'Each tendril swells into a colorful ribbed pitcher cup with a nectar lid that collects rainwater and nutrients.',
@@ -1375,7 +1375,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_09_birds_nest_fern: {
     zones: ['forest'],
     price: 150,
-    passive: 7,
+    passive: 0,
     sentences: [
       'The Bird’s Nest Fern is an epiphytic rainforest fern that forms a rosette of broad, undivided apple-green fronds.',
       'Each strap-shaped leaf has wavy margins and a dark midrib rising from a spongy, moisture-holding root basket.',
@@ -1385,7 +1385,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     // A ground herb of moist forest; it bears flower torches, not rambutan or papaya.
     zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     sentences: [
       'Called Bunga Kantan in Malaysia, Torch Ginger sends up tall, lush pseudostems with long oblong-lanceolate ginger leaves.',
       'Its striking waxy pink cone-shaped flower torches bloom on sturdy stalks from the ground rhizome.',
@@ -1394,7 +1394,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_11_hibiscus: {
     zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     // Ornamental flowering shrub: no edible fruit (previously grew rambutan and papaya).
     sentences: [
       'Hibiscus rosa-sinensis, or Bunga Raya, is Malaysia’s national flower and features ovate leaves with coarsely toothed edges.',
@@ -1404,7 +1404,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_12_ixora: {
     zones: ['forest'],
     price: 150,
-    passive: 7,
+    passive: 0,
     sentences: [
       'Ixora is an evergreen tropical shrub with pairs of stiff, glossy oblong leaves arranged neatly along woody stems.',
       'It blooms year-round with dense, rounded umbrella clusters of four-pointed scarlet-orange star florets.',
@@ -1413,7 +1413,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_13_coconut_palm: {
     zones: ['forest', 'mud'],
     price: 150,
-    passive: 8,
+    passive: 0,
     producesFruitId: 'food_coconut',
     sentences: [
       'The Coconut Palm has a tall, curving ringed trunk topped by a sweeping crown of feather-like pinnate fronds.',
@@ -1423,7 +1423,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_14_banyan_fig: {
     zones: ['forest'],
     price: 150,
-    passive: 9,
+    passive: 0,
     producesFruitId: 'food_wild_figs',
     sentences: [
       'The Banyan Fig is a majestic keystone tree with wide-spreading boughs, aerial prop roots, and broad oval leathery leaves.',
@@ -1433,7 +1433,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_15_rambutan_tree: {
     zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     producesFruitId: 'food_rambutan_fruit',
     sentences: [
       'The Rambutan Tree is a lush tropical fruit tree with compound pinnate leaves made of smooth, elliptic-obovate leaflets.',
@@ -1441,9 +1441,9 @@ const PLANT_ZONE_OVERRIDES: Record<
     ],
   },
   plant_16_sugar_palm: {
-    zones: ['forest', 'mud'],
+    zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     // Palm fruit strings are not mangosteens; no harvestable store food yet.
     sentences: [
       'Known locally as Pokok Kabung, the Sugar Palm has a stout trunk wrapped in dark woven black horsehair fibers.',
@@ -1453,7 +1453,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_17_tree_fern: {
     zones: ['forest'],
     price: 150,
-    passive: 7,
+    passive: 0,
     sentences: [
       'The Malaysian Tree Fern rises on a fibrous dark trunk topped with a wide umbrella of lacy, tripinnate fronds.',
       'New fronds emerge at the center as tightly coiled green fiddlehead spirals called koru before unfurling.',
@@ -1462,7 +1462,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_18_tropical_orchid: {
     zones: ['forest'],
     price: 150,
-    passive: 8,
+    passive: 0,
     sentences: [
       'This epiphytic Tropical Orchid grows thick, strap-shaped leaves arranged in two ranks above silvery aerial roots.',
       'Its arching flower spikes open into multiple jewel-toned magenta blossoms with ruffled lip petals.',
@@ -1472,7 +1472,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     // Intertidal mud; the open Coral Sea basin here is too deep for stilt roots.
     zones: ['mud'],
     price: 150,
-    passive: 8,
+    passive: 0,
     // Mangroves drop propagules, not seagrass.
     sentences: [
       'The Red Mangrove stands above intertidal mudflats on a tangled arch of stilt roots and has thick, opposite oval leaves.',
@@ -1482,7 +1482,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_20_api_api_mangrove: {
     zones: ['mud'],
     price: 150,
-    passive: 8,
+    passive: 0,
     sentences: [
       'The Api-Api Mangrove is surrounded by hundreds of vertical pencil-like breathing roots that poke up through the mud.',
       'Its narrow lance-shaped leaves have a silvery-white underside that excretes excess sea salt.',
@@ -1492,7 +1492,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     // Grows from rhizomes in estuary mud, not in the middle of a deep river.
     zones: ['mud'],
     price: 150,
-    passive: 8,
+    passive: 0,
     // The nipa fruit head is not a mangosteen; no harvestable store food yet.
     sentences: [
       'The Nipa Palm is the only palm adapted to mangrove waterways, sending tall feather fronds directly up from mud rhizomes.',
@@ -1502,7 +1502,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_22_tropical_seagrass_enhalus_acoroides: {
     zones: ['sea'],
     price: 150,
-    passive: 7,
+    passive: 0,
     producesFruitId: 'food_seaweed_kelp',
     isAquaticFoodSource: true,
     aquaticFoodCategory: 'seaweed',
@@ -1514,7 +1514,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_23_tropical_turtle_grass_thalassia_hemprichii: {
     zones: ['sea'],
     price: 150,
-    passive: 7,
+    passive: 0,
     producesFruitId: 'food_seaweed_kelp',
     isAquaticFoodSource: true,
     aquaticFoodCategory: 'seaweed',
@@ -1527,7 +1527,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     // Eelgrass (Zostera) is a marine seagrass.
     zones: ['sea'],
     price: 150,
-    passive: 7,
+    passive: 0,
     producesFruitId: 'food_seaweed_kelp',
     isAquaticFoodSource: true,
     aquaticFoodCategory: 'seaweed',
@@ -1541,7 +1541,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_25_water_hyacinth: {
     zones: ['river'],
     price: 150,
-    passive: 7,
+    passive: 0,
     isAquaticFoodSource: true,
     aquaticFoodCategory: 'seaweed',
     sentences: [
@@ -1552,7 +1552,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_26_lotus: {
     zones: ['river'],
     price: 150,
-    passive: 8,
+    passive: 0,
     sentences: [
       'The Sacred Lotus holds large, water-repellent circular peltate leaves high above the pond surface on sturdy stems.',
       'Its fragrant multi-layered pink flowers surround a flat-topped golden central seed pod receptacle.',
@@ -1561,7 +1561,7 @@ const PLANT_ZONE_OVERRIDES: Record<
   plant_27_water_lily: {
     zones: ['river'],
     price: 150,
-    passive: 8,
+    passive: 0,
     isAquaticFoodSource: true,
     aquaticFoodCategory: 'seaweed',
     sentences: [
@@ -1573,7 +1573,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     // Duckweed is a freshwater flowering plant, not plankton, and does not grow in the sea.
     zones: ['river'],
     price: 150,
-    passive: 7,
+    passive: 0,
     isAquaticFoodSource: true,
     aquaticFoodCategory: 'seaweed',
     sentences: [
@@ -1585,7 +1585,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     // Hornwort is a freshwater plant.
     zones: ['river'],
     price: 150,
-    passive: 7,
+    passive: 0,
     isAquaticFoodSource: true,
     aquaticFoodCategory: 'seaweed',
     sentences: [
@@ -1597,7 +1597,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     // A creeping herb whose hollow stems float on fresh water (previously drawn as a woody tree).
     zones: ['river'],
     price: 150,
-    passive: 7,
+    passive: 0,
     isAquaticFoodSource: true,
     aquaticFoodCategory: 'seaweed',
     sentences: [
@@ -1953,9 +1953,19 @@ export function validateAssetDropZone(
     }
   }
 
-  // Aquatic creatures that do not inhabit mud shores cannot stay in shallow shores
+  // Aquatic creatures that do not inhabit mud shores cannot stay in shallow shores or on dry banks
   if (worldX !== undefined && meta.kind === 'animal') {
+    const canGoOnMudOrLand =
+      meta.allowedZones.includes('mud') || meta.allowedZones.includes('forest');
     const bounds = getAquaticSafeBoundsX(assetId, zoneId);
+    const depth = getWaterDepthNorm(worldX);
+    if (!canGoOnMudOrLand && depth < getRequiredWaterDepthNorm(meta.visualSize)) {
+      return {
+        valid: false,
+        allowedZones: meta.allowedZones,
+        reason: `${meta.name} is an aquatic species and cannot live on muddy banks or shallow shores. Drop it in deeper water.`,
+      };
+    }
     if (bounds.blocksShallowShore && (worldX < bounds.minX || worldX > bounds.maxX)) {
       return {
         valid: false,
@@ -1969,6 +1979,49 @@ export function validateAssetDropZone(
     valid: true,
     allowedZones: meta.allowedZones,
     reason: `${meta.name} loves the ${getZoneSpec(zoneId).name}.`,
+  };
+}
+
+/**
+ * Validates whether a food item can be dropped at `worldX` in `zoneId`.
+ * Ensures aquatic foods (like Fish & Prawns, Plankton, Seagrass) cannot be dropped on dry/muddy banks.
+ */
+export function validateFoodDropZone(
+  foodId: string,
+  zoneId: HabitatZoneId,
+  worldX?: number,
+): {
+  valid: boolean;
+  allowedZones: HabitatZoneId[];
+  reason: string;
+} {
+  const food = FOOD_CATALOG[foodId];
+  if (!food) {
+    return { valid: false, allowedZones: [], reason: 'Unknown food item' };
+  }
+  if (!food.allowedZones.includes(zoneId)) {
+    const allowedNames = food.allowedZones.map((z) => getZoneSpec(z).name).join(' or ');
+    return {
+      valid: false,
+      allowedZones: food.allowedZones,
+      reason: `${food.name} can only be placed in ${allowedNames}.`,
+    };
+  }
+  if (worldX !== undefined) {
+    const isStrictlyAquaticFood =
+      !food.allowedZones.includes('forest') && !food.allowedZones.includes('mud');
+    if (isStrictlyAquaticFood && getWaterDepthNorm(worldX) < 0.06) {
+      return {
+        valid: false,
+        allowedZones: food.allowedZones,
+        reason: `${food.name} belongs in open water, not on the dry or muddy bank.`,
+      };
+    }
+  }
+  return {
+    valid: true,
+    allowedZones: food.allowedZones,
+    reason: `Dropped ${food.name} in ${getZoneSpec(zoneId).name}.`,
   };
 }
 
@@ -2013,54 +2066,93 @@ export function canAnimalEatFood(animalAssetId: string, foodId: string): boolean
  * Generates multi-style, diverse default natural flora across all 4 habitat zones so no region looks copy-pasted.
  */
 export function createDefaultSanctuaryPlants(): PlacedPlant[] {
-  const specs: Array<{ assetId: string; zoneId: HabitatZoneId; x: number; stage: 1 | 2 | 3 }> = [
-    // 1. Rainforest Land (x: 0 .. 171,000): Multi-style varied canopy trees, palms, fruit trees, ferns & blooms
-    { assetId: 'plant_02_tualang_tree', zoneId: 'forest', x: 41650, stage: 2 },
+  const specs: Array<{
+    assetId: string;
+    zoneId: HabitatZoneId;
+    x: number;
+    stage: 1 | 2 | 3;
+    fruits?: number;
+  }> = [
+    // 1. Rainforest Land (x: 0 .. 171,000): All 18 rainforest species across varied growth stages & fruit states
+    { assetId: 'plant_02_tualang_tree', zoneId: 'forest', x: 18400, stage: 3, fruits: 2 },
+    { assetId: 'plant_09_birds_nest_fern', zoneId: 'forest', x: 19120, stage: 2 },
+    { assetId: 'plant_18_tropical_orchid', zoneId: 'forest', x: 19740, stage: 3 },
+    { assetId: 'plant_13_coconut_palm', zoneId: 'forest', x: 20420, stage: 3, fruits: 2 },
+    { assetId: 'plant_02_tualang_tree', zoneId: 'forest', x: 41650, stage: 3, fruits: 1 },
     { assetId: 'plant_17_tree_fern', zoneId: 'forest', x: 42320, stage: 2 },
-    { assetId: 'plant_08_tropical_pitcher_plant', zoneId: 'forest', x: 42900, stage: 2 },
-    { assetId: 'plant_14_banyan_fig', zoneId: 'forest', x: 85100, stage: 2 },
-    { assetId: 'plant_10_torch_ginger', zoneId: 'forest', x: 85780, stage: 2 },
-    { assetId: 'plant_07_bamboo', zoneId: 'forest', x: 86350, stage: 2 },
-    { assetId: 'plant_05_banana_plant', zoneId: 'forest', x: 86980, stage: 2 },
-    { assetId: 'plant_04_mangosteen_tree', zoneId: 'forest', x: 111600, stage: 2 },
-    { assetId: 'plant_15_rambutan_tree', zoneId: 'forest', x: 112350, stage: 2 },
-    { assetId: 'plant_06_papaya_tree', zoneId: 'forest', x: 112980, stage: 2 },
-    { assetId: 'plant_03_durian_tree', zoneId: 'forest', x: 141250, stage: 2 },
-    { assetId: 'plant_01_rafflesia', zoneId: 'forest', x: 141760, stage: 2 },
-    { assetId: 'plant_11_hibiscus', zoneId: 'forest', x: 142320, stage: 2 },
+    { assetId: 'plant_08_tropical_pitcher_plant', zoneId: 'forest', x: 42900, stage: 3 },
+    { assetId: 'plant_16_sugar_palm', zoneId: 'forest', x: 43580, stage: 2 },
+    { assetId: 'plant_09_birds_nest_fern', zoneId: 'forest', x: 44160, stage: 1 },
+    { assetId: 'plant_14_banyan_fig', zoneId: 'forest', x: 85100, stage: 3, fruits: 3 },
+    { assetId: 'plant_10_torch_ginger', zoneId: 'forest', x: 85780, stage: 3 },
+    { assetId: 'plant_07_bamboo', zoneId: 'forest', x: 86350, stage: 2, fruits: 2 },
+    { assetId: 'plant_05_banana_plant', zoneId: 'forest', x: 86980, stage: 3, fruits: 2 },
+    { assetId: 'plant_18_tropical_orchid', zoneId: 'forest', x: 87560, stage: 2 },
+    { assetId: 'plant_04_mangosteen_tree', zoneId: 'forest', x: 111600, stage: 3, fruits: 2 },
+    { assetId: 'plant_15_rambutan_tree', zoneId: 'forest', x: 112350, stage: 3, fruits: 3 },
+    { assetId: 'plant_06_papaya_tree', zoneId: 'forest', x: 112980, stage: 3, fruits: 2 },
+    { assetId: 'plant_16_sugar_palm', zoneId: 'forest', x: 113640, stage: 3 },
+    { assetId: 'plant_09_birds_nest_fern', zoneId: 'forest', x: 114220, stage: 2 },
+    { assetId: 'plant_03_durian_tree', zoneId: 'forest', x: 141250, stage: 3, fruits: 2 },
+    { assetId: 'plant_01_rafflesia', zoneId: 'forest', x: 141760, stage: 3 },
+    { assetId: 'plant_11_hibiscus', zoneId: 'forest', x: 142320, stage: 3 },
     { assetId: 'plant_12_ixora', zoneId: 'forest', x: 142860, stage: 2 },
+    { assetId: 'plant_05_banana_plant', zoneId: 'forest', x: 143480, stage: 2, fruits: 1 },
+    { assetId: 'plant_17_tree_fern', zoneId: 'forest', x: 144120, stage: 3 },
 
-    // 2. River Pond Basin (x: 171,000 .. 324,000): Multi-style floating & submerged freshwater flora
-    { assetId: 'plant_26_lotus', zoneId: 'river', x: 201620, stage: 2 },
-    { assetId: 'plant_27_water_lily', zoneId: 'river', x: 202260, stage: 2 },
-    { assetId: 'plant_30_water_spinach', zoneId: 'river', x: 202820, stage: 2 },
+    // 2. River Pond Basin (x: 171,000 .. 324,000): All 6 freshwater species across varied stages (1, 2, 3) & multi-style clusters
+    { assetId: 'plant_26_lotus', zoneId: 'river', x: 201420, stage: 3 },
+    { assetId: 'plant_27_water_lily', zoneId: 'river', x: 202080, stage: 2 },
+    { assetId: 'plant_30_water_spinach', zoneId: 'river', x: 202690, stage: 3 },
+    { assetId: 'plant_29_hornwort', zoneId: 'river', x: 203280, stage: 2 },
+    { assetId: 'plant_28_duckweed', zoneId: 'river', x: 224400, stage: 2 },
+    { assetId: 'plant_25_water_hyacinth', zoneId: 'river', x: 225120, stage: 3 },
+    { assetId: 'plant_29_hornwort', zoneId: 'river', x: 225780, stage: 1 },
     { assetId: 'plant_25_water_hyacinth', zoneId: 'river', x: 247150, stage: 2 },
-    { assetId: 'plant_29_hornwort', zoneId: 'river', x: 247780, stage: 2 },
+    { assetId: 'plant_29_hornwort', zoneId: 'river', x: 247780, stage: 3 },
     { assetId: 'plant_26_lotus', zoneId: 'river', x: 248360, stage: 2 },
-    { assetId: 'plant_28_duckweed', zoneId: 'river', x: 291650, stage: 2 },
+    { assetId: 'plant_30_water_spinach', zoneId: 'river', x: 248980, stage: 2 },
+    { assetId: 'plant_27_water_lily', zoneId: 'river', x: 270400, stage: 3 },
+    { assetId: 'plant_26_lotus', zoneId: 'river', x: 271120, stage: 1 },
+    { assetId: 'plant_28_duckweed', zoneId: 'river', x: 291650, stage: 3 },
     { assetId: 'plant_29_hornwort', zoneId: 'river', x: 292280, stage: 2 },
-    { assetId: 'plant_27_water_lily', zoneId: 'river', x: 292850, stage: 2 },
+    { assetId: 'plant_27_water_lily', zoneId: 'river', x: 292850, stage: 3 },
+    { assetId: 'plant_25_water_hyacinth', zoneId: 'river', x: 293460, stage: 1 },
 
-    // 3. Mud / Mangrove Shore (x: 324,000 .. 459,000): Multi-style stilt-root mangroves, Api-Api, Nipa, coconut & sugar palms
-    { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 355560, stage: 2 },
-    { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 356280, stage: 2 },
-    { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 356920, stage: 2 },
-    { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 391120, stage: 2 },
-    { assetId: 'plant_13_coconut_palm', zoneId: 'mud', x: 391860, stage: 2 },
-    { assetId: 'plant_16_sugar_palm', zoneId: 'mud', x: 392480, stage: 2 },
-    { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 393120, stage: 2 },
-    { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 425400, stage: 2 },
-    { assetId: 'plant_13_coconut_palm', zoneId: 'mud', x: 426150, stage: 2 },
+    // 3. Mud / Mangrove Shore (x: 324,000 .. 459,000): Authentic mangrove & coastal palm community across stages 1, 2, 3
+    { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 354880, stage: 3 },
+    { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 355620, stage: 2 },
+    { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 356340, stage: 3 },
+    { assetId: 'plant_13_coconut_palm', zoneId: 'mud', x: 357080, stage: 3, fruits: 2 },
+    { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 357760, stage: 1 },
+    { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 390720, stage: 2 },
+    { assetId: 'plant_13_coconut_palm', zoneId: 'mud', x: 391480, stage: 2, fruits: 1 },
+    { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 392220, stage: 3 },
+    { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 392960, stage: 3 },
+    { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 393680, stage: 1 },
+    { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 424620, stage: 3 },
+    { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 425380, stage: 2 },
+    { assetId: 'plant_13_coconut_palm', zoneId: 'mud', x: 426150, stage: 3, fruits: 3 },
+    { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 426890, stage: 3 },
+    { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 427580, stage: 1 },
 
-    // 4. Coral Sea Shallow Sunlit Reef & Seagrass Meadow (x: 465,000 .. 548,000): Multi-style seagrass & turtle grass meadows
-    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 494620, stage: 2 },
-    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 495340, stage: 2 },
-    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 495980, stage: 2 },
-    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 542760, stage: 2 },
-    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 543260, stage: 2 },
-    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 543860, stage: 2 },
-    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 544420, stage: 2 },
-    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 544960, stage: 2 },
+    // 4. Coral Sea Shallow Sunlit Reef & Seagrass Meadow (x: 465,000 .. 548,000): Diverse multi-stage seagrass meadows
+    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 476400, stage: 3, fruits: 2 },
+    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 477120, stage: 2, fruits: 1 },
+    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 477820, stage: 3, fruits: 2 },
+    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 494620, stage: 2, fruits: 1 },
+    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 495340, stage: 3, fruits: 2 },
+    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 495980, stage: 3, fruits: 2 },
+    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 496640, stage: 1 },
+    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 518200, stage: 2, fruits: 1 },
+    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 518920, stage: 3, fruits: 2 },
+    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 519640, stage: 3, fruits: 2 },
+    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 542420, stage: 3, fruits: 2 },
+    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 543080, stage: 2, fruits: 1 },
+    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 543720, stage: 3, fruits: 2 },
+    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 544340, stage: 1 },
+    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 544960, stage: 3, fruits: 2 },
+    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 545580, stage: 2, fruits: 1 },
   ];
 
   return specs.map((s, idx) => ({
@@ -2070,8 +2162,8 @@ export function createDefaultSanctuaryPlants(): PlacedPlant[] {
     x: s.x,
     y: 420,
     growthStage: s.stage,
-    growthProgress: s.stage === 1 ? 20 : 65,
-    fruitCount: 0,
+    growthProgress: s.stage === 1 ? 25 : s.stage === 2 ? 68 : 100,
+    fruitCount: s.fruits ?? 0,
     hasGoldenFruit: false,
     fruitRegenTimerSec: 28,
     swayImpulse: 0,
@@ -2146,7 +2238,7 @@ export function createInitialSaveState(): SaveState {
         title: 'Feed animals 3 times',
         target: 3,
         progress: 0,
-        rewardGreenbits: 120,
+        rewardGreenbits: 0,
         claimed: false,
       },
       {
@@ -2154,7 +2246,7 @@ export function createInitialSaveState(): SaveState {
         title: 'Care for animals 3 times',
         target: 3,
         progress: 0,
-        rewardGreenbits: 90,
+        rewardGreenbits: 0,
         claimed: false,
       },
       {
@@ -2162,7 +2254,7 @@ export function createInitialSaveState(): SaveState {
         title: 'Place 2 ecosystem species',
         target: 2,
         progress: 0,
-        rewardGreenbits: 150,
+        rewardGreenbits: 0,
         claimed: false,
       },
     ],
