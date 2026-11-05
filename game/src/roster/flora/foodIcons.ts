@@ -5,84 +5,125 @@ import type { FoodIcon } from './types';
  * Rendered in a standard 22-unit radius frame around (0, 0).
  */
 export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
-  // 1. Spiky Durian (Durio zibethinus)
+  // 1. Spiky Durian (Durio zibethinus — realistic 5-carpel thorny husk + golden aril window)
   food_durian_fruit: (ctx) => {
-    // Woody pedicel stalk with abscission ring
-    ctx.strokeStyle = '#3e2712';
-    ctx.lineWidth = 3.6;
+    // Curved woody peduncle stem + swollen abscission ring (tangkai & buku durian)
+    ctx.strokeStyle = '#3b2310';
+    ctx.lineWidth = 4.2;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(0, -25);
-    ctx.lineTo(0, -17);
+    ctx.moveTo(2, -25);
+    ctx.quadraticCurveTo(0, -21, 0, -16);
     ctx.stroke();
 
-    ctx.fillStyle = '#6d4c26';
-    ctx.strokeStyle = '#231407';
-    ctx.lineWidth = 1.4;
+    ctx.fillStyle = '#785027';
+    ctx.strokeStyle = '#241407';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.ellipse(0, -19.5, 4.4, 2.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -18.5, 4.8, 2.5, -0.08, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Husk silhouette with sharp perimeter spikes
-    const rx = 18;
-    const ry = 21;
-    const numSpikes = 22;
+    // 5-lobed ovoid husk silhouette with radially oriented pyramidal perimeter thorns
+    const rx = 17.5;
+    const ry = 20.5;
+    const numSpikes = 26;
     const rim = new Path2D();
     for (let i = 0; i < numSpikes; i++) {
       const a0 = (i / numSpikes) * Math.PI * 2;
       const aMid = ((i + 0.5) / numSpikes) * Math.PI * 2;
       const a1 = ((i + 1) / numSpikes) * Math.PI * 2;
-      const bx0 = Math.cos(a0) * rx * 0.9;
-      const by0 = Math.sin(a0) * ry * 0.9 + 2;
-      const tx = Math.cos(aMid) * (rx + 5.5);
-      const ty = Math.sin(aMid) * (ry + 5.5) + 2;
-      const bx1 = Math.cos(a1) * rx * 0.9;
-      const by1 = Math.sin(a1) * ry * 0.9 + 2;
+      const lobeMod = 1 + 0.05 * Math.cos(aMid * 5);
+      const bx0 = Math.cos(a0) * rx * 0.88 * lobeMod;
+      const by0 = Math.sin(a0) * ry * 0.88 * lobeMod + 2;
+      const tx = Math.cos(aMid) * (rx + 4.8) * lobeMod;
+      const ty = Math.sin(aMid) * (ry + 4.8) * lobeMod + 2;
+      const bx1 = Math.cos(a1) * rx * 0.88 * lobeMod;
+      const by1 = Math.sin(a1) * ry * 0.88 * lobeMod + 2;
       if (i === 0) rim.moveTo(bx0, by0);
       rim.lineTo(tx, ty);
       rim.lineTo(bx1, by1);
     }
     rim.closePath();
 
-    const dGrad = ctx.createRadialGradient(-6, -6, 2, 0, 2, 24);
+    const dGrad = ctx.createRadialGradient(-6, -5, 2, 0, 2, 23);
     dGrad.addColorStop(0, '#bef264');
-    dGrad.addColorStop(0.5, '#65a30d');
-    dGrad.addColorStop(1, '#273f08');
+    dGrad.addColorStop(0.55, '#65a30d');
+    dGrad.addColorStop(1, '#2e480a');
     ctx.fillStyle = dGrad;
     ctx.fill(rim);
-    ctx.strokeStyle = '#142304';
-    ctx.lineWidth = 2.0;
+    ctx.strokeStyle = '#182805';
+    ctx.lineWidth = 1.9;
     ctx.stroke(rim);
 
-    // Carpel suture lines (locules where durian splits when ripe)
-    ctx.strokeStyle = 'rgba(254, 240, 138, 0.45)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(0, -15);
-    ctx.quadraticCurveTo(-2, 3, 0, 19);
-    ctx.moveTo(-11, -5);
-    ctx.quadraticCurveTo(-3, 3, 0, 19);
-    ctx.moveTo(11, -5);
-    ctx.quadraticCurveTo(3, 3, 0, 19);
-    ctx.stroke();
-
-    // 3D Pyramidal thorn clusters following spherical curvature
+    // 2-faceted 3D pyramidal thorns along curved carpel rows
     for (let row = -2; row <= 2; row++) {
-      const ty = 2 + row * 5.2;
-      const halfW = Math.sqrt(Math.max(0, 1 - (row / 2.6) ** 2)) * 12.5;
-      for (let ox = -halfW; ox <= halfW + 0.1; ox += 5.2) {
-        ctx.fillStyle = '#ecfccb';
-        ctx.strokeStyle = '#1a2e05';
-        ctx.lineWidth = 0.9;
+      const ty = 2 + row * 4.8;
+      const halfW = Math.sqrt(Math.max(0, 1 - (row / 2.5) ** 2)) * 12.2;
+      for (let ox = -halfW; ox <= halfW + 0.1; ox += 4.8) {
+        if (ox > -1 && ty > -4 && ty < 13) continue; // leave space for open carpel window
+        const tipX = ox * 1.08;
+        const tipY = ty - 3.6 + row * 0.4;
+        // Left sunlit facet
+        ctx.fillStyle = '#d9f99d';
         ctx.beginPath();
-        ctx.moveTo(ox - 2.5, ty + 2.2);
-        ctx.lineTo(ox, ty - 3.8);
-        ctx.lineTo(ox + 2.5, ty + 2.2);
+        ctx.moveTo(ox - 2.3, ty + 1.8);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(ox, ty + 2.0);
         ctx.closePath();
         ctx.fill();
+        // Right shaded facet
+        ctx.fillStyle = '#4d7c0f';
+        ctx.beginPath();
+        ctx.moveTo(ox, ty + 2.0);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(ox + 2.3, ty + 1.8);
+        ctx.closePath();
+        ctx.fill();
+        // Thorn outline
+        ctx.strokeStyle = '#1a2e05';
+        ctx.lineWidth = 0.85;
+        ctx.beginPath();
+        ctx.moveTo(ox - 2.3, ty + 1.8);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(ox + 2.3, ty + 1.8);
         ctx.stroke();
       }
+    }
+
+    // Dehisced open carpel locule revealing creamy white pith & plump golden Musang King arils
+    ctx.fillStyle = '#fefce8';
+    ctx.strokeStyle = '#3f6212';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(2, -9);
+    ctx.bezierCurveTo(12, -5, 13, 10, 3, 15);
+    ctx.bezierCurveTo(-4, 11, -3, -4, 2, -9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Two plump golden-yellow custard aril pods (isi durian) inside the locule
+    for (const [ax, ay, arx, ary, rot] of [
+      [4.5, -1.5, 4.2, 5.2, -0.12],
+      [4.2, 7.2, 4.4, 5.4, 0.14],
+    ] as const) {
+      const aGrad = ctx.createRadialGradient(ax - 1.5, ay - 1.5, 0.5, ax, ay, ary);
+      aGrad.addColorStop(0, '#fef08a');
+      aGrad.addColorStop(0.55, '#facc15');
+      aGrad.addColorStop(1, '#ca8a04');
+      ctx.fillStyle = aGrad;
+      ctx.strokeStyle = '#854d0e';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.ellipse(ax, ay, arx, ary, rot, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Glossy highlight on each custard pod
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(ax - 1.2, ay - 1.6, 1.4, 2.2, rot, 0, Math.PI * 2);
+      ctx.fill();
     }
   },
 
@@ -148,50 +189,88 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
     }
   },
 
-  // 3. Banana Bunch (Musa acuminata Pisang Emas)
+  // 3. Banana Bunch (Musa acuminata Pisang Raja / Cavendish — realistic 2-row curved crescent hand with faceted fingers)
   food_banana_bunch: (ctx) => {
-    // Peduncle cushion collar at top
-    ctx.fillStyle = '#4d7c0f';
-    ctx.strokeStyle = '#142405';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.ellipse(0, -11, 14.5, 4.8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Hand of 5 distinct curved golden bananas with facet ridges
-    for (let c = -2; c <= 2; c++) {
-      const fx = c * 5.4;
-      const curve = c * 3.2;
-      const bGrad = ctx.createLinearGradient(fx - 3, -8, fx + curve + 3, 16);
-      bGrad.addColorStop(0, '#fef08a');
-      bGrad.addColorStop(0.5, '#facc15');
-      bGrad.addColorStop(1, '#ca8a04');
+    const drawBananaFinger = (
+      x0: number,
+      y0: number,
+      ctrlX: number,
+      ctrlY: number,
+      xTip: number,
+      yTip: number,
+      thickness: number,
+      isBackRow: boolean,
+    ) => {
+      // Narrow green-gold neck pedicel + plump curved 5-sided banana body
+      const bGrad = ctx.createLinearGradient(x0, y0, xTip, yTip);
+      bGrad.addColorStop(0, '#84cc16');
+      bGrad.addColorStop(0.16, isBackRow ? '#eab308' : '#fef08a');
+      bGrad.addColorStop(0.62, isBackRow ? '#ca8a04' : '#facc15');
+      bGrad.addColorStop(1, '#a16207');
       ctx.fillStyle = bGrad;
-      ctx.strokeStyle = '#5c3506';
-      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = '#422006';
+      ctx.lineWidth = 1.65;
+
       ctx.beginPath();
-      ctx.moveTo(fx - 3.4, -9.5);
-      ctx.quadraticCurveTo(fx + curve - 4.6, 4, fx + curve * 0.9, 16.5);
-      ctx.quadraticCurveTo(fx + curve + 4.6, 4, fx + 3.4, -9.5);
+      ctx.moveTo(x0 - thickness * 0.42, y0);
+      ctx.quadraticCurveTo(ctrlX - thickness * 0.95, ctrlY + thickness * 0.25, xTip - 1.2, yTip);
+      ctx.lineTo(xTip + 1.2, yTip - 0.8);
+      ctx.quadraticCurveTo(ctrlX + thickness * 0.85, ctrlY - thickness * 0.35, x0 + thickness * 0.42, y0);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Angular facet ridge line down each banana
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-      ctx.lineWidth = 1.0;
+      // Longitudinal angular facet ridge along the banana's side
+      ctx.strokeStyle = isBackRow ? 'rgba(254, 240, 138, 0.35)' : 'rgba(255, 255, 255, 0.62)';
+      ctx.lineWidth = 1.1;
       ctx.beginPath();
-      ctx.moveTo(fx, -8);
-      ctx.quadraticCurveTo(fx + curve * 0.6, 4, fx + curve * 0.9, 15);
+      ctx.moveTo(x0, y0 + 2);
+      ctx.quadraticCurveTo(ctrlX - thickness * 0.12, ctrlY, xTip - 0.5, yTip - 2);
       ctx.stroke();
 
-      // Withered perianth floral remnant dot at tip
-      ctx.fillStyle = '#261203';
+      // Dark brown withered floral perianth tip (tampuk hujung pisang)
+      ctx.fillStyle = '#291303';
       ctx.beginPath();
-      ctx.arc(fx + curve * 0.9, 16.2, 1.4, 0, Math.PI * 2);
+      ctx.ellipse(xTip, yTip - 0.3, 1.7, 1.3, 0.3, 0, Math.PI * 2);
       ctx.fill();
-    }
+    };
+
+    // Back row of 3 banana fingers curving gracefully together to the right
+    drawBananaFinger(-9, -12, -14, 2, -5, 15, 4.4, true);
+    drawBananaFinger(-3, -12, -6, 3, 4, 16, 4.5, true);
+    drawBananaFinger(3, -11, 2, 3, 12, 14, 4.4, true);
+
+    // Front row of 4 plump faceted banana fingers nested in a natural crescent hand (sisir pisang)
+    drawBananaFinger(-11, -10, -17, 4, -9, 17, 4.8, false);
+    drawBananaFinger(-5, -10, -10, 6, -1, 19, 5.0, false);
+    drawBananaFinger(1, -10, -2, 6, 8, 18, 5.0, false);
+    drawBananaFinger(7, -9, 6, 4, 16, 15, 4.7, false);
+
+    // Curved woody-green fibrous crown cushion (tampuk sisir) uniting all banana pedicels at top
+    const cGrad = ctx.createLinearGradient(-13, -15, 11, -9);
+    cGrad.addColorStop(0, '#65a30d');
+    cGrad.addColorStop(0.6, '#4d7c0f');
+    cGrad.addColorStop(1, '#3f2e12');
+    ctx.fillStyle = cGrad;
+    ctx.strokeStyle = '#1a2e05';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-14, -10);
+    ctx.quadraticCurveTo(-2, -17, 11, -9);
+    ctx.quadraticCurveTo(9, -6, -2, -8);
+    ctx.quadraticCurveTo(-11, -7, -14, -10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Brown cut woody stalk scar on top of the crown cushion
+    ctx.fillStyle = '#785027';
+    ctx.strokeStyle = '#291303';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(-2, -13.5, 5.2, 2.0, 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   },
 
   // 4. Rambutan Cluster (Nephelium lappaceum)
@@ -749,4 +828,402 @@ export const REFINED_FOOD_ICONS: Record<string, FoodIcon> = {
       ctx.stroke();
     }
   },
+
+  // 14. Tender Forest Leaves (Pucuk Daun Hutan — pinnate rainforest leaf shoot with venation & apical bud)
+  food_tender_forest_leaves: (ctx) => {
+    // Central woody-green petiole stem
+    ctx.strokeStyle = '#3f6212';
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-10, 18);
+    ctx.quadraticCurveTo(-2, 4, 8, -16);
+    ctx.stroke();
+
+    const drawLeaf = (bx: number, by: number, ang: number, len: number, wid: number, cLight: string, cDark: string) => {
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.rotate(ang);
+      const lGrad = ctx.createLinearGradient(0, -wid, len, wid);
+      lGrad.addColorStop(0, cLight);
+      lGrad.addColorStop(1, cDark);
+      ctx.fillStyle = lGrad;
+      ctx.strokeStyle = '#142e05';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(len * 0.3, -wid, len * 0.78, -wid * 0.8, len, 0);
+      ctx.bezierCurveTo(len * 0.78, wid * 0.8, len * 0.3, wid, 0, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Midrib & lateral secondary veins
+      ctx.strokeStyle = 'rgba(236, 252, 203, 0.7)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(1, 0);
+      ctx.lineTo(len * 0.88, 0);
+      for (const vx of [0.3, 0.55, 0.75]) {
+        ctx.moveTo(len * vx, 0);
+        ctx.lineTo(len * (vx + 0.12), -wid * 0.52);
+        ctx.moveTo(len * vx, 0);
+        ctx.lineTo(len * (vx + 0.12), wid * 0.52);
+      }
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    drawLeaf(-6, 10, -2.25, 16, 6.2, '#4ade80', '#15803d');
+    drawLeaf(-4, 7, -0.15, 16, 6.2, '#22c55e', '#166534');
+    drawLeaf(-1, -1, -2.05, 15, 5.8, '#a3e635', '#3f6212');
+    drawLeaf(2, -4, -0.32, 15, 5.8, '#84cc16', '#365314');
+    // Terminal young flushing shoot leaf (lime-bronze rainforest flush)
+    drawLeaf(5, -11, -1.12, 14, 5.2, '#bef264', '#4d7c0f');
+  },
+
+  // 15. Jungle Nuts & Seeds (Tropical Dipterocarp winged samara, Lithocarpus acorn & rainforest chestnuts)
+  food_jungle_nuts_seeds: (ctx) => {
+    // Two crimson-brown Dipterocarp winged samara blades rising behind the nutlet
+    for (const [ang, len, wid] of [
+      [-0.42, 19, 4.6],
+      [0.36, 18, 4.4],
+    ] as const) {
+      ctx.save();
+      ctx.translate(4, 2);
+      ctx.rotate(ang);
+      const wGrad = ctx.createLinearGradient(0, 0, 0, -len);
+      wGrad.addColorStop(0, '#9a3412');
+      wGrad.addColorStop(0.6, '#dc2626');
+      wGrad.addColorStop(1, '#7f1d1d');
+      ctx.fillStyle = wGrad;
+      ctx.strokeStyle = '#3f0d06';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(-wid, -len * 0.45, -wid * 1.1, -len * 0.9, 0, -len);
+      ctx.bezierCurveTo(wid * 1.1, -len * 0.9, wid, -len * 0.45, 0, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Left: Tropical Oak Acorn (Lithocarpus) with scaly woody cupule cap
+    ctx.save();
+    ctx.translate(-7, 5);
+    ctx.rotate(-0.2);
+    const nGrad = ctx.createRadialGradient(-2, 0, 1, 0, 2, 10);
+    nGrad.addColorStop(0, '#f59e0b');
+    nGrad.addColorStop(0.6, '#92400e');
+    nGrad.addColorStop(1, '#451a03');
+    ctx.fillStyle = nGrad;
+    ctx.strokeStyle = '#270e02';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 6.8, 8.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Scaly cupule cap
+    ctx.fillStyle = '#78350f';
+    ctx.beginPath();
+    ctx.ellipse(0, -3.5, 7.6, 4.2, 0, Math.PI, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // Right: Glossy mahogany rainforest seed nut with pale hilum scar
+    const sGrad = ctx.createRadialGradient(5, 6, 1, 7, 8, 9);
+    sGrad.addColorStop(0, '#d97706');
+    sGrad.addColorStop(0.55, '#7c2d12');
+    sGrad.addColorStop(1, '#3b0764');
+    ctx.fillStyle = sGrad;
+    ctx.strokeStyle = '#1c0a02';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(7, 8, 7.5, 6.5, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fef3c7';
+    ctx.beginPath();
+    ctx.ellipse(5.5, 6.5, 3.0, 1.8, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+  },
+
+  // 16. Prime Venison Meat (Anatomical bone-in haunch cut with marrow femur bone & marbled muscle fibers)
+  food_prime_venison_meat: (ctx) => {
+    ctx.save();
+    ctx.rotate(-0.14);
+
+    // Outer creamy fat cap / rind
+    ctx.fillStyle = '#fef3c7';
+    ctx.strokeStyle = '#450a0a';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 17.5, 13.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Deep crimson venison muscle cut
+    const mGrad = ctx.createRadialGradient(-4, -2, 2, 0, 1, 16);
+    mGrad.addColorStop(0, '#f87171');
+    mGrad.addColorStop(0.45, '#dc2626');
+    mGrad.addColorStop(1, '#7f1d1d');
+    ctx.fillStyle = mGrad;
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(0, 1, 14.8, 10.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Intramuscular white connective marbling lines
+    ctx.strokeStyle = 'rgba(254, 242, 242, 0.72)';
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-4, -2);
+    ctx.quadraticCurveTo(-10, -4, -12, 2);
+    ctx.moveTo(-1, 2);
+    ctx.quadraticCurveTo(8, 5, 12, 0);
+    ctx.moveTo(-2, 4);
+    ctx.quadraticCurveTo(-5, 8, 2, 9);
+    ctx.stroke();
+
+    // Central cross-sectioned ivory femur bone with red marrow core
+    ctx.fillStyle = '#fffbeb';
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(-3, -1, 4.6, 3.8, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath();
+    ctx.arc(-3, -1, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  },
+
+  // 17. Crabs & Clams (Mangrove Mud Crab Scylla serrata + ribbed estuarine bivalve clam)
+  food_crabs_clams: (ctx) => {
+    // 1. Ribbed Estuarine Venus Clam (Meretrix) at bottom-right
+    ctx.save();
+    ctx.translate(7, 8);
+    ctx.rotate(0.18);
+    const cGrad = ctx.createRadialGradient(-2, -2, 1, 0, 0, 11);
+    cGrad.addColorStop(0, '#fef3c7');
+    cGrad.addColorStop(0.6, '#d6d3d1');
+    cGrad.addColorStop(1, '#78716c');
+    ctx.fillStyle = cGrad;
+    ctx.strokeStyle = '#292524';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -7);
+    ctx.bezierCurveTo(10, -6, 12, 5, 0, 8);
+    ctx.bezierCurveTo(-12, 5, -10, -6, 0, -7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Concentric growth ridges on clam shell
+    ctx.strokeStyle = 'rgba(87, 83, 78, 0.55)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.arc(0, -1, 6.5, 0.25, Math.PI - 0.25);
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Mangrove Mud Crab (Scylla) at top-left with pincers & walking legs
+    ctx.save();
+    ctx.translate(-4, -3);
+    ctx.strokeStyle = '#7c2d12';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    // Walking legs
+    for (const side of [-1, 1]) {
+      for (const ly of [-2, 1, 4]) {
+        ctx.beginPath();
+        ctx.moveTo(side * 8, ly);
+        ctx.quadraticCurveTo(side * 14, ly - 2, side * 16, ly + 4);
+        ctx.stroke();
+      }
+      // Robust cheliped pincer claws raised in front
+      ctx.fillStyle = '#ea580c';
+      ctx.strokeStyle = '#431407';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.ellipse(side * 9, -8, 4.2, 2.8, side * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // Serrated hexagonal crab carapace
+    const crGrad = ctx.createRadialGradient(-2, -2, 1, 0, 0, 11);
+    crGrad.addColorStop(0, '#fb923c');
+    crGrad.addColorStop(0.6, '#c2410c');
+    crGrad.addColorStop(1, '#431407');
+    ctx.fillStyle = crGrad;
+    ctx.strokeStyle = '#270e02';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10.5, 7.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Stalked crab eyes
+    ctx.fillStyle = '#09090b';
+    ctx.beginPath();
+    ctx.arc(-3.5, -7, 1.3, 0, Math.PI * 2);
+    ctx.arc(3.5, -7, 1.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  },
+
+  // 18. Reef Sponge (Porous tubular/barrel coral reef sponge Xestospongia / Aplysina)
+  food_marine_sponge: (ctx) => {
+    // Coral rock substrate base
+    ctx.fillStyle = '#64748b';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 15, 14, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 3 clustered tubular barrel sponges with apical osculum vents & porous texture
+    for (const [tx, ty, tw, th, rot, cTop, cBot] of [
+      [-8, 13, 5.5, 22, -0.18, '#fbbf24', '#b45309'],
+      [8, 13, 5.2, 20, 0.2, '#f472b6', '#9d174d'],
+      [0, 15, 6.8, 27, 0.02, '#fb923c', '#9a3412'],
+    ] as const) {
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.rotate(rot);
+      const sGrad = ctx.createLinearGradient(-tw, -th, tw, 0);
+      sGrad.addColorStop(0, cTop);
+      sGrad.addColorStop(1, cBot);
+      ctx.fillStyle = sGrad;
+      ctx.strokeStyle = '#3b0764';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-tw * 0.85, 0);
+      ctx.quadraticCurveTo(-tw * 1.15, -th * 0.5, -tw, -th);
+      ctx.lineTo(tw, -th);
+      ctx.quadraticCurveTo(tw * 1.15, -th * 0.5, tw * 0.85, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Dark apical osculum excurrent vent opening
+      ctx.fillStyle = '#1e1b4b';
+      ctx.beginPath();
+      ctx.ellipse(0, -th, tw * 0.95, 2.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Ostia pore depressions along sponge wall
+      ctx.fillStyle = 'rgba(30, 27, 75, 0.45)';
+      for (const [px, py, pr] of [
+        [-2, -th * 0.7, 1.3],
+        [2.2, -th * 0.52, 1.5],
+        [-1.5, -th * 0.32, 1.4],
+      ] as const) {
+        ctx.beginPath();
+        ctx.arc(px, py, pr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  },
+
+  // 19. Moon Jellyfish (Pelagic translucent Aurelia aurita with 4 horseshoe gonads & oral arms)
+  food_moon_jellyfish: (ctx) => {
+    // Trailing translucent oral arms & fine marginal tentacles
+    ctx.strokeStyle = 'rgba(192, 132, 252, 0.78)';
+    ctx.lineWidth = 2.0;
+    ctx.lineCap = 'round';
+    for (const ox of [-7, -2.5, 2.5, 7]) {
+      ctx.beginPath();
+      ctx.moveTo(ox, 1);
+      ctx.bezierCurveTo(ox - 3, 8, ox + 3, 14, ox - 1, 20);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(125, 211, 252, 0.65)';
+    ctx.lineWidth = 1.0;
+    for (let tx = -13; tx <= 13; tx += 4.2) {
+      ctx.beginPath();
+      ctx.moveTo(tx, 1);
+      ctx.quadraticCurveTo(tx + 1.5, 9, tx - 1, 16);
+      ctx.stroke();
+    }
+
+    // Translucent domed umbrella bell with scalloped lappet margin
+    const bGrad = ctx.createRadialGradient(0, -8, 2, 0, -2, 18);
+    bGrad.addColorStop(0, 'rgba(240, 249, 255, 0.95)');
+    bGrad.addColorStop(0.55, 'rgba(165, 243, 252, 0.78)');
+    bGrad.addColorStop(1, 'rgba(192, 132, 252, 0.85)');
+    ctx.fillStyle = bGrad;
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(0, 1, 16, Math.PI, 0);
+    // Scalloped lappet bottom margin
+    for (let s = 3; s >= -3; s--) {
+      ctx.quadraticCurveTo(s * 4 - 2, 4.5, (s - 1) * 4, 1);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Signature 4 horseshoe-shaped rose-violet gonads visible through translucent bell
+    ctx.strokeStyle = '#db2777';
+    ctx.lineWidth = 1.6;
+    for (let g = 0; g < 4; g++) {
+      const a = (g * Math.PI) / 2 + Math.PI * 0.25;
+      const gx = Math.cos(a) * 5.2;
+      const gy = -6.5 + Math.sin(a) * 3.4;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 2.2, a - 1.1, a + 1.1);
+      ctx.stroke();
+    }
+  },
+
+  // 20. Starfish Treat (5-rayed reef sea star for obligate echinoderm predator Harlequin Shrimp)
+  food_starfish_treat: (ctx) => {
+    const starP = new Path2D();
+    const outerR = 19;
+    const innerR = 7.8;
+    for (let i = 0; i < 10; i++) {
+      const isOuter = i % 2 === 0;
+      const ang = -Math.PI / 2 + (i * Math.PI) / 5;
+      const r = isOuter ? outerR : innerR;
+      const px = Math.cos(ang) * r;
+      const py = Math.sin(ang) * r;
+      if (i === 0) starP.moveTo(px, py);
+      else starP.quadraticCurveTo(Math.cos(ang - 0.15) * (r * 0.92), Math.sin(ang - 0.15) * (r * 0.92), px, py);
+    }
+    starP.closePath();
+
+    const stGrad = ctx.createRadialGradient(-3, -3, 1, 0, 0, 19);
+    stGrad.addColorStop(0, '#fdba74');
+    stGrad.addColorStop(0.55, '#ea580c');
+    stGrad.addColorStop(1, '#9a3412');
+    ctx.fillStyle = stGrad;
+    ctx.fill(starP);
+    ctx.strokeStyle = '#431407';
+    ctx.lineWidth = 1.6;
+    ctx.stroke(starP);
+
+    // Radial carinal ossicle nodules along the 5 arms
+    ctx.fillStyle = '#fef3c7';
+    for (let a = 0; a < 5; a++) {
+      const ang = -Math.PI / 2 + (a * 2 * Math.PI) / 5;
+      for (const d of [5, 10, 14.5]) {
+        ctx.beginPath();
+        ctx.arc(Math.cos(ang) * d, Math.sin(ang) * d, d === 14.5 ? 1.1 : 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  },
 };
+
+REFINED_FOOD_ICONS.food_freshwater_crustacean = REFINED_FOOD_ICONS.food_river_minnow_treat;

@@ -33,36 +33,68 @@ export function sanitizeKeys(obj: any): any {
   return clean;
 }
 
+export const MAX_ANIMAL_LEVEL = 100;
+
 /**
- * Computes Love Level (1 .. 5) based on sustained care (1-3 weeks / 7-21 care days + bondXp).
- * Only reaches max Level 5 with sufficient care milestones and time!
+ * Minimum bondXp required to reach a given Love Level (1 .. 100).
+ * Baseline bondXp is 100 for Lv.1; Lv.2 requires 125 XP (+25 XP), Lv.3 requires 155 XP (+30 XP), etc.
+ */
+export function getXpRequiredForLevel(level: number): number {
+  const clamped = Math.max(1, Math.min(MAX_ANIMAL_LEVEL, Math.floor(level)));
+  if (clamped <= 1) return 100;
+  const steps = clamped - 1;
+  return 100 + 25 * steps + 2 * steps * (steps - 1);
+}
+
+/**
+ * Computes Love Level (1 .. 100) from an animal's bondXp.
  */
 export function computeAnimalLoveLevel(animal: PlacedAnimal | null | undefined): number {
   if (!animal) return 1;
   const xp = typeof animal.bondXp === 'number' && Number.isFinite(animal.bondXp) ? Math.max(0, animal.bondXp) : 100;
-  const days = typeof animal.careDaysCount === 'number' && Number.isFinite(animal.careDaysCount) ? Math.max(1, Math.floor(animal.careDaysCount)) : 1;
-
-  // XP tiers: 100 (Lv1), 200 (Lv2), 300 (Lv3), 400 (Lv4), 500 (Lv5)
-  const xpTier = Math.min(5, Math.max(1, Math.floor(xp / 100)));
-
-  // Care time gates:
-  // Lv.1: Day 1+
-  // Lv.2: Day 2+ or >= 180 XP
-  // Lv.3: Day 4+ or >= 280 XP
-  // Lv.4: Day 7+ (1 week) or >= 390 XP
-  // Lv.5: Day 14+ (2-3 weeks of care) and 500 XP
-  if (xp >= 500 && days >= 14) return 5;
-  if (xp >= 400 && days >= 7) return 4;
-  if (xp >= 300 && days >= 3) return 3;
-  if (xp >= 200) return 2;
-  return Math.min(4, xpTier);
+  let lvl = 1;
+  while (lvl < MAX_ANIMAL_LEVEL && xp >= getXpRequiredForLevel(lvl + 1)) {
+    lvl += 1;
+  }
+  return lvl;
 }
 
 /**
- * Records a daily care interaction (feeding or gentle petting) for the 1-3 week Love Level progression.
+ * Computes Greenbits earned when an animal levels up from `fromLevel` to `toLevel`.
+ * Rule:
+ * - Lv.1 -> Lv.2: +5 Greenbits
+ * - Lv.2 -> Lv.3: +10 Greenbits
+ * - Lv.3 -> Lv.4: +20 Greenbits
+ * - Multiplied by 2 each time, up to Lv.100 maximum.
  */
-export function recordAnimalCareInteraction(animal: PlacedAnimal | null | undefined, xpGain: number): void {
-  if (!animal) return;
+export function computeLevelUpGreenbitsReward(fromLevel: number, toLevel: number): number {
+  const start = Math.max(1, Math.floor(fromLevel));
+  const end = Math.min(MAX_ANIMAL_LEVEL, Math.floor(toLevel));
+  if (end <= start) return 0;
+  let total = 0;
+  for (let lv = start; lv < end; lv++) {
+    const stepReward = 5 * Math.pow(2, lv - 1);
+    total += Number.isFinite(stepReward) ? Math.min(Number.MAX_SAFE_INTEGER - total, Math.round(stepReward)) : 0;
+  }
+  return total;
+}
+
+export interface AnimalCareLevelResult {
+  oldLevel: number;
+  newLevel: number;
+  greenbitsEarned: number;
+}
+
+/**
+ * Records a care interaction (feeding or petting) and returns any level-up Greenbits reward.
+ * Only animal Lv. increments award Greenbits (up to Lv.100).
+ */
+export function recordAnimalCareInteraction(
+  animal: PlacedAnimal | null | undefined,
+  xpGain: number,
+): AnimalCareLevelResult {
+  if (!animal) return { oldLevel: 1, newLevel: 1, greenbitsEarned: 0 };
+  const oldLevel = computeAnimalLoveLevel(animal);
   const gain = typeof xpGain === 'number' && Number.isFinite(xpGain) ? Math.max(0, xpGain) : 0;
   const todayStamp = new Date().toISOString().slice(0, 10);
   if (!animal.careStartTimestampMs || !Number.isFinite(animal.careStartTimestampMs)) {
@@ -75,17 +107,19 @@ export function recordAnimalCareInteraction(animal: PlacedAnimal | null | undefi
     animal.lastCareDayStamp = todayStamp;
     animal.careDaysCount += 1;
   }
-  // Also factor in real elapsed days since adoption if the animal has been kept fed
   const elapsedDaysSinceAdoption = Math.floor(
     Math.max(0, Date.now() - animal.careStartTimestampMs) / (1000 * 60 * 60 * 24),
   );
   const currentHunger = Number.isFinite(animal.hunger) ? animal.hunger : 50;
   if (currentHunger > 30 && elapsedDaysSinceAdoption + 1 > animal.careDaysCount) {
-    animal.careDaysCount = Math.min(21, elapsedDaysSinceAdoption + 1);
+    animal.careDaysCount = Math.min(365, elapsedDaysSinceAdoption + 1);
   }
-  // Progress bondXp steadily toward 500
   const currentXp = Number.isFinite(animal.bondXp) ? animal.bondXp : 100;
-  animal.bondXp = Math.min(500, Math.max(0, currentXp + gain));
+  const maxXpCap = getXpRequiredForLevel(MAX_ANIMAL_LEVEL);
+  animal.bondXp = Math.min(maxXpCap, Math.max(0, currentXp + gain));
+  const newLevel = computeAnimalLoveLevel(animal);
+  const greenbitsEarned = computeLevelUpGreenbitsReward(oldLevel, newLevel);
+  return { oldLevel, newLevel, greenbitsEarned };
 }
 
 function migrateWorldX(rawX: number | undefined, fallbackX: number, version: number): number {
@@ -137,9 +171,14 @@ function refreshDefaultScenery<T extends { uid?: string; assetId: string; isDefa
   const userPlants = plants.filter((p) => !isDefault(p));
   const savedDefaults = plants.filter((p) => isDefault(p));
   const fresh = createDefaultSanctuaryPlants().map((d) => {
-    const prev = savedDefaults.find((p) => p.uid === d.uid || p.assetId === d.assetId);
+    const prev = savedDefaults.find((p) => p.uid === d.uid && p.assetId === d.assetId);
     return prev
-      ? { ...d, growthStage: prev.growthStage, growthProgress: prev.growthProgress, fruitCount: prev.fruitCount }
+      ? {
+          ...d,
+          growthStage: Math.max(d.growthStage, prev.growthStage) as 1 | 2 | 3,
+          growthProgress: Math.max(d.growthProgress, prev.growthProgress),
+          fruitCount: prev.fruitCount,
+        }
       : d;
   });
   return [...(fresh as unknown as T[]), ...userPlants];
@@ -226,12 +265,16 @@ export function loadSaveState(
         ? candidateAnimals
             .filter((a) => a && typeof a.assetId === 'string' && ASSET_ECO_CONFIG[a.assetId])
             .map((a, idx) => {
-              const nativeZone = ASSET_ECO_CONFIG[a.assetId]?.allowedZones[0] ?? 'forest';
-              const targetZone = a.zoneId && getZoneSpec(a.zoneId) ? a.zoneId : nativeZone;
+              const allowedZones = ASSET_ECO_CONFIG[a.assetId]?.allowedZones ?? ['forest'];
+              const nativeZone = allowedZones[0] ?? 'forest';
+              const isZoneValid = Boolean(a.zoneId && getZoneSpec(a.zoneId) && allowedZones.includes(a.zoneId));
+              const targetZone = isZoneValid ? a.zoneId : nativeZone;
               const zoneSpec = getZoneSpec(targetZone);
               const defaultCenter = (zoneSpec.xStart + zoneSpec.xEnd) * 0.5;
-              const migratedX = migrateWorldX(a.x, defaultCenter, saveVersion);
-              const migratedTargetX = migrateWorldX(a.targetX, migratedX + 140, saveVersion);
+              const migratedX = isZoneValid ? migrateWorldX(a.x, defaultCenter, saveVersion) : defaultCenter;
+              const migratedTargetX = isZoneValid
+                ? migrateWorldX(a.targetX, migratedX + 140, saveVersion)
+                : migratedX + 140;
               const rawHunger = typeof a.hunger === 'number' && Number.isFinite(a.hunger) ? a.hunger : 85;
               return {
                 uid: typeof a.uid === 'string' && a.uid.trim() ? a.uid.trim() : `anim_restored_${idx}`,
@@ -247,7 +290,7 @@ export function loadSaveState(
                 facing: (a.facing === -1 ? -1 : 1) as 1 | -1,
                 hunger: Math.max(0, Math.min(100, rawHunger - offlineHungerDrop)),
                 happiness: typeof a.happiness === 'number' && Number.isFinite(a.happiness) ? Math.max(0, Math.min(100, a.happiness)) : 90,
-                bondXp: typeof a.bondXp === 'number' && Number.isFinite(a.bondXp) ? Math.max(0, Math.min(500, a.bondXp)) : 100,
+                bondXp: typeof a.bondXp === 'number' && Number.isFinite(a.bondXp) ? Math.max(0, Math.min(getXpRequiredForLevel(MAX_ANIMAL_LEVEL), a.bondXp)) : 100,
                 careStartTimestampMs:
                   typeof a.careStartTimestampMs === 'number' && Number.isFinite(a.careStartTimestampMs)
                     ? a.careStartTimestampMs

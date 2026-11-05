@@ -820,26 +820,47 @@ function drawDetailedLeaf(
     ctx.translate(cx + sway * 22 + activePlant3DYaw * 18, cy + activePlant3DPitch * -14);
     ctx.rotate(sway * 0.08 + activePlant3DYaw * 0.04);
 
-    // 1. Open architectural wooden branches & twigs radiating through the crown (no clumpy green blob!)
-    const branchCoords: ReadonlyArray<readonly [number, number, number, number, number, number]> = [
-      [0, ry * 0.55, -rx * 0.45, ry * 0.05, -rx * 0.84, -ry * 0.08],
-      [0, ry * 0.55, rx * 0.45, ry * 0.05, rx * 0.84, -ry * 0.08],
-      [-rx * 0.25, ry * 0.2, -rx * 0.48, -ry * 0.35, -rx * 0.66, -ry * 0.58],
-      [rx * 0.25, ry * 0.2, rx * 0.48, -ry * 0.35, rx * 0.66, -ry * 0.58],
-      [0, ry * 0.45, -rx * 0.14, -ry * 0.25, -rx * 0.26, -ry * 0.76],
-      [0, ry * 0.45, rx * 0.14, -ry * 0.25, rx * 0.26, -ry * 0.76],
-      [0, ry * 0.35, 0, -ry * 0.3, 0, -ry * 0.85],
+    const isTualang = activePlantAssetId.includes('tualang');
+    const isDurian = activePlantAssetId.includes('durian');
+    const isMangosteen = activePlantAssetId.includes('mangosteen');
+    const isRambutan = activePlantAssetId.includes('rambutan');
+    const isBanyan = activePlantAssetId.includes('banyan');
+    const isIxora = activePlantAssetId.includes('ixora');
+    const isApiApi = activePlantAssetId.includes('api_api');
+
+    const branchWoodFill = isTualang ? '#8a857a' : '#52341e';
+    const branchWoodStroke = isTualang ? '#47433c' : '#26170c';
+
+    // 1. Fully connected architectural wooden branch & secondary fork network
+    // All primary crown limbs originate from the basal hub (0, ry * 0.64) where the trunk/bough enters the crown,
+    // and secondary limbs fork from exact points along the primary limbs (zero disconnected branches!).
+    const hubX = 0;
+    const hubY = ry * 0.64;
+    const branchCoords: ReadonlyArray<readonly [number, number, number, number, number, number, number]> = [
+      // Left & right low spreading primary limbs from hub
+      [hubX, hubY, -rx * 0.42, ry * 0.22, -rx * 0.86, 0, 7.2],
+      [hubX, hubY, rx * 0.42, ry * 0.22, rx * 0.86, 0, 7.2],
+      // Left & right mid ascending limbs branching from primary limbs at (-rx*0.24, ry*0.36)
+      [-rx * 0.24, ry * 0.36, -rx * 0.50, -ry * 0.16, -rx * 0.72, -ry * 0.48, 5.8],
+      [rx * 0.24, ry * 0.36, rx * 0.50, -ry * 0.16, rx * 0.72, -ry * 0.48, 5.8],
+      // Left & right upper inner fork limbs from hub
+      [hubX, hubY * 0.78, -rx * 0.18, -ry * 0.18, -rx * 0.36, -ry * 0.74, 5.6],
+      [hubX, hubY * 0.78, rx * 0.18, -ry * 0.18, rx * 0.36, -ry * 0.74, 5.6],
+      // Central leader limb reaching apex
+      [hubX, hubY, 0, -ry * 0.15, 0, -ry * 0.84, 6.4],
     ];
 
-    ctx.strokeStyle = '#4a2c18';
     ctx.lineCap = 'round';
-    for (const [x0, y0, cx1, cy1, x2, y2] of branchCoords) {
-      // Shaded inner under-canopy individual leaves behind the wooden boughs (100% individual leaves, zero clumpy fill!)
+    ctx.lineJoin = 'round';
+    for (const [x0, y0, cx1, cy1, x2, y2, w] of branchCoords) {
+      // Shaded inner under-canopy individual leaves anchored directly along the wooden limb
       const underAng = Math.atan2(y2 - y0, x2 - x0);
+      const midX = 0.25 * x0 + 0.5 * cx1 + 0.25 * x2;
+      const midY = 0.25 * y0 + 0.5 * cy1 + 0.25 * y2;
       drawDetailedLeaf(
         ctx,
-        (x0 + x2) * 0.55,
-        (y0 + y2) * 0.55,
+        midX,
+        midY,
         underAng - 0.55 + sway * 0.08,
         36,
         14,
@@ -852,8 +873,8 @@ function drawDetailedLeaf(
       );
       drawDetailedLeaf(
         ctx,
-        (x0 + x2) * 0.75,
-        (y0 + y2) * 0.75,
+        (midX + x2) * 0.5,
+        (midY + y2) * 0.5,
         underAng + 0.55 + sway * 0.08,
         34,
         13,
@@ -865,65 +886,79 @@ function drawDetailedLeaf(
         false,
       );
 
-      ctx.strokeStyle = '#4a2c18';
-      ctx.lineWidth = 5.2;
+      // Outer bark contour + inner wood fill for seamless connected limb structure
+      ctx.strokeStyle = branchWoodStroke;
+      ctx.lineWidth = w + 2.2;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo(cx1, cy1, x2, y2);
+      ctx.stroke();
+
+      ctx.strokeStyle = branchWoodFill;
+      ctx.lineWidth = w;
       ctx.beginPath();
       ctx.moveTo(x0, y0);
       ctx.quadraticCurveTo(cx1, cy1, x2, y2);
       ctx.stroke();
     }
 
-    // 2. Species-specific individual leaf morphology (every plant species has distinct leaf geometry & venation)
-    const isTualang = activePlantAssetId.includes('tualang');
-    const isDurian = activePlantAssetId.includes('durian');
-    const isMangosteen = activePlantAssetId.includes('mangosteen');
-    const isRambutan = activePlantAssetId.includes('rambutan');
-    const isBanyan = activePlantAssetId.includes('banyan');
-    const isIxora = activePlantAssetId.includes('ixora');
-    const isApiApi = activePlantAssetId.includes('api_api');
-
+    // 2. Species-specific individual leaf morphology anchored to the branch network
     const leafSprays: ReadonlyArray<readonly [number, number, number, number]> = [
-      [-rx * 0.88, ry * 0.12, -2.75, 48],
-      [rx * 0.88, ry * 0.12, -0.38, 48],
-      [-rx * 0.78, -ry * 0.18, -2.48, 52],
-      [rx * 0.78, -ry * 0.18, -0.66, 52],
+      [-rx * 0.86, 0, -2.75, 48],
+      [rx * 0.86, 0, -0.38, 48],
+      [-rx * 0.72, -ry * 0.22, -2.48, 52],
+      [rx * 0.72, -ry * 0.22, -0.66, 52],
       [-rx * 0.62, -ry * 0.48, -2.18, 48],
       [rx * 0.62, -ry * 0.48, -0.96, 48],
-      [-rx * 0.36, -ry * 0.72, -1.88, 46],
-      [rx * 0.36, -ry * 0.72, -1.26, 46],
-      [0, -ry * 0.82, -1.57, 50],
-      [-rx * 0.52, ry * 0.18, -2.52, 46],
-      [rx * 0.52, ry * 0.18, -0.62, 46],
+      [-rx * 0.36, -ry * 0.74, -1.88, 46],
+      [rx * 0.36, -ry * 0.74, -1.26, 46],
+      [0, -ry * 0.84, -1.57, 50],
+      [-rx * 0.52, ry * 0.16, -2.52, 46],
+      [rx * 0.52, ry * 0.16, -0.62, 46],
       [-rx * 0.32, -ry * 0.16, -2.12, 48],
       [rx * 0.32, -ry * 0.16, -1.02, 48],
       [-rx * 0.18, -ry * 0.45, -1.78, 46],
       [rx * 0.18, -ry * 0.45, -1.36, 46],
       [0, -ry * 0.12, -1.57, 46],
-      [-rx * 0.66, ry * 0.32, -2.68, 42],
-      [rx * 0.66, ry * 0.32, -0.46, 42],
-      [-rx * 0.22, ry * 0.26, -2.25, 42],
-      [rx * 0.22, ry * 0.26, -0.88, 42],
+      [-rx * 0.64, ry * 0.24, -2.68, 42],
+      [rx * 0.64, ry * 0.24, -0.46, 42],
+      [-rx * 0.24, ry * 0.34, -2.25, 42],
+      [rx * 0.24, ry * 0.34, -0.88, 42],
     ];
+
+    // Connect every spray node back toward the nearest structural branch hub via a woody twiglet
+    ctx.strokeStyle = branchWoodFill;
+    ctx.lineWidth = 3.0;
+    for (const [lx, ly] of leafSprays) {
+      const anchorX = lx * 0.68;
+      const anchorY = ly * 0.62 + ry * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(anchorX, anchorY);
+      ctx.lineTo(lx, ly);
+      ctx.stroke();
+    }
 
     for (let idx = 0; idx < leafSprays.length; idx++) {
       const [lx, ly, ang, baseLen] = leafSprays[idx];
       const leafAngle = ang + sway * 0.12;
 
       if (isTualang) {
-        // Koompassia excelsa: feathery compound rachis with small alternating bright-emerald elliptical leaflets
+        // Koompassia excelsa: feathery compound rachis physically connected to the twig node
         ctx.save();
         ctx.translate(lx, ly);
         ctx.rotate(leafAngle);
         ctx.strokeStyle = '#365314';
-        ctx.lineWidth = 2.0;
+        ctx.lineWidth = 2.4;
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(baseLen * 1.15, 0);
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(baseLen * 1.12, 0);
         ctx.stroke();
         for (const t of [0.22, 0.48, 0.74, 0.96]) {
           drawDetailedLeaf(ctx, baseLen * t, -2, -0.85, 19, 7.5, cLight, cMid, cDark, 'rgba(240,255,220,0.7)', outline, false);
           drawDetailedLeaf(ctx, baseLen * t, 2, 0.85, 19, 7.5, cLight, cMid, cDark, 'rgba(240,255,220,0.7)', outline, false);
         }
+        // Terminal leaflet at tip of compound rachis
+        drawDetailedLeaf(ctx, baseLen * 1.08, 0, 0, 18, 7.0, cLight, cMid, cDark, 'rgba(240,255,220,0.7)', outline, false);
         ctx.restore();
       } else if (isDurian) {
         // Durio zibethinus: elongated acuminate drip-tip leaves, half showing golden-coppery underside indumentum
@@ -951,6 +986,12 @@ function drawDetailedLeaf(
         ctx.save();
         ctx.translate(lx, ly);
         ctx.rotate(leafAngle);
+        ctx.strokeStyle = '#365314';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(-3, 0);
+        ctx.lineTo(baseLen * 0.5, 0);
+        ctx.stroke();
         drawDetailedLeaf(ctx, 8, -3, -0.52, baseLen * 0.72, 15, cLight, cMid, cDark, 'rgba(240,255,220,0.68)', outline, false);
         drawDetailedLeaf(ctx, 8, 3, 0.52, baseLen * 0.72, 15, cLight, cMid, cDark, 'rgba(240,255,220,0.68)', outline, false);
         drawDetailedLeaf(ctx, baseLen * 0.45, 0, 0, baseLen * 0.76, 16, cLight, cMid, cDark, 'rgba(240,255,220,0.68)', outline, false);
@@ -1528,111 +1569,157 @@ function drawDetailedLeaf(
       /* ========================================================================
        * P02: TUALANG TREE (plant_02_tualang_tree)
        * Towering smooth silvery-grey trunk, massive flared buttress roots, wide
-       * tiered umbrella crowns with individual leaves, flower clusters & detailed honeycombs.
+       * tiered umbrella crowns with 100% connected primary & secondary limbs,
+       * compound leaf sprays, and wild Apis dorsata honeycombs attached flush
+       * to the underside of the main boughs.
        * ====================================================================== */
       case 'plant_02_tualang_tree': {
-        drawWoodyTrunkAndBranches(ctx, sway, 220, 34, 16, '#d6d3c9', '#9e9a8e', '#5c584f', true, [
-          [-0.5, -0.78, -118, -42, 18],
-          [0.5, -0.76, 118, -38, 18],
-          [-0.3, -0.92, -76, -54, 14],
-          [0.3, -0.92, 76, -52, 14],
+        // 6 primary structural boughs: 2 wide lower boughs, 2 mid boughs into side crowns,
+        // and 2 tall central ascending leader boughs reaching right into the top umbrella crown (-148)!
+        drawWoodyTrunkAndBranches(ctx, sway, 240, 34, 16, '#d6d3c9', '#9e9a8e', '#5c584f', true, [
+          [-0.48, -0.72, -112, -32, 18],
+          [0.48, -0.70, 112, -30, 18],
+          [-0.36, -0.84, -84, -46, 15],
+          [0.36, -0.84, 84, -44, 15],
+          [-0.22, -0.96, -34, -56, 13],
+          [0.22, -0.96, 34, -56, 13],
         ]);
-        // Detailed hanging wild Tualang honeycombs with hexagonal beeswax cells & legume pods (Stage 3 fruiting)
-        for (const [hxBase, hyBase] of (
+
+        // Wild Apis dorsata Tualang honeycombs attached directly flush against the underside of the lower horizontal boughs
+        const combCount =
+          activePlantGrowthStage >= 3 && activePlantFruitCount > 0
+            ? Math.max(1, Math.min(2, activePlantFruitCount))
+            : activePlantGrowthStage >= 2
+              ? 1
+              : 0;
+        for (const [hxBase, hyBase, boughSlope] of (
           [
-            [-68 + sway * 20, -60],
-            [72 + sway * 20, -56],
+            [-64 + sway * 19, -32, -0.22],
+            [66 + sway * 19, -28, 0.22],
           ] as const
-        ).slice(0, activePlantGrowthStage >= 3 && activePlantFruitCount > 0 ? Math.max(1, activePlantFruitCount) : 0)) {
+        ).slice(0, combCount)) {
           const hx = hxBase + yaw * 14;
           const hy = hyBase + pitch * -8;
+          ctx.save();
+          ctx.translate(hx, hy);
+          ctx.rotate(boughSlope + sway * 0.04);
+
+          // Dark propolis & wax foundation collar welded directly along the underside of the bough
+          ctx.fillStyle = '#78350f';
+          ctx.strokeStyle = '#422006';
+          ctx.lineWidth = 2.0;
+          ctx.beginPath();
+          ctx.roundRect(-24, -4, 48, 7, 3);
+          ctx.fill();
+          ctx.stroke();
+
+          // Semicircular golden-amber beeswax comb curtain hanging below the collar
           const comb = new Path2D();
-          comb.moveTo(hx - 24, hy);
-          comb.bezierCurveTo(hx - 20, hy + 38, hx + 20, hy + 38, hx + 24, hy);
+          comb.moveTo(-22, 0);
+          comb.bezierCurveTo(-20, 34, 20, 34, 22, 0);
           comb.closePath();
-          fillRimAndStroke(ctx, comb, hx - 24, hy, hx + 24, hy + 34, '#fef08a', '#eab308', '#a16207', '#422006', 2.6);
+          fillRimAndStroke(ctx, comb, -22, 0, 22, 32, '#fef08a', '#eab308', '#a16207', '#422006', 2.4);
+
+          // Hexagonal comb cells & dark golden honey brood zone inside comb
           ctx.save();
           ctx.clip(comb);
-          ctx.fillStyle = 'rgba(120, 53, 15, 0.45)';
+          ctx.strokeStyle = 'rgba(120, 53, 15, 0.52)';
+          ctx.lineWidth = 1.1;
           for (const [cxOff, cyOff] of [
-            [-10, 10],
-            [0, 12],
-            [10, 10],
-            [-5, 20],
-            [5, 20],
+            [-11, 7],
+            [-4, 7],
+            [3, 7],
+            [10, 7],
+            [-7, 13],
+            [0, 13],
+            [7, 13],
+            [-4, 19],
+            [3, 19],
           ]) {
             ctx.beginPath();
-            ctx.arc(hx + cxOff, hy + cyOff, 3.2, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.arc(cxOff, cyOff, 3.0, 0, Math.PI * 2);
+            ctx.stroke();
           }
           ctx.restore();
+          ctx.restore();
         }
-        drawCanopyCrown(ctx, -84, -104, 78, 44, sway, '#86efac', '#22c55e', '#15803d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
-        drawCanopyCrown(ctx, 84, -100, 78, 44, sway, '#86efac', '#22c55e', '#15803d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
-        drawCanopyCrown(ctx, 0, -148, 112, 54, sway * 1.15, '#bbf7d0', '#4ade80', '#166534', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
+
+        drawCanopyCrown(ctx, -84, -98, 78, 44, sway, '#86efac', '#22c55e', '#15803d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
+        drawCanopyCrown(ctx, 84, -94, 78, 44, sway, '#86efac', '#22c55e', '#15803d', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
+        drawCanopyCrown(ctx, 0, -142, 114, 56, sway * 1.12, '#bbf7d0', '#4ade80', '#166534', '#152914', ['#fef9c3', '#fde047', '#ca8a04', '#854d0e']);
         break;
       }
 
       /* ========================================================================
        * P03: DURIAN TREE (plant_03_durian_tree)
-       * Tall orchard hardwood trunk, merged horizontal boughs bearing creamy-gold
-       * cauliflorous flower clusters and 3D spiky Durian fruits with protruding
-       * outer pyramidal thorns all around the silhouette and across the husk.
+       * Tall orchard hardwood trunk, connected horizontal & ascending boughs
+       * bearing cauliflorous Durian fruits hanging directly from the bough
+       * undersides via stout woody peduncles with abscission rings, and realistic
+       * 5-carpel lobed ovoid husks with 3D two-faceted pyramidal thorns.
        * ====================================================================== */
       case 'plant_03_durian_tree': {
-        drawWoodyTrunkAndBranches(ctx, sway, 200, 30, 15, '#966F4B', '#66462C', '#3B2514', false, [
-          [-0.35, -0.72, -78, -32, 18],
-          [0.35, -0.70, 78, -30, 18],
-          [-0.25, -0.86, -42, -42, 15],
-          [0.25, -0.86, 42, -42, 15],
+        drawWoodyTrunkAndBranches(ctx, sway, 215, 30, 15, '#966F4B', '#66462C', '#3B2514', false, [
+          [-0.38, -0.68, -86, -24, 18],
+          [0.38, -0.66, 86, -22, 18],
+          [-0.26, -0.86, -50, -44, 15],
+          [0.26, -0.86, 50, -44, 15],
         ]);
-        drawCanopyCrown(ctx, 0, -118, 128, 72, sway, '#a3e635', '#65a30d', '#365314', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
+        drawCanopyCrown(ctx, 0, -114, 128, 72, sway, '#a3e635', '#65a30d', '#365314', '#1a2e05', ['#fefce8', '#fef08a', '#eab308', '#ca8a04']);
 
-        for (const [dx, dy, scaleF] of (
+        // Cauliflorous Durian fruits positioned so their peduncles attach directly into the underside of the 4 boughs!
+        for (const [dx, boughUnderY, scaleF] of (
           [
-            [-70, -40, 1.12],
-            [66, -34, 1.05],
-            [-20, -58, 0.94],
-            [24, -64, 1.0],
+            [-62, -10, 1.08],
+            [60, -6, 1.04],
+            [-32, -52, 0.94],
+            [32, -52, 0.98],
           ] as const
         ).slice(0, activePlantGrowthStage >= 3 && activePlantFruitCount > 0 ? activePlantFruitCount : 0)) {
-          const fx = dx + sway * 20 + yaw * 22;
-          const fy = dy + pitch * -12;
-          const rx = 22 * scaleF;
-          const ry = 27 * scaleF;
-          const cyFruit = fy + 18 * scaleF;
+          const fx = dx + sway * 19 + yaw * 18;
+          const attachY = boughUnderY + pitch * -10;
+          const rx = 20 * scaleF;
+          const ry = 24 * scaleF;
+          const cyFruit = attachY + 16 * scaleF + ry * 0.85;
 
-          // 1. Thick woody pedicel stalk with 3D abscission joint ring (buku tangkai)
-          ctx.strokeStyle = '#4d3319';
-          ctx.lineWidth = 4.8 * scaleF;
+          // 1. Thick woody peduncle stalk (tangkai) anchored inside the bough underside + swollen abscission ring (buku tangkai)
+          ctx.strokeStyle = '#3b2514';
+          ctx.lineWidth = 5.2 * scaleF;
           ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.moveTo(fx, fy - 28 * scaleF);
+          ctx.moveTo(fx, attachY - 3);
           ctx.lineTo(fx, cyFruit - ry * 0.88);
           ctx.stroke();
 
           ctx.fillStyle = '#78522b';
           ctx.strokeStyle = '#26170a';
-          ctx.lineWidth = 2.0;
+          ctx.lineWidth = 1.8;
           ctx.beginPath();
-          ctx.ellipse(fx, fy - 14 * scaleF, 5.4 * scaleF, 3.1 * scaleF, 0, 0, Math.PI * 2);
+          ctx.ellipse(fx, attachY + 7 * scaleF, 5.2 * scaleF, 2.8 * scaleF, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
-          // 2. Spiky Outer Silhouette Crown of Protruding 3D Pyramidal Durian Thorns (22 perimeter spikes)
-          const numRimSpikes = 22;
+          // Basal woody perianth collar where peduncle joins the Durian apex
+          ctx.fillStyle = '#5c3d1e';
+          ctx.beginPath();
+          ctx.ellipse(fx, cyFruit - ry * 0.88, 6.4 * scaleF, 3.0 * scaleF, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // 2. 5-Carpel Lobed Ovoid Husk Silhouette with radially oriented pyramidal perimeter thorns
+          const numRimSpikes = 24;
           const spikyRim = new Path2D();
           for (let i = 0; i < numRimSpikes; i++) {
             const a0 = (i / numRimSpikes) * Math.PI * 2;
             const aMid = ((i + 0.5) / numRimSpikes) * Math.PI * 2;
             const a1 = ((i + 1) / numRimSpikes) * Math.PI * 2;
-            const bx0 = fx + Math.cos(a0) * rx * 0.94;
-            const by0 = cyFruit + Math.sin(a0) * ry * 0.94;
-            const tipLen = 6.8 * scaleF;
-            const tx = fx + Math.cos(aMid) * (rx + tipLen);
-            const ty = cyFruit + Math.sin(aMid) * (ry + tipLen);
-            const bx1 = fx + Math.cos(a1) * rx * 0.94;
-            const by1 = cyFruit + Math.sin(a1) * ry * 0.94;
+            const lobeMod = 1 + 0.05 * Math.cos(aMid * 5);
+            const bx0 = fx + Math.cos(a0) * rx * 0.9 * lobeMod;
+            const by0 = cyFruit + Math.sin(a0) * ry * 0.9 * lobeMod;
+            const tipLen = 5.6 * scaleF;
+            const tx = fx + Math.cos(aMid) * (rx + tipLen) * lobeMod;
+            const ty = cyFruit + Math.sin(aMid) * (ry + tipLen) * lobeMod;
+            const bx1 = fx + Math.cos(a1) * rx * 0.9 * lobeMod;
+            const by1 = cyFruit + Math.sin(a1) * ry * 0.9 * lobeMod;
             if (i === 0) spikyRim.moveTo(bx0, by0);
             spikyRim.lineTo(tx, ty);
             spikyRim.lineTo(bx1, by1);
@@ -1641,82 +1728,62 @@ function drawDetailedLeaf(
           fillRimAndStroke(
             ctx,
             spikyRim,
-            fx - rx - 7,
-            cyFruit - ry - 7,
-            fx + rx + 7,
-            cyFruit + ry + 7,
+            fx - rx - 6,
+            cyFruit - ry - 6,
+            fx + rx + 6,
+            cyFruit + ry + 6,
             '#d9f99d',
             '#65a30d',
             '#365314',
             '#1a2e05',
-            2.6,
+            2.4,
           );
 
-          // Individual sunlit/shaded 3D facets on every outer perimeter thorn
-          for (let i = 0; i < numRimSpikes; i++) {
-            const a0 = (i / numRimSpikes) * Math.PI * 2;
-            const aMid = ((i + 0.5) / numRimSpikes) * Math.PI * 2;
-            const bx0 = fx + Math.cos(a0) * rx * 0.92;
-            const by0 = cyFruit + Math.sin(a0) * ry * 0.92;
-            const tx = fx + Math.cos(aMid) * (rx + 6.4 * scaleF);
-            const ty = cyFruit + Math.sin(aMid) * (ry + 6.4 * scaleF);
-            const mx = fx + Math.cos(aMid) * rx * 0.88;
-            const my = cyFruit + Math.sin(aMid) * ry * 0.88;
-            ctx.fillStyle = '#ecfccb';
-            ctx.beginPath();
-            ctx.moveTo(bx0, by0);
-            ctx.lineTo(tx, ty);
-            ctx.lineTo(mx, my);
-            ctx.closePath();
-            ctx.fill();
-          }
-
-          // 3. Longitudinal 5-locule carpel suture grooves curving in 3D
-          ctx.strokeStyle = '#26380a';
-          ctx.lineWidth = 1.7;
+          // 3. Curved longitudinal 5-carpel suture valleys from apex to base
+          ctx.strokeStyle = 'rgba(38, 56, 10, 0.65)';
+          ctx.lineWidth = 1.6;
           ctx.beginPath();
-          ctx.moveTo(fx, cyFruit - ry * 0.92);
-          ctx.quadraticCurveTo(fx - 9 * scaleF + yaw * 4, cyFruit, fx, cyFruit + ry * 0.92);
-          ctx.moveTo(fx, cyFruit - ry * 0.92);
-          ctx.quadraticCurveTo(fx + 9 * scaleF + yaw * 4, cyFruit, fx, cyFruit + ry * 0.92);
+          for (const sutureOff of [-0.46, 0, 0.46]) {
+            ctx.moveTo(fx, cyFruit - ry * 0.88);
+            ctx.quadraticCurveTo(fx + sutureOff * rx * 1.4, cyFruit, fx, cyFruit + ry * 0.88);
+          }
           ctx.stroke();
 
-          // 4. Dense interior rows of 3D 4-sided pyramidal Durian thorns pointing radially outward
-          for (let row = -3; row <= 3; row++) {
-            const normY = row / 3.6;
-            const ty = cyFruit + normY * ry * 0.78;
-            const rowHalfW = Math.sqrt(Math.max(0, 1 - normY * normY)) * rx * 0.76;
-            const stepX = 6.6 * scaleF;
+          // 4. Curved meridian rows of 2-faceted 3D pyramidal thorns following the 5-carpel ovoid volume
+          for (let row = -2; row <= 2; row++) {
+            const normY = row / 2.6;
+            const ty = cyFruit + normY * ry * 0.72;
+            const rowHalfW = Math.sqrt(Math.max(0, 1 - normY * normY)) * rx * 0.74;
+            const stepX = 6.2 * scaleF;
             for (let ox = -rowHalfW; ox <= rowHalfW + 0.1; ox += stepX) {
-              const tx = fx + ox + (Math.abs(row) % 2 === 1 ? stepX * 0.35 : 0);
+              const tx = fx + ox + (Math.abs(row) % 2 === 1 ? stepX * 0.28 : 0);
               const radX = (tx - fx) / rx;
               const radY = (ty - cyFruit) / ry;
-              const tipX = tx + radX * 3.4 * scaleF;
-              const tipY = ty - 4.8 * scaleF + radY * 2.2 * scaleF;
-              const baseW = 3.6 * scaleF;
-              const baseY = ty + 2.8 * scaleF;
+              const tipX = tx + radX * 3.2 * scaleF;
+              const tipY = ty - 4.4 * scaleF + radY * 2.0 * scaleF;
+              const baseW = 3.2 * scaleF;
+              const baseY = ty + 2.4 * scaleF;
 
-              // Left sunlit 3D pyramid face
+              // Left sunlit pyramid facet
               ctx.fillStyle = '#ecfccb';
               ctx.beginPath();
               ctx.moveTo(tx - baseW, baseY);
               ctx.lineTo(tipX, tipY);
-              ctx.lineTo(tx, baseY + 0.8);
+              ctx.lineTo(tx, baseY + 0.7);
               ctx.closePath();
               ctx.fill();
 
-              // Right shaded 3D pyramid face
+              // Right shaded pyramid facet
               ctx.fillStyle = '#3f6212';
               ctx.beginPath();
               ctx.moveTo(tipX, tipY);
               ctx.lineTo(tx + baseW, baseY);
-              ctx.lineTo(tx, baseY + 0.8);
+              ctx.lineTo(tx, baseY + 0.7);
               ctx.closePath();
               ctx.fill();
 
-              // Crisp dark-olive thorn ridge stroke
               ctx.strokeStyle = '#1a2e05';
-              ctx.lineWidth = 1.15;
+              ctx.lineWidth = 1.05;
               ctx.beginPath();
               ctx.moveTo(tx - baseW, baseY);
               ctx.lineTo(tipX, tipY);
@@ -1794,109 +1861,212 @@ function drawDetailedLeaf(
 
       /* ========================================================================
        * P05: BANANA PLANT / POKOK PISANG (plant_05_banana_plant)
-       * Sheathed green pseudostem with leaf-sheath V-seams, huge veined emerald
-       * paddle fronds, multi-tier golden banana bunch, and crimson-purple jantung bell.
+       * Layered green-and-buff pseudostem with overlapping V-sheaths, central
+       * vertical unfurling cigar leaf, grand arching grooved petioles holding
+       * drooping emerald paddle fronds, arched pendulous rachis stalk (tandan)
+       * bearing tiered crescent hands (sisir pisang) of curved golden bananas,
+       * and terminal crimson-purple Jantung Pisang male bud with lifting bract.
        * ====================================================================== */
       case 'plant_05_banana_plant': {
-        // Mother pseudostem with overlapping leaf-sheath striation seams stuffed into soil
+        const crownX = sway * 16;
+        const crownY = -48;
+
+        // 1. Mother pseudostem (batang pisang) with overlapping leaf-sheath V-seams
         const stem = new Path2D();
-        stem.moveTo(-28, 178);
-        stem.quadraticCurveTo(-19, 42, -15 + sway * 16, -48);
-        stem.lineTo(15 + sway * 16, -48);
-        stem.quadraticCurveTo(19, 42, 28, 178);
+        stem.moveTo(-29, 178);
+        stem.quadraticCurveTo(-20, 42, -16 + crownX, crownY);
+        stem.lineTo(16 + crownX, crownY);
+        stem.quadraticCurveTo(20, 42, 29, 178);
         stem.closePath();
-        fillRimAndStroke(ctx, stem, -28, -48, 28, 178, '#bef264', '#65a30d', '#365314', '#1a2e05', 3.4);
+        fillRimAndStroke(ctx, stem, -29, crownY, 29, 178, '#bef264', '#65a30d', '#365314', '#1a2e05', 3.4);
         ctx.save();
         ctx.clip(stem);
-        ctx.strokeStyle = 'rgba(26, 46, 5, 0.35)';
-        ctx.lineWidth = 2.2;
-        for (const sy of [-10, 35, 80, 120]) {
+        // Fibrous buff-brown outer dry leaf-sheath edges & V-shaped clasping seams
+        ctx.strokeStyle = 'rgba(63, 46, 18, 0.42)';
+        ctx.lineWidth = 2.4;
+        for (const sy of [-18, 24, 68, 114]) {
           ctx.beginPath();
-          ctx.moveTo(-24, sy);
-          ctx.quadraticCurveTo(0, sy + 16, 24, sy);
+          ctx.moveTo(-26, sy - 6);
+          ctx.quadraticCurveTo(0, sy + 18, 26, sy - 6);
           ctx.stroke();
         }
         ctx.restore();
 
-        // Young sucker shoot leaves at base + broad tropical banana paddle fronds
-        drawDetailedLeaf(ctx, -22, 132, -2.35 + sway * 0.08, 68, 20, '#bef264', '#65a30d', '#1a2e05', '#ecfccb', '#1a2e05', true);
-        drawDetailedLeaf(ctx, 22, 132, -0.78 + sway * 0.08, 68, 20, '#bef264', '#65a30d', '#1a2e05', '#ecfccb', '#1a2e05', true);
+        // 2. Young sword sucker shoot (anak pisang) sprouting beside the mother corm base
+        drawDetailedLeaf(ctx, -24, 134, -2.28 + sway * 0.08, 64, 18, '#bef264', '#65a30d', '#1a2e05', '#ecfccb', '#1a2e05', false);
+        drawDetailedLeaf(ctx, 24, 134, -0.86 + sway * 0.08, 64, 18, '#bef264', '#65a30d', '#1a2e05', '#ecfccb', '#1a2e05', false);
 
-        for (const [ang, len, w] of [
-          [-2.62, 195, 44],
-          [-2.15, 218, 48],
-          [-1.82, 205, 44],
-          [-1.57, 212, 46],
-          [-1.32, 205, 44],
-          [-1.0, 218, 48],
-          [-0.52, 195, 44],
+        // 3. Central vertical unfurling rolled "cigar leaf" shoot (pucuk daun pisang bergulung) at crown apex
+        ctx.save();
+        ctx.translate(crownX, crownY);
+        ctx.rotate(sway * 0.1);
+        const cigar = new Path2D();
+        cigar.moveTo(-4.5, 4);
+        cigar.quadraticCurveTo(-5, -62, 0, -132);
+        cigar.quadraticCurveTo(5, -62, 4.5, 4);
+        cigar.closePath();
+        fillRimAndStroke(ctx, cigar, -5, -132, 5, 4, '#ecfccb', '#a3e635', '#4d7c0f', '#1a2e05', 2.2);
+        ctx.restore();
+
+        // 4. Six grand arching banana paddle fronds with curved grooved petioles (pelepah) emerging from staggered crown nodes
+        for (const [petioleOffX, petioleOffY, petioleEndX, petioleEndY, bladeAng, len, w] of [
+          [-10, 6, -34, -14, -2.72, 188, 42],
+          [10, 6, 34, -14, -0.42, 188, 42],
+          [-8, -2, -28, -26, -2.32, 206, 46],
+          [8, -2, 28, -26, -0.82, 206, 46],
+          [-4, -6, -16, -34, -1.96, 196, 44],
+          [4, -6, 16, -34, -1.18, 196, 44],
         ] as const) {
-          drawBananaPaddleLeaf(ctx, sway * 16, -48, ang + sway * 0.12, len, w, '#bef264', '#65a30d', '#1a2e05', '#172916');
-        }
+          const px0 = crownX + petioleOffX;
+          const py0 = crownY + petioleOffY;
+          const px1 = crownX + petioleEndX + sway * 6;
+          const py1 = crownY + petioleEndY;
 
-        if (activePlantGrowthStage >= 2) {
-          // Arching peduncle stalk seamlessly emerging from crown to hold banana hands (sisir pisang) & Jantung flower bell
-          const bx = 46 + sway * 20;
-          const by = -12;
-          ctx.strokeStyle = '#4d7c0f';
-          ctx.lineWidth = 6.5;
+          // Thick curved grooved petiole stalk connecting pseudostem crown to paddle lamina base
+          ctx.strokeStyle = '#1a2e05';
+          ctx.lineWidth = 8.4;
+          ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.moveTo(sway * 16, -46);
-          ctx.quadraticCurveTo(bx - 6, -38, bx, by + 56);
+          ctx.moveTo(px0, py0);
+          ctx.quadraticCurveTo((px0 + px1) * 0.5, py1 - 4, px1, py1);
           ctx.stroke();
 
-          // 3 tiered hands (sisir) of curved golden-yellow banana fingers with green pedicel necks & dark floral stylar tips
-          const handsCount = activePlantGrowthStage >= 3 && activePlantFruitCount > 0 ? Math.min(3, activePlantFruitCount) : 0;
-          for (let r = 0; r < handsCount; r++) {
-            const handY = by + r * 15;
-            // Cushion collar node on rachis
-            ctx.fillStyle = '#65a30d';
+          ctx.strokeStyle = '#a3e635';
+          ctx.lineWidth = 5.2;
+          ctx.beginPath();
+          ctx.moveTo(px0, py0);
+          ctx.quadraticCurveTo((px0 + px1) * 0.5, py1 - 4, px1, py1);
+          ctx.stroke();
+
+          drawBananaPaddleLeaf(ctx, px1, py1, bladeAng + sway * 0.12, len, w, '#bef264', '#65a30d', '#1a2e05', '#172916');
+        }
+
+        // 5. Arching pendulous peduncle & notched rachis stalk (tandan pisang), tiered crescent banana hands (sisir), & Jantung bell
+        if (activePlantGrowthStage >= 2) {
+          const bx = 48 + sway * 20;
+          const by = -18;
+
+          // Stout arched peduncle emerging from crown throat and hanging vertically to hold hands + terminal bell
+          ctx.strokeStyle = '#1a2e05';
+          ctx.lineWidth = 9.2;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(crownX + 4, crownY + 2);
+          ctx.bezierCurveTo(crownX + 34, crownY - 16, bx + 4, by - 22, bx, by + 62);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#65a30d';
+          ctx.lineWidth = 5.8;
+          ctx.beginPath();
+          ctx.moveTo(crownX + 4, crownY + 2);
+          ctx.bezierCurveTo(crownX + 34, crownY - 16, bx + 4, by - 22, bx, by + 62);
+          ctx.stroke();
+
+          // Notched bract-scar internode rings on the bare lower rachis above the Jantung bell
+          for (const ny of [by + 36, by + 46, by + 55]) {
+            ctx.fillStyle = '#3f6212';
             ctx.strokeStyle = '#1a2e05';
-            ctx.lineWidth = 1.8;
+            ctx.lineWidth = 1.4;
             ctx.beginPath();
-            ctx.ellipse(bx, handY - 8, 16, 4.2, 0, 0, Math.PI * 2);
+            ctx.ellipse(bx, ny, 4.8, 2.2, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
-
-            for (let c = -3; c <= 3; c++) {
-              const fx = bx + c * 6.2;
-              const fy = handY;
-              const curve = c * 3.2;
-              const finger = new Path2D();
-              finger.moveTo(fx - 3.4, fy - 7);
-              finger.quadraticCurveTo(fx + curve - 4.5, fy + 4, fx + curve * 0.85, fy + 14);
-              finger.quadraticCurveTo(fx + curve + 4.5, fy + 4, fx + 3.4, fy - 7);
-              finger.closePath();
-              fillRimAndStroke(ctx, finger, fx - 6, fy - 7, fx + 6, fy + 14, '#fef9c3', '#facc15', '#ca8a04', '#713f12', 1.8);
-              // Green pedicel neck & longitudinal facet highlight + dark floral remnant dot at tip
-              ctx.fillStyle = '#84cc16';
-              ctx.beginPath();
-              ctx.ellipse(fx, fy - 6.2, 2.6, 1.8, 0, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.strokeStyle = 'rgba(255, 255, 255, 0.52)';
-              ctx.lineWidth = 1.1;
-              ctx.beginPath();
-              ctx.moveTo(fx - 0.8, fy - 4);
-              ctx.quadraticCurveTo(fx + curve * 0.55, fy + 3, fx + curve * 0.72, fy + 10);
-              ctx.stroke();
-              ctx.fillStyle = '#291504';
-              ctx.beginPath();
-              ctx.arc(fx + curve * 0.85, fy + 13.5, 1.7, 0, Math.PI * 2);
-              ctx.fill();
-            }
           }
-          // Open bract with tubular white banana florets above the crimson Jantung Pisang bell
-          drawFlowerClusterBlock(ctx, bx - 14, by + 46, 0.55, -0.4, '#fef9c3', '#fde047', '#eab308', '#ca8a04');
+
+          // Tiered crescent hands (sisir pisang) where ALL fingers curve upward/inward in unison!
+          const handsCount =
+            activePlantGrowthStage >= 3 && activePlantFruitCount > 0
+              ? Math.min(3, Math.max(1, activePlantFruitCount))
+              : 1;
+          const isRipe = activePlantGrowthStage >= 3 && activePlantFruitCount > 0;
+          const bLight = isRipe ? '#fef9c3' : '#ecfccb';
+          const bMid = isRipe ? '#facc15' : '#84cc16';
+          const bDark = isRipe ? '#ca8a04' : '#4d7c0f';
+          const bOut = isRipe ? '#713f12' : '#1a2e05';
+
+          for (let r = 0; r < handsCount; r++) {
+            const handY = by + r * 17;
+
+            // Back row + front row of curved faceted banana fingers curving upward-right in unison
+            for (const [rowOffY, count, fingerScale] of [
+              [-2, 5, 0.9],
+              [1, 6, 1.0],
+            ] as const) {
+              for (let i = 0; i < count; i++) {
+                const frac = i / (count - 1) - 0.5; // -0.5 to +0.5 across the crescent hand
+                const baseX = bx + frac * 22;
+                const baseY = handY + rowOffY + Math.abs(frac) * 3;
+                // All fingers curve gracefully in the same natural upward-inward crescent arc
+                const ctrlX = baseX - 5 + frac * 4;
+                const ctrlY = baseY + 9 * fingerScale;
+                const tipX = baseX + 5 + frac * 6;
+                const tipY = baseY + 15 * fingerScale;
+                const wF = 3.1 * fingerScale;
+
+                const finger = new Path2D();
+                finger.moveTo(baseX - wF * 0.65, baseY);
+                finger.quadraticCurveTo(ctrlX - wF, ctrlY, tipX - 1.2, tipY);
+                finger.lineTo(tipX + 1.4, tipY - 0.6);
+                finger.quadraticCurveTo(ctrlX + wF * 0.85, ctrlY - 1.2, baseX + wF * 0.65, baseY);
+                finger.closePath();
+                fillRimAndStroke(ctx, finger, baseX - 6, baseY, tipX + 4, tipY, bLight, bMid, bDark, bOut, 1.5);
+
+                // Longitudinal 5-sided banana facet highlight ridge
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+                ctx.lineWidth = 0.95;
+                ctx.beginPath();
+                ctx.moveTo(baseX, baseY + 2);
+                ctx.quadraticCurveTo(ctrlX - 0.5, ctrlY, tipX, tipY - 1.5);
+                ctx.stroke();
+
+                // Dark floral stylar remnant dot at banana apex (tampuk hujung pisang)
+                ctx.fillStyle = '#291504';
+                ctx.beginPath();
+                ctx.arc(tipX + 0.2, tipY - 0.3, 1.4, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+
+            // Curved green-brown fibrous crown cushion (tampuk sisir) uniting all banana pedicel necks onto the rachis
+            const crown = new Path2D();
+            crown.moveTo(bx - 14, handY - 1);
+            crown.quadraticCurveTo(bx, handY - 6, bx + 14, handY - 1);
+            crown.quadraticCurveTo(bx, handY + 2, bx - 14, handY - 1);
+            crown.closePath();
+            fillRimAndStroke(ctx, crown, bx - 14, handY - 6, bx + 14, handY + 2, '#a3e635', '#65a30d', '#365314', '#1a2e05', 1.6);
+          }
+
+          // Lifting crimson bract scale on the side of the Jantung Pisang revealing tubular cream banana florets
+          const liftBract = new Path2D();
+          liftBract.moveTo(bx - 2, by + 58);
+          liftBract.bezierCurveTo(bx - 24, by + 50, bx - 34, by + 34, bx - 26, by + 24);
+          liftBract.bezierCurveTo(bx - 16, by + 34, bx - 10, by + 48, bx - 2, by + 62);
+          liftBract.closePath();
+          fillRimAndStroke(ctx, liftBract, bx - 34, by + 24, bx - 2, by + 62, '#fda4af', '#be123c', '#4c0519', '#2b040e', 2.0);
+
+          // Row of tubular creamy-yellow banana flowers (bunga pisang) nestled in the axil of the lifted bract
+          for (const fOff of [0, 3.5, 7]) {
+            ctx.fillStyle = '#fef08a';
+            ctx.strokeStyle = '#713f12';
+            ctx.lineWidth = 1.1;
+            ctx.beginPath();
+            ctx.ellipse(bx - 10 - fOff * 1.1, by + 52 - fOff * 1.4, 2.2, 6.2, -0.55, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+
+          // Pendulous tear-drop crimson-purple Jantung Pisang male bud attached at the bottom of the rachis
           const bell = new Path2D();
-          bell.moveTo(bx, by + 50);
-          bell.bezierCurveTo(bx - 21, by + 66, bx - 16, by + 98, bx, by + 112);
-          bell.bezierCurveTo(bx + 16, by + 98, bx + 21, by + 66, bx, by + 50);
+          bell.moveTo(bx, by + 56);
+          bell.bezierCurveTo(bx - 20, by + 70, bx - 16, by + 100, bx, by + 116);
+          bell.bezierCurveTo(bx + 16, by + 100, bx + 20, by + 70, bx, by + 56);
           bell.closePath();
-          fillRimAndStroke(ctx, bell, bx - 19, by + 50, bx + 19, by + 112, '#fb7185', '#9f1239', '#4c0519', '#2b040e', 2.8);
-          // Overlapping imbricate bract scales on the Jantung Pisang bell
-          ctx.strokeStyle = 'rgba(255, 228, 230, 0.38)';
+          fillRimAndStroke(ctx, bell, bx - 19, by + 56, bx + 19, by + 116, '#fb7185', '#9f1239', '#4c0519', '#2b040e', 2.8);
+
+          // Overlapping imbricate waxy bract seams on the Jantung Pisang bell
+          ctx.strokeStyle = 'rgba(255, 228, 230, 0.42)';
           ctx.lineWidth = 1.5;
-          for (const sy of [68, 84, 96]) {
+          for (const sy of [72, 86, 98]) {
             ctx.beginPath();
             ctx.moveTo(bx - 12, by + sy);
             ctx.quadraticCurveTo(bx, by + sy + 8, bx + 12, by + sy);
@@ -2793,7 +2963,7 @@ function drawDetailedLeaf(
         }
         drawWoodyTrunkAndBranches(ctx, sway, 180, 22, 12, '#8c583a', '#5e371f', '#381e0e', false);
         drawCanopyCrown(ctx, 0, -98, 126, 72, sway, '#4ade80', '#15803d', '#052e16', '#052e16', ['#fef9c3', '#fde047', '#eab308', '#ca8a04']);
-        // Elongated viviparous torpedo propagules with brown pericarp cap
+        // Elongated viviparous torpedo propagules connected via pedicel stalks to the canopy twigs
         for (const [px, py] of (
           [
             [-74, -52],
@@ -2803,6 +2973,13 @@ function drawDetailedLeaf(
           ] as const
         ).slice(0, activePlantGrowthStage >= 3 && activePlantFruitCount > 0 ? activePlantFruitCount : 0)) {
           const fx = px + sway * 24;
+          ctx.strokeStyle = '#365314';
+          ctx.lineWidth = 3.0;
+          ctx.beginPath();
+          ctx.moveTo(fx, py - 18);
+          ctx.lineTo(fx, py - 6);
+          ctx.stroke();
+
           const cap = new Path2D();
           cap.ellipse(fx, py - 2, 7, 9, 0, 0, Math.PI * 2);
           fillRimAndStroke(ctx, cap, fx - 7, py - 11, fx + 7, py + 7, '#a16207', '#713f12', '#422006', '#271001', 2.2);
@@ -2831,7 +3008,7 @@ function drawDetailedLeaf(
         }
         drawWoodyTrunkAndBranches(ctx, sway, 185, 28, 14, '#8d6e63', '#5d4037', '#3e2723', false);
         drawCanopyCrown(ctx, 0, -96, 132, 78, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#78350f']);
-        // Heart-shaped green-gold Api-Api viviparous fruit capsules
+        // Heart-shaped green-gold Api-Api viviparous fruit capsules attached via short woody stalks
         for (const [fx, fy] of (
           [
             [-64, -76],
@@ -2841,9 +3018,17 @@ function drawDetailedLeaf(
             [34, -58],
           ] as const
         ).slice(0, activePlantGrowthStage >= 3 && activePlantFruitCount > 0 ? activePlantFruitCount : 0)) {
+          const cxCap = fx + sway * 22;
+          ctx.strokeStyle = '#3f6212';
+          ctx.lineWidth = 2.8;
+          ctx.beginPath();
+          ctx.moveTo(cxCap, fy - 18);
+          ctx.lineTo(cxCap, fy - 8);
+          ctx.stroke();
+
           const cap = new Path2D();
-          cap.ellipse(fx + sway * 22, fy, 11, 13, 0.15, 0, Math.PI * 2);
-          fillRimAndStroke(ctx, cap, fx - 11, fy - 13, fx + 11, fy + 13, '#d9f99d', '#84cc16', '#3f6212', '#1a2e05', 2.4);
+          cap.ellipse(cxCap, fy, 11, 13, 0.15, 0, Math.PI * 2);
+          fillRimAndStroke(ctx, cap, cxCap - 11, fy - 13, cxCap + 11, fy + 13, '#d9f99d', '#84cc16', '#3f6212', '#1a2e05', 2.4);
         }
         break;
       }
@@ -2876,9 +3061,18 @@ function drawDetailedLeaf(
           }
           ctx.restore();
         }
-        // Golden male flower catkin spikes beside the globular Nipa fruit head
+        // Golden male flower catkin spikes connected via an orange-green basal stalk to the Nipa rhizome
         if (activePlantGrowthStage >= 2) {
-          drawFlowerClusterBlock(ctx, -38 + sway * 10, 96, 0.78, -0.35, '#fef08a', '#eab308', '#ca8a04', '#713f12');
+          const mx = -38 + sway * 10;
+          const my = 96;
+          ctx.strokeStyle = '#ca8a04';
+          ctx.lineWidth = 5.0;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-6, 148);
+          ctx.quadraticCurveTo(mx * 0.55, 126, mx, my + 4);
+          ctx.stroke();
+          drawFlowerClusterBlock(ctx, mx, my, 0.78, -0.35, '#fef08a', '#eab308', '#ca8a04', '#713f12');
         }
 
         if (activePlantGrowthStage >= 3 && activePlantFruitCount > 0) {
@@ -2922,12 +3116,10 @@ function drawDetailedLeaf(
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
-            // Raised pyramidal umbo peak highlight on Nipa drupe
             ctx.fillStyle = '#f59e0b';
             ctx.beginPath();
             ctx.arc(px, py, 2.2, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = '#f59e0b';
             ctx.beginPath();
             ctx.arc(px - 1.5, py - 1.5, 2.2, 0, Math.PI * 2);
             ctx.fill();
@@ -2939,20 +3131,15 @@ function drawDetailedLeaf(
       /* ========================================================================
        * P22, P23, P24: SEAGRASSES (Enhalus, Thalassia Turtle Grass, Eelgrass)
        * Continuous creeping rhizome stolon with root tufts, leaf sheaths, parallel
-       * veined ribbon blades, and seagrass flowers/seed capsules.
-       * 70% Realistic Botanical Morphology + 30% Stylized Charm:
-       * Continuous creeping rhizome stolon with coarse black Enhalus bristle fibers,
-       * anchoring root tufts, clasping basal leaf sheaths, multi-nerved parallel
-       * + transverse cross-veined lacunae ribbon blades, and seagrass seed capsules.
+       * veined ribbon blades, and connected seagrass seed capsules on stalks.
        * ====================================================================== */
       case 'plant_22_tropical_seagrass_enhalus_acoroides':
       case 'plant_23_tropical_turtle_grass_thalassia_hemprichii':
       case 'plant_24_eelgrass': {
         const isTurtleGrass = assetId === 'plant_23_tropical_turtle_grass_thalassia_hemprichii';
         const isEel = assetId === 'plant_24_eelgrass';
-        // Horizontal creeping mother rhizome stolon & anchoring rootlets
 
-        // 1. Background depth tier of darker swaying seagrass blades (creates 3D meadow fullness)
+        // 1. Background depth tier of darker swaying seagrass blades
         const count = isEel ? 6 : 4;
         for (let i = -count; i <= count; i++) {
           const bx = i * (isEel ? 18 : 26) + 9;
@@ -2961,7 +3148,7 @@ function drawDetailedLeaf(
           drawRealisticGrassBlade(
             ctx,
             bx,
-            148,
+            154,
             h,
             isTurtleGrass ? 11 : isEel ? 6.5 : 9.5,
             bend,
@@ -2972,13 +3159,18 @@ function drawDetailedLeaf(
           );
         }
 
-        // 2. Foreground hero seagrass ribbon blades stuffed directly into the seabed with basal sheaths & venation
+        // Continuous horizontal creeping rhizome uniting all seagrass blades at the seabed
+        const rhizP = new Path2D();
+        rhizP.roundRect(-114, 156, 228, 10, 5);
+        fillRimAndStroke(ctx, rhizP, -114, 156, 114, 166, '#d6d3d1', '#78716c', '#44403c', '#1c1917', 2.2);
+
+        // 2. Foreground hero seagrass ribbon blades emerging from clasping sheaths on the rhizome
         for (let i = -count; i <= count; i++) {
           const bx = i * (isEel ? 18 : 26);
           const h = (isTurtleGrass ? 195 : 240) - Math.abs(i) * 12;
           const w = isTurtleGrass ? 13.5 : isEel ? 7.5 : 10.8;
           ctx.save();
-          ctx.translate(bx, 168);
+          ctx.translate(bx, 162);
           const blade = new Path2D();
           const bend = sway * 38 + Math.sin(pose.waveRaysPhase + i * 0.6) * 14;
           blade.moveTo(-w, 0);
@@ -2998,9 +3190,6 @@ function drawDetailedLeaf(
             '#064e3b',
             2.6,
           );
-          // Longitudinal midrib vein & cross-vein bars inside seagrass blade
-          ctx.strokeStyle = 'rgba(236, 253, 245, 0.52)';
-          ctx.lineWidth = 1.4;
 
           // Basal clasping pale leaf sheath at node base
           ctx.fillStyle = 'rgba(217, 249, 157, 0.72)';
@@ -3021,12 +3210,10 @@ function drawDetailedLeaf(
           ctx.beginPath();
           ctx.moveTo(0, -4);
           ctx.quadraticCurveTo(bend * 0.45, -h * 0.5, bend, -h * 0.94);
-          ctx.quadraticCurveTo(bend * 0.45, -h * 0.5, bend, -h * 0.95);
           ctx.moveTo(-w * 0.42, -6);
           ctx.quadraticCurveTo(-w * 0.35 + bend * 0.45, -h * 0.5, bend - w * 0.25, -h * 0.9);
           ctx.moveTo(w * 0.42, -6);
           ctx.quadraticCurveTo(w * 0.35 + bend * 0.45, -h * 0.5, bend + w * 0.25, -h * 0.9);
-          // Transverse cross-bars every 28px along the ribbon strap
           for (let ty = 34; ty < h - 22; ty += 28) {
             const frac = ty / h;
             const cxBar = bend * frac * frac;
@@ -3037,11 +3224,21 @@ function drawDetailedLeaf(
           ctx.stroke();
           ctx.restore();
         }
-        // Marine seagrass blossom & bristled seed capsule at base, only when flowering/fruiting
-        // (they were also drawn unconditionally, so even saplings were in flower)
+        // Connected seagrass seed capsules on basal peduncles from the rhizome
         if (activePlantGrowthStage >= 2) {
-          drawFlowerClusterBlock(ctx, -34 + sway * 12, 118, 0.52, -0.2, '#fef9c3', '#fde047', '#eab308', '#ca8a04');
-          drawFlowerClusterBlock(ctx, 38 + sway * 12, 116, 0.52, 0.2, '#fef9c3', '#fde047', '#eab308', '#ca8a04');
+          for (const [sx, sy] of [
+            [-34, 118],
+            [38, 116],
+          ] as const) {
+            const capX = sx + sway * 12;
+            ctx.strokeStyle = '#047857';
+            ctx.lineWidth = 3.0;
+            ctx.beginPath();
+            ctx.moveTo(sx, 160);
+            ctx.quadraticCurveTo(sx + sway * 6, 140, capX, sy + 6);
+            ctx.stroke();
+            drawFlowerClusterBlock(ctx, capX, sy, 0.52, (sx < 0 ? -0.2 : 0.2), '#fef9c3', '#fde047', '#eab308', '#ca8a04');
+          }
         }
         break;
       }

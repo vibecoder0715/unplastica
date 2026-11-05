@@ -1754,9 +1754,6 @@ function AvatarCropModal({
           </label>
         </div>
         <div className="dialog-actions" style={{ width: "100%", display: "flex", gap: "10px", marginTop: "12px" }}>
-          <button type="button" className="secondary-button" onClick={onCancel} disabled={saving} style={{ flex: 1 }}>
-            {t("common.cancel")}
-          </button>
           <button type="button" className="primary-button" onClick={() => void handleSave()} disabled={saving} style={{ flex: 1 }}>
             {saving ? t("profile.uploading") : t("profile.cropSave")}
           </button>
@@ -1785,9 +1782,6 @@ function LogoutConfirmDialog({
         <p><GreenbitLogo size={16} />{t("auth.logoutConfirmDesc")}</p>
         <button type="button" className="primary-button logout-confirm-btn" onClick={onConfirm}>
           {t("settings.logoutAction")}
-        </button>
-        <button type="button" className="text-button" onClick={onCancel}>
-          {t("common.cancel")}
         </button>
       </div>
     </Modal>
@@ -2876,7 +2870,6 @@ function LoginRequiredDialog({ onClose, onLogin }: { onClose: () => void; onLogi
     <BrandLogo scrolled />
     <h2 id="login-required-title">{t("gate.title")}</h2><p>{t("gate.body")}</p>
     <button className="primary-button" onClick={onLogin}>{t("gate.login")}</button>
-    <button className="text-button" onClick={onClose}>{t("gate.cancel")}</button>
   </div></Modal>;
 }
 

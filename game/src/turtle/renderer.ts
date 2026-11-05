@@ -88,11 +88,13 @@ export function renderTurtle(
   drawNearHindFlipper(ctx, pose);
   ctx.restore();
 
-  // 3. Far Front Flipper (always drawn behind torso so shoulder root is 100% seamless in all emotions)
-  ctx.save();
-  if (is3D) ctx.translate(-activeTurtleYaw * 16, -activeTurtlePitch * 10);
-  drawFarFrontFlipper(ctx, pose);
-  ctx.restore();
+  // 3. Far Front Flipper (drawn behind torso unless raised to chin in wondered/blush pose)
+  if (pose.farFlipperChinAmount <= 0.4) {
+    ctx.save();
+    if (is3D) ctx.translate(-activeTurtleYaw * 16, -activeTurtlePitch * 10);
+    drawFarFrontFlipper(ctx, pose);
+    ctx.restore();
+  }
 
   // 4. Torso, Plastron (Creamy segmented underbelly strictly clipped inside torso) & Neck
   drawPlastronAndNeck(ctx, pose);
@@ -103,17 +105,35 @@ export function renderTurtle(
   drawCarapace(ctx, pose);
   ctx.restore();
 
-  // 7. Near Front Flipper (anchored at shoulder, turning naturally towards the right with a smaller angle)
-  ctx.save();
-  if (is3D) ctx.translate(activeTurtleYaw * 16, activeTurtlePitch * 10);
-  drawNearFrontFlipper(ctx, pose);
-  ctx.restore();
+  // 7. Near Front Flipper (drawn in front of shell unless tucked in front of chest)
+  if (pose.nearFlipperTuckAmount <= 0.5) {
+    ctx.save();
+    if (is3D) ctx.translate(activeTurtleYaw * 16, activeTurtlePitch * 10);
+    drawNearFrontFlipper(ctx, pose);
+    ctx.restore();
+  }
 
   // 8. Articulated Head Group (Cranium, Spots, Blush, Smaller Eyes, Eyebrows, Snout, Morphing Mouth, Tears)
   ctx.save();
   if (is3D) ctx.translate(activeTurtleYaw * 18, activeTurtlePitch * 12);
   drawHeadGroup(ctx, pose, tearDrops);
   ctx.restore();
+
+  // 9. Near Front Flipper when tucked in front of chest/chin (crying/shy)
+  if (pose.nearFlipperTuckAmount > 0.5) {
+    ctx.save();
+    if (is3D) ctx.translate(activeTurtleYaw * 16, activeTurtlePitch * 10);
+    drawNearFrontFlipper(ctx, pose);
+    ctx.restore();
+  }
+
+  // 10. Far Front Flipper when raised to chin (wondered thinking / blush pose)
+  if (pose.farFlipperChinAmount > 0.4) {
+    ctx.save();
+    if (is3D) ctx.translate(-activeTurtleYaw * 16, -activeTurtlePitch * 10);
+    drawFarFrontFlipper(ctx, pose);
+    ctx.restore();
+  }
 
   // 11. Emotion Effect Symbols (Waving rays, Describing rays, Laugh marks, Question mark, Angry vein)
   drawEmotionProps(ctx, pose);
@@ -612,62 +632,108 @@ function drawShellScute(
 
       const chinAmt = pose.farFlipperChinAmount;
       const raiseAmt = pose.farFlipperRaiseAmount;
-      const liftRight = Math.max(chinAmt * 0.42, raiseAmt * 0.48);
 
-      // Anchored behind torso at natural far shoulder (64, 62), turning smoothly towards the right with a smaller angle
-      ctx.translate(64, 62);
-      const baseRot = -0.08 - liftRight + pose.farFlipperAngle * 0.45;
-      ctx.rotate(baseRot);
+      if (chinAmt > 0.4) {
+        // Wondered / Blush pose: Far flipper curled up to rest thoughtfully against chin
+        ctx.translate(64, 78);
+        ctx.rotate(pose.farFlipperAngle);
 
-      const bendOffset = pose.farFlipperBend * 16;
+        const path = new Path2D();
+        path.moveTo(-26, -34);
+        path.bezierCurveTo(6, -42, 48, -10, 76, 36);
+        path.bezierCurveTo(96, 68, 86, 98, 56, 96);
+        path.bezierCurveTo(16, 94, -36, 38, -46, -4);
+        path.bezierCurveTo(-50, -22, -42, -30, -26, -34);
+        path.closePath();
 
-      const path = new Path2D();
-      path.moveTo(-16, -12);
-      path.bezierCurveTo(
-        38,
-        -12 + bendOffset * 0.3,
-        122,
-        34 + bendOffset * 0.6,
-        168,
-        126 + bendOffset,
-      );
-      path.bezierCurveTo(
-        180,
-        152 + bendOffset,
-        158,
-        168 + bendOffset,
-        128,
-        148 + bendOffset * 0.8,
-      );
-      path.bezierCurveTo(68, 108 + bendOffset * 0.4, 16, 54, -14, 14);
-      path.closePath();
+        const grad = ctx.createLinearGradient(-40, -35, 75, 95);
+        grad.addColorStop(0, '#daf566');
+        grad.addColorStop(0.45, '#9ad13c');
+        grad.addColorStop(1, '#6ba324');
+        ctx.fillStyle = grad;
+        ctx.fill(path);
 
-      const grad = ctx.createLinearGradient(0, -15, 160, 155);
-      grad.addColorStop(0, '#daf566');
-      grad.addColorStop(0.5, '#9ed43e');
-      grad.addColorStop(1, '#6ea625');
-      ctx.fillStyle = grad;
-      ctx.fill(path);
+        ctx.save();
+        ctx.clip(path);
+        ctx.strokeStyle = 'rgba(246, 255, 165, 0.7)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(-20, -32);
+        ctx.bezierCurveTo(12, -36, 52, -4, 78, 42);
+        ctx.stroke();
+        ctx.restore();
 
-      ctx.save();
-      ctx.clip(path);
-      ctx.strokeStyle = 'rgba(246, 255, 165, 0.72)';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(-10, -10);
-      ctx.bezierCurveTo(40, -10, 118, 36, 164, 124 + bendOffset);
-      ctx.stroke();
-      ctx.restore();
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = OUTLINE_DARK;
+        ctx.stroke(path);
 
-      ctx.lineWidth = 3.5;
-      ctx.strokeStyle = OUTLINE_DARK;
-      ctx.stroke(path);
+        ctx.fillStyle = SPOT_DARK;
+        drawOvalSpot(ctx, 18, 6, 22, 13, 0.68);
+        drawOvalSpot(ctx, 42, 48, 21, 15, 0.55);
+        drawOvalSpot(ctx, -20, 6, 11, 8, 0.6);
+        drawOvalSpot(ctx, 64, 74, 11, 7, 0.45);
+      } else {
+        // Normal (extended down-right) or Raised (describing/congratulate gesture)
+        const pivotX = lerp(64, 78, raiseAmt);
+        const pivotY = lerp(64, 20, raiseAmt);
+        ctx.translate(pivotX, pivotY);
 
-      ctx.fillStyle = SPOT_DARK;
-      drawOvalSpot(ctx, 78, 58 + bendOffset * 0.45, 23, 14, 0.72);
-      drawOvalSpot(ctx, 132, 114 + bendOffset * 0.8, 18, 10, 0.82);
-      drawOvalSpot(ctx, 46, 18 + bendOffset * 0.2, 14, 7, 0.62);
-      drawOvalSpot(ctx, 96, 34 + bendOffset * 0.35, 9, 6, 0.68);
+        const baseRot = lerp(0, -1.08, raiseAmt) + pose.farFlipperAngle;
+        ctx.rotate(baseRot);
+
+        const bendOffset = pose.farFlipperBend * 22;
+
+        const path = new Path2D();
+        path.moveTo(-16, -12);
+        path.bezierCurveTo(
+          38,
+          -12 + bendOffset * 0.3,
+          122,
+          34 + bendOffset * 0.6,
+          168,
+          126 + bendOffset,
+        );
+        path.bezierCurveTo(
+          180,
+          152 + bendOffset,
+          158,
+          168 + bendOffset,
+          128,
+          148 + bendOffset * 0.8,
+        );
+        path.bezierCurveTo(68, 108 + bendOffset * 0.4, 16, 54, -14, 14);
+        path.closePath();
+
+        const grad = ctx.createLinearGradient(0, -15, 160, 155);
+        grad.addColorStop(0, '#daf566');
+        grad.addColorStop(0.5, '#9ed43e');
+        grad.addColorStop(1, '#6ea625');
+        ctx.fillStyle = grad;
+        ctx.fill(path);
+
+        ctx.save();
+        ctx.clip(path);
+        ctx.strokeStyle = 'rgba(246, 255, 165, 0.72)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(-10, -10);
+        ctx.bezierCurveTo(40, -10, 118, 36, 164, 124 + bendOffset);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = OUTLINE_DARK;
+        ctx.stroke(path);
+
+        ctx.fillStyle = SPOT_DARK;
+        drawOvalSpot(ctx, 78, 58 + bendOffset * 0.45, 23, 14, 0.72);
+        drawOvalSpot(ctx, 132, 114 + bendOffset * 0.8, 18, 10, 0.82);
+        drawOvalSpot(ctx, 46, 18 + bendOffset * 0.2, 14, 7, 0.62);
+        drawOvalSpot(ctx, 96, 34 + bendOffset * 0.35, 9, 6, 0.68);
+
+        ctx.fillStyle = 'rgba(235, 255, 175, 0.8)';
+        drawOvalSpot(ctx, 56, 36 + bendOffset * 0.3, 6, 3.5, 0.7);
+      }
 
       ctx.restore();
     }
@@ -679,47 +745,168 @@ function drawShellScute(
       const tuckAmt = pose.nearFlipperTuckAmount;
       const waveAmt = clamp(1 - downAmt - tuckAmt, 0, 1);
 
-      // Phase 1: Wave points AWAY from the facing direction (+X) at a 120° rear-upper offset (-120° from +X)
-      // Semicircular shoulder ball-joint at (-64, 34) keeps the flipper 100% seamlessly socketed at any angle.
-      ctx.translate(-64, 34);
-      const waveOffset120Rad = 2.31 * waveAmt - 0.34 * tuckAmt + pose.nearFlipperAngle * (0.45 + 0.24 * waveAmt);
-      ctx.rotate(waveOffset120Rad);
-      const bend = pose.nearFlipperBend * 14;
+      ctx.translate(-68 + pose.nearFlipperShoulderX, 30 + pose.nearFlipperShoulderY);
+      ctx.rotate(pose.nearFlipperAngle);
 
-      const path = new Path2D();
-      path.arc(0, 0, 18, Math.PI, 0, false);
-      path.bezierCurveTo(24, 10, 28, 40, 22, 80);
-      path.bezierCurveTo(16 + bend * 0.6, 142, -26 + bend, 174, -48 + bend, 150);
-      path.bezierCurveTo(-78 + bend * 0.4, 96, -52, 26, -18, 0);
-      path.closePath();
+      const bend = pose.nearFlipperBend * 26;
 
-      const grad = ctx.createLinearGradient(-70, -10, 22, 150);
-      grad.addColorStop(0, '#dcf668');
-      grad.addColorStop(0.5, '#9ed43e');
-      grad.addColorStop(1, '#6ea625');
-      ctx.fillStyle = grad;
-      ctx.fill(path);
+      if (waveAmt >= 0.45) {
+        // High waving / swimming front-left flipper blade with 3-lobed tip
+        const path = new Path2D();
+        path.moveTo(16, -8);
+        path.bezierCurveTo(-16, -60, -64 + bend * 0.5, -138, -118 + bend, -198);
+        path.bezierCurveTo(
+          -142 + bend,
+          -224,
+          -172 + bend,
+          -210,
+          -170 + bend * 0.9,
+          -168,
+        );
+        path.bezierCurveTo(
+          -168 + bend * 0.8,
+          -144,
+          -158 + bend * 0.7,
+          -130,
+          -152 + bend * 0.65,
+          -124,
+        );
+        path.bezierCurveTo(
+          -168 + bend * 0.6,
+          -110,
+          -164 + bend * 0.45,
+          -72,
+          -132 + bend * 0.35,
+          -42,
+        );
+        path.bezierCurveTo(-106 + bend * 0.2, -12, -58, 22, -10, 26);
+        path.bezierCurveTo(12, 28, 24, 12, 16, -8);
+        path.closePath();
 
-      ctx.save();
-      ctx.clip(path);
-      ctx.strokeStyle = 'rgba(248, 255, 180, 0.75)';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(8, -4);
-      ctx.bezierCurveTo(20, 36, 22, 82, -22 + bend * 0.8, 148);
-      ctx.stroke();
-      ctx.restore();
+        const grad = ctx.createLinearGradient(-160, -210, 12, 25);
+        grad.addColorStop(0, '#dcf668');
+        grad.addColorStop(0.4, '#9dd43d');
+        grad.addColorStop(0.8, '#6da526');
+        grad.addColorStop(1, '#588c1b');
+        ctx.fillStyle = grad;
+        ctx.fill(path);
 
-      ctx.lineWidth = 3.5;
-      ctx.strokeStyle = OUTLINE_DARK;
-      ctx.stroke(path);
+        ctx.save();
+        ctx.clip(path);
+        ctx.strokeStyle = 'rgba(248, 255, 180, 0.82)';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(10, -10);
+        ctx.bezierCurveTo(-20, -60, -66 + bend * 0.5, -138, -120 + bend, -200);
+        ctx.stroke();
+        ctx.restore();
 
-      ctx.fillStyle = SPOT_DARK;
-      drawOvalSpot(ctx, -26 + bend * 0.3, 66, 20, 13, -0.32);
-      drawOvalSpot(ctx, -36 + bend * 0.6, 108, 17, 12, -0.28);
-      drawOvalSpot(ctx, -4 + bend * 0.5, 110, 11, 8, -0.22);
-      drawOvalSpot(ctx, -4, 32, 11, 7, -0.32);
-      drawOvalSpot(ctx, -34, 36, 9, 6, -0.28);
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = OUTLINE_DARK;
+        ctx.stroke(path);
+
+        ctx.fillStyle = SPOT_DARK;
+        drawOvalSpot(ctx, -136 + bend * 0.85, -156, 21, 13, 1.22);
+        drawOvalSpot(ctx, -114 + bend * 0.6, -106, 22, 14, 1.02);
+        drawOvalSpot(ctx, -104 + bend * 0.45, -64, 20, 12.5, 0.85);
+        drawOvalSpot(ctx, -72 + bend * 0.35, -52, 13.5, 8.5, 0.8);
+        drawOvalSpot(ctx, -48 + bend * 0.2, -20, 9, 6.5, 0.65);
+
+        ctx.fillStyle = 'rgba(245, 255, 190, 0.88)';
+        drawOvalSpot(ctx, -148 + bend * 0.9, -184, 5, 3, 1.2);
+      } else if (tuckAmt > 0.5) {
+        // Crying / Shy pose: Flipper curled inward across chest/chin
+        const path = new Path2D();
+        path.moveTo(-12, -16);
+        path.bezierCurveTo(22, -20, 74, 4, 96, 38);
+        path.bezierCurveTo(110, 62, 92, 86, 62, 82);
+        path.bezierCurveTo(18, 78, -22, 42, -28, 6);
+        path.closePath();
+
+        const grad = ctx.createLinearGradient(-25, -15, 95, 80);
+        grad.addColorStop(0, '#c8ee58');
+        grad.addColorStop(0.5, '#90c936');
+        grad.addColorStop(1, '#689e23');
+        ctx.fillStyle = grad;
+        ctx.fill(path);
+
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = OUTLINE_DARK;
+        ctx.stroke(path);
+
+        ctx.fillStyle = SPOT_DARK;
+        drawOvalSpot(ctx, 26, 22, 20, 12, 0.45);
+        drawOvalSpot(ctx, 64, 52, 18, 11, 0.35);
+        drawOvalSpot(ctx, -2, 26, 10, 7, 0.4);
+      } else if (downAmt < 0.7) {
+        // Laughing / Spread outward pose: Flipper extended down-left
+        const path = new Path2D();
+        path.moveTo(8, -10);
+        path.bezierCurveTo(-46, -22, -118, -8, -138, 28);
+        path.bezierCurveTo(-152, 54, -124, 88, -78, 82);
+        path.bezierCurveTo(-32, 76, 10, 42, 18, 14);
+        path.closePath();
+
+        const grad = ctx.createLinearGradient(-140, 0, 15, 80);
+        grad.addColorStop(0, '#d8f464');
+        grad.addColorStop(0.5, '#98cf3b');
+        grad.addColorStop(1, '#6aa124');
+        ctx.fillStyle = grad;
+        ctx.fill(path);
+
+        ctx.save();
+        ctx.clip(path);
+        ctx.strokeStyle = 'rgba(246, 255, 170, 0.72)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(4, -10);
+        ctx.bezierCurveTo(-44, -20, -112, -6, -134, 26);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = OUTLINE_DARK;
+        ctx.stroke(path);
+
+        ctx.fillStyle = SPOT_DARK;
+        drawOvalSpot(ctx, -64, 24, 22, 14, 0.2);
+        drawOvalSpot(ctx, -108, 38, 16, 11, 0.15);
+        drawOvalSpot(ctx, -38, 48, 10, 7, 0.15);
+      } else {
+        // Describing / Wondered / Angry / Sad lowered paddle
+        const path = new Path2D();
+        path.moveTo(-16, -8);
+        path.bezierCurveTo(-48, 16, -92, 64, -76, 98);
+        path.bezierCurveTo(-60, 128, -4, 112, 22, 68);
+        path.bezierCurveTo(40, 36, 20, -6, -16, -8);
+        path.closePath();
+
+        const grad = ctx.createLinearGradient(-85, 0, 25, 110);
+        grad.addColorStop(0, '#d4f260');
+        grad.addColorStop(0.5, '#96cd3a');
+        grad.addColorStop(1, '#669d22');
+        ctx.fillStyle = grad;
+        ctx.fill(path);
+
+        ctx.save();
+        ctx.clip(path);
+        ctx.strokeStyle = 'rgba(246, 255, 170, 0.7)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(-14, -6);
+        ctx.bezierCurveTo(-44, 16, -86, 62, -72, 94);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = OUTLINE_DARK;
+        ctx.stroke(path);
+
+        ctx.fillStyle = SPOT_DARK;
+        drawOvalSpot(ctx, -32, 46, 21, 14, -0.52);
+        drawOvalSpot(ctx, -46, 80, 16, 11, -0.45);
+        drawOvalSpot(ctx, 2, 54, 11, 7, -0.5);
+      }
 
       ctx.restore();
     }
@@ -1568,10 +1755,9 @@ function drawShellScute(
         ctx.save();
         ctx.globalAlpha = clamp(pose.waveRaysAlpha, 0, 1);
         const pulse = 1 + Math.sin(pose.waveRaysPhase) * 0.08;
-        // Positioned at the 120° rear-upper offset away from the +X facing direction
-        ctx.translate(-168, -134);
+        ctx.translate(-168, -158);
         ctx.scale(pulse, pulse);
-        drawThreeComicRays(ctx, -0.58);
+        drawThreeComicRays(ctx, -0.42);
         ctx.restore();
       }
 
@@ -2941,7 +3127,27 @@ function drawShellScute(
             drawOvalSpot(ctx, -104 + bend * 0.45, -64, 20, 12.5, 0.85);
             drawOvalSpot(ctx, -72 + bend * 0.35, -52, 13.5, 8.5, 0.8);
             drawOvalSpot(ctx, -48 + bend * 0.2, -20, 9, 6.5, 0.65);
-          } else {
+          } else if (tuckAmt > 0.5) {
+            const p = new Path2D();
+            p.moveTo(-12, -16);
+            p.bezierCurveTo(22, -20, 74, 4, 96, 38);
+            p.bezierCurveTo(110, 62, 92, 86, 62, 82);
+            p.bezierCurveTo(18, 78, -22, 42, -28, 6);
+            p.closePath();
+            const g = ctx.createLinearGradient(-25, -15, 95, 80);
+            g.addColorStop(0, pal.skinLight);
+            g.addColorStop(0.5, pal.skinMid);
+            g.addColorStop(1, pal.skinDeep);
+            ctx.fillStyle = g;
+            ctx.fill(p);
+            ctx.lineWidth = 3.5;
+            ctx.strokeStyle = pal.outlineDark;
+            ctx.stroke(p);
+            ctx.fillStyle = pal.spotDark;
+            drawOvalSpot(ctx, 26, 22, 20, 12, 0.45);
+            drawOvalSpot(ctx, 64, 52, 18, 11, 0.35);
+            drawOvalSpot(ctx, -2, 26, 10, 7, 0.4);
+          } else if (downAmt < 0.7) {
             const p = new Path2D();
             p.moveTo(8, -10);
             p.bezierCurveTo(-46, -22, -118, -8, -138, 28);
@@ -2961,6 +3167,26 @@ function drawShellScute(
             drawOvalSpot(ctx, -64, 24, 22, 14, 0.2);
             drawOvalSpot(ctx, -108, 38, 16, 11, 0.15);
             drawOvalSpot(ctx, -38, 48, 10, 7, 0.15);
+          } else {
+            const p = new Path2D();
+            p.moveTo(-16, -8);
+            p.bezierCurveTo(-48, 16, -92, 64, -76, 98);
+            p.bezierCurveTo(-60, 128, -4, 112, 22, 68);
+            p.bezierCurveTo(40, 36, 20, -6, -16, -8);
+            p.closePath();
+            const g = ctx.createLinearGradient(-85, 0, 25, 110);
+            g.addColorStop(0, pal.skinLight);
+            g.addColorStop(0.5, pal.skinMid);
+            g.addColorStop(1, pal.skinDeep);
+            ctx.fillStyle = g;
+            ctx.fill(p);
+            ctx.lineWidth = 3.5;
+            ctx.strokeStyle = pal.outlineDark;
+            ctx.stroke(p);
+            ctx.fillStyle = pal.spotDark;
+            drawOvalSpot(ctx, -32, 46, 21, 14, -0.52);
+            drawOvalSpot(ctx, -46, 80, 16, 11, -0.45);
+            drawOvalSpot(ctx, 2, 54, 11, 7, -0.5);
           }
           ctx.restore();
         };
@@ -3075,6 +3301,9 @@ function drawShellScute(
           pal.outlineDark,
         );
         drawEyebrows(ctx, pose, lookX, lookY);
+        if (pose.tearsAlpha > 0.01) {
+          drawTearsAndDroplets(ctx, pose, [], lookX, lookY);
+        }
         ctx.restore();
 
         if (pose.nearFlipperTuckAmount > 0.5) {

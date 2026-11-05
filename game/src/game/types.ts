@@ -23,7 +23,14 @@ export type FoodCategory =
   | 'river_treat'
   | 'bamboo'
   | 'honey'
-  | 'insects';
+  | 'insects'
+  | 'foliage'
+  | 'nuts_seeds'
+  | 'meat'
+  | 'crustaceans'
+  | 'sponge'
+  | 'jellyfish'
+  | 'echinoderm';
 
 /** When an animal is naturally awake. Cathemeral animals are active in short bouts day and night. */
 export type ActivityPattern = 'diurnal' | 'nocturnal' | 'cathemeral';
@@ -82,6 +89,7 @@ export interface AssetEcoMetadata {
   price: number;
   passiveGreenbitsPerMin: number;
   dietCategories?: FoodCategory[];
+  dietFoodIds?: string[];
   favoriteFoodId?: string;
   producesFruitId?: string;
   isAquaticFoodSource?: boolean;
@@ -125,7 +133,7 @@ export interface PlacedAnimal {
   facing: 1 | -1;
   hunger: number; // 0 (starving/crying) .. 100 (full), 6 hours full decay
   happiness: number; // 0 .. 100
-  bondXp: number; // 0 .. 500 (100 per Love Lv, max Love Lv.5)
+  bondXp: number; // 100 baseline for Lv.1, scales up to Lv.100
   careStartTimestampMs?: number;
   careDaysCount?: number;
   lastCareDayStamp?: string;
@@ -145,6 +153,8 @@ export interface PlacedAnimal {
   blinkActiveSec: number;
   isFalling?: boolean;
   fallImpactSec?: number;
+  isClimbing?: boolean;
+  perchTreeUid?: string;
 }
 
 export interface PlacedPlant {

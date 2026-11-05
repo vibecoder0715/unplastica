@@ -863,6 +863,7 @@ export interface AnimalRenderOptions {
     framingScale?: number;
     locoBlend?: number;
     swimming?: boolean;
+    climbing?: boolean;
   }
 
   export function renderAnimalAsset(
@@ -945,29 +946,43 @@ export interface AnimalRenderOptions {
     const rawLoco = explicitLoco * autoEmoteDamp;
     const activityScale = rawLoco * rawLoco * (3 - 2 * rawLoco);
 
-    // Iteration 1-4: Smooth C2-continuous 4-beat biological gait & hydrodynamic S-wave propulsion
+    // Iteration 1-4: Smooth C2-continuous 4-beat biological gait, vertical tree-climbing & hydrodynamic S-wave propulsion
     const isSeaTurtle = assetId.includes('sea_turtle') || assetId.includes('turtle');
-    const walkPhase = locoTime * 4.4;
-    // Sea turtles swim with slow, graceful ocean glides (1.35 rad/s) rather than rapid paddling
+    const isClimbing = Boolean(preview3D?.climbing);
+    const walkPhase = locoTime * (isClimbing ? 5.8 : 4.4);
+    // Sea turtles already get their main-page swimming motion from TurtleRigController (rig.pose)
     const swimPhase = locoTime * (isSeaTurtle ? 1.35 : 2.6);
     const breathWave = Math.sin(locoTime * 2.3);
 
-    // Smooth C2 harmonic vertical bob (eliminates the sharp |sin| cusp at footfall)
-    const walkBob = -(0.5 - 0.5 * Math.cos(walkPhase * 2)) * 3.8 * activityScale + breathWave * 0.9 * (1 - activityScale);
-    // Unidirectional forward surge thrust (always in the facing forward vector, eliminating backward drift)
-    const walkSurge = (0.5 - 0.5 * Math.cos(walkPhase)) * 2.6 * activityScale;
-    const walkPitch = Math.sin(walkPhase - 0.35) * 0.014 * activityScale;
-    // 4-beat lateral gait stride with subtle second-harmonic asymmetry (stance push vs swing lift)
-    const walkStrideFrontNear = (Math.sin(walkPhase) + 0.14 * Math.sin(walkPhase * 2)) * 0.38 * activityScale;
-    const walkStrideFrontFar = (Math.sin(walkPhase + Math.PI) + 0.14 * Math.sin((walkPhase + Math.PI) * 2)) * 0.38 * activityScale;
-    const walkStrideHindNear = (Math.sin(walkPhase + Math.PI * 0.82) + 0.14 * Math.sin((walkPhase + Math.PI * 0.82) * 2)) * 0.40 * activityScale;
-    const walkStrideHindFar = (Math.sin(walkPhase - Math.PI * 0.18) + 0.14 * Math.sin((walkPhase - Math.PI * 0.18) * 2)) * 0.40 * activityScale;
+    // Smooth C2 harmonic vertical bob or tree-climbing pull-up heave
+    const walkBob = isClimbing
+      ? Math.sin(walkPhase) * 7.2 * activityScale + breathWave * 1.1 * (1 - activityScale)
+      : -(0.5 - 0.5 * Math.cos(walkPhase * 2)) * 3.8 * activityScale + breathWave * 0.9 * (1 - activityScale);
+    const walkSurge = isClimbing
+      ? Math.cos(walkPhase * 0.5) * 3.4 * activityScale
+      : (0.5 - 0.5 * Math.cos(walkPhase)) * 2.6 * activityScale;
+    const walkPitch = isClimbing
+      ? (-0.24 + Math.sin(walkPhase) * 0.048) * activityScale
+      : Math.sin(walkPhase - 0.35) * 0.014 * activityScale;
+    // 4-beat lateral gait stride OR hand-over-hand arboreal tree-climbing reach
+    const walkStrideFrontNear = isClimbing
+      ? (-0.64 + Math.sin(walkPhase) * 0.62) * activityScale
+      : (Math.sin(walkPhase) + 0.14 * Math.sin(walkPhase * 2)) * 0.38 * activityScale;
+    const walkStrideFrontFar = isClimbing
+      ? (-0.64 + Math.sin(walkPhase + Math.PI) * 0.62) * activityScale
+      : (Math.sin(walkPhase + Math.PI) + 0.14 * Math.sin((walkPhase + Math.PI) * 2)) * 0.38 * activityScale;
+    const walkStrideHindNear = isClimbing
+      ? (0.28 + Math.sin(walkPhase + Math.PI) * 0.48) * activityScale
+      : (Math.sin(walkPhase + Math.PI * 0.82) + 0.14 * Math.sin((walkPhase + Math.PI * 0.82) * 2)) * 0.40 * activityScale;
+    const walkStrideHindFar = isClimbing
+      ? (0.28 + Math.sin(walkPhase) * 0.48) * activityScale
+      : (Math.sin(walkPhase - Math.PI * 0.18) + 0.14 * Math.sin((walkPhase - Math.PI * 0.18) * 2)) * 0.40 * activityScale;
 
-    const swimBob = Math.sin(swimPhase) * (isSeaTurtle ? 4.2 : 5.6) * activityScale + breathWave * 1.6 * (1 - activityScale);
-    const swimSurge = (0.5 - 0.5 * Math.cos(swimPhase)) * (isSeaTurtle ? 3.2 : 4.2) * activityScale;
-    const swimPitch = Math.cos(swimPhase - 0.45) * 0.036 * activityScale;
-    const swimTailKick = Math.sin(swimPhase * 1.4 - 0.65) * 0.34 * activityScale;
-    const swimFinScull = Math.sin(swimPhase - 0.35) * 0.28 * activityScale;
+    const swimBob = isSeaTurtle ? 0 : Math.sin(swimPhase) * 5.6 * activityScale + breathWave * 1.6 * (1 - activityScale);
+    const swimSurge = isSeaTurtle ? 0 : (0.5 - 0.5 * Math.cos(swimPhase)) * 4.2 * activityScale;
+    const swimPitch = isSeaTurtle ? 0 : Math.cos(swimPhase - 0.45) * 0.036 * activityScale;
+    const swimTailKick = isSeaTurtle ? 0 : Math.sin(swimPhase * 1.4 - 0.65) * 0.34 * activityScale;
+    const swimFinScull = isSeaTurtle ? 0 : Math.sin(swimPhase - 0.35) * 0.28 * activityScale;
 
     ctx.save();
     ctx.lineJoin = 'round';
@@ -988,23 +1003,25 @@ export interface AnimalRenderOptions {
 
     // Ground contact shadow for walking land animals vs floating water shadow for swimming animals
     const effectiveBodyX = isLandStanding ? pose.bodyX * 0.45 + walkSurge : pose.bodyX + swimSurge;
-    const effectiveBodyY = isLandStanding ? pose.bodyY * 0.16 + walkBob : pose.bodyY * 0.65 + swimBob;
-    const effectiveBodyRot = isLandStanding ? pose.bodyRot * 0.22 + walkPitch : pose.bodyRot * 0.5 + swimPitch;
+    const effectiveBodyY = isLandStanding ? pose.bodyY * 0.16 + walkBob : (isSeaTurtle ? pose.bodyY : pose.bodyY * 0.65 + swimBob);
+    const effectiveBodyRot = isLandStanding ? pose.bodyRot * 0.22 + walkPitch : (isSeaTurtle ? pose.bodyRot : pose.bodyRot * 0.5 + swimPitch);
 
-    ctx.save();
-    const shadowY = (isLandStanding ? 186 : 232 - effectiveBodyY * 0.2) + currentAnimalPitch * 12;
-    const shadowScale = isLandStanding ? 1.06 + Math.cos(walkPhase * 2) * 0.022 * activityScale : 1 - effectiveBodyY * 0.003;
-    ctx.translate(-6 + (isLandStanding ? walkSurge * 0.6 : swimSurge * 0.5) + currentAnimalYaw * 14, shadowY);
-    ctx.scale(shadowScale, (isLandStanding ? 0.19 : 0.22) * (1 + Math.abs(currentAnimalPitch) * 0.25));
-    const shGrad = ctx.createRadialGradient(0, 0, 14, 0, 0, 215);
-    shGrad.addColorStop(0, isLandStanding ? 'rgba(45, 68, 45, 0.28)' : 'rgba(55, 95, 108, 0.22)');
-    shGrad.addColorStop(0.65, isLandStanding ? 'rgba(45, 68, 45, 0.12)' : 'rgba(55, 95, 108, 0.08)');
-    shGrad.addColorStop(1, 'rgba(65, 90, 65, 0)');
-    ctx.fillStyle = shGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, 215, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    if (!isClimbing) {
+      ctx.save();
+      const shadowY = (isLandStanding ? 186 : 232 - effectiveBodyY * 0.2) + currentAnimalPitch * 12;
+      const shadowScale = isLandStanding ? 1.06 + Math.cos(walkPhase * 2) * 0.022 * activityScale : 1 - effectiveBodyY * 0.003;
+      ctx.translate(-6 + (isLandStanding ? walkSurge * 0.6 : swimSurge * 0.5) + currentAnimalYaw * 14, shadowY);
+      ctx.scale(shadowScale, (isLandStanding ? 0.19 : 0.22) * (1 + Math.abs(currentAnimalPitch) * 0.25));
+      const shGrad = ctx.createRadialGradient(0, 0, 14, 0, 0, 215);
+      shGrad.addColorStop(0, isLandStanding ? 'rgba(45, 68, 45, 0.28)' : 'rgba(55, 95, 108, 0.22)');
+      shGrad.addColorStop(0.65, isLandStanding ? 'rgba(45, 68, 45, 0.12)' : 'rgba(55, 95, 108, 0.08)');
+      shGrad.addColorStop(1, 'rgba(65, 90, 65, 0)');
+      ctx.fillStyle = shGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, 215, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Root body transform: Continuous blend between walking/swimming locomotion and emotion gestures
     const nearGestureWeight = clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1);
@@ -1022,7 +1039,7 @@ export interface AnimalRenderOptions {
         headX: pose.headX + Math.cos(walkPhase - 0.5) * 1.4 * activityScale + currentAnimalYaw * 16,
         headY: pose.headY - Math.sin(walkPhase * 2 - 0.65) * 1.8 * activityScale + breathWave * 1.1 * (1 - activityScale) + currentAnimalPitch * 12,
         headLookX: clamp(pose.headLookX + currentAnimalYaw * 0.55, -1.2, 1.2),
-        headLookY: clamp(pose.headLookY + currentAnimalPitch * 0.55, -1.2, 1.2),
+        headLookY: clamp(pose.headLookY + (isClimbing ? -0.32 * activityScale : 0) + currentAnimalPitch * 0.55, -1.2, 1.2),
         nearFlipperAngle:
           (1 - nearGestureWeight) * (pose.nearFlipperAngle * (1 - activityScale * 0.65) + walkStrideFrontNear) +
           nearGestureWeight * pose.nearFlipperAngle,
@@ -1039,20 +1056,24 @@ export interface AnimalRenderOptions {
         bodyY: effectiveBodyY + currentAnimalPitch * 8,
         bodyRot: effectiveBodyRot + currentAnimalYaw * 0.025,
         shellOffsetX: pose.shellOffsetX - currentAnimalYaw * 6,
-        shellOffsetY: pose.shellOffsetY + Math.sin(swimPhase - 0.55) * 3.2 * activityScale - currentAnimalPitch * 5,
-        shellRot: pose.shellRot + Math.sin(swimPhase - 0.65) * 0.022 * activityScale,
+        shellOffsetY: pose.shellOffsetY + (isSeaTurtle ? 0 : Math.sin(swimPhase - 0.55) * 3.2 * activityScale) - currentAnimalPitch * 5,
+        shellRot: pose.shellRot + (isSeaTurtle ? 0 : Math.sin(swimPhase - 0.65) * 0.022 * activityScale),
         headX: pose.headX + currentAnimalYaw * 16,
-        headY: pose.headY + Math.sin(swimPhase + 0.35) * 1.4 * activityScale + currentAnimalPitch * 12,
+        headY: pose.headY + (isSeaTurtle ? 0 : Math.sin(swimPhase + 0.35) * 1.4 * activityScale) + currentAnimalPitch * 12,
         headLookX: clamp(pose.headLookX + currentAnimalYaw * 0.55, -1.2, 1.2),
         headLookY: clamp(pose.headLookY + currentAnimalPitch * 0.55, -1.2, 1.2),
         nearFlipperAngle:
-          (1 - nearGestureWeight) * (pose.nearFlipperAngle * (1 - activityScale * 0.5) + swimFinScull) +
-          nearGestureWeight * pose.nearFlipperAngle,
+          isSeaTurtle
+            ? pose.nearFlipperAngle
+            : (1 - nearGestureWeight) * (pose.nearFlipperAngle * (1 - activityScale * 0.5) + swimFinScull) +
+              nearGestureWeight * pose.nearFlipperAngle,
         farFlipperAngle:
-          (1 - farGestureWeight) * (pose.farFlipperAngle * (1 - activityScale * 0.5) - swimFinScull) +
-          farGestureWeight * pose.farFlipperAngle,
-        hindNearAngle: pose.hindNearAngle * (1 - activityScale * 0.5) + swimTailKick,
-        hindFarAngle: pose.hindFarAngle * (1 - activityScale * 0.5) - swimTailKick,
+          isSeaTurtle
+            ? pose.farFlipperAngle
+            : (1 - farGestureWeight) * (pose.farFlipperAngle * (1 - activityScale * 0.5) - swimFinScull) +
+              farGestureWeight * pose.farFlipperAngle,
+        hindNearAngle: isSeaTurtle ? pose.hindNearAngle : pose.hindNearAngle * (1 - activityScale * 0.5) + swimTailKick,
+        hindFarAngle: isSeaTurtle ? pose.hindFarAngle : pose.hindFarAngle * (1 - activityScale * 0.5) - swimTailKick,
         waveRaysPhase: pose.waveRaysPhase || swimPhase,
       };
 
@@ -6245,7 +6266,20 @@ export interface AnimalRenderOptions {
     ctx.translate(pose.shellOffsetX, pose.shellOffsetY);
     ctx.rotate(pose.shellRot);
 
-    drawHawksbillFlipper(38, 36, pose.farFlipperAngle * 0.45 - 0.58, 126, 42);
+    const chinAmt = pose.farFlipperChinAmount;
+    const raiseAmt = pose.farFlipperRaiseAmount;
+    const tuckAmt = pose.nearFlipperTuckAmount;
+    const downAmt = pose.nearFlipperDownAmount;
+
+    if (chinAmt <= 0.4) {
+      drawHawksbillFlipper(
+        38 + raiseAmt * 18,
+        36 - raiseAmt * 28,
+        pose.farFlipperAngle * 0.45 - 0.58 - raiseAmt * 0.85,
+        126,
+        42,
+      );
+    }
     drawHawksbillFlipper(-104, 34, pose.hindNearAngle * 0.5 + 0.88, 92, 36);
     drawHawksbillFlipper(-38, 56, pose.hindFarAngle * 0.45 + 0.18, 78, 34);
 
@@ -6332,14 +6366,15 @@ export interface AnimalRenderOptions {
     ctx.strokeStyle = outline;
     ctx.stroke(shellP);
 
-    // Phase 1: Hawksbill near front flipper waves at a 120° rear-upper offset away from the head
-    drawHawksbillFlipper(
-      -58,
-      28,
-      pose.nearFlipperAngle * (0.4 + 0.22 * waveAmt) + 0.22 + waveAmt * 2.08,
-      132,
-      46,
-    );
+    if (tuckAmt <= 0.5) {
+      const nearAng =
+        waveAmt >= 0.45
+          ? pose.nearFlipperAngle * 0.45 + 2.25
+          : downAmt < 0.7
+            ? -0.35 + pose.nearFlipperAngle * 0.6
+            : 0.14 + pose.nearFlipperAngle * 0.65;
+      drawHawksbillFlipper(-58, 28, nearAng, 132, 46);
+    }
 
     ctx.save();
     ctx.translate(42 + pose.headX * 0.6, -18 + pose.headY * 0.6);
@@ -6388,6 +6423,14 @@ export interface AnimalRenderOptions {
     drawGlossyAnimalEye(ctx, 'right', 60 + lookX * 0.75, -2 + lookY * 0.7, 14.5, 17, 0.1, pose, IRIS_PALETTES.amber, skinLight, skinMid, outline);
     drawExpressiveAnimalBrows(ctx, -4 + lookX * 0.7, -32 + lookY * 0.7, 60 + lookX * 0.75, -26 + lookY * 0.7, 24, pose, outline, 3.4);
     ctx.restore();
+
+    if (tuckAmt > 0.5) {
+      drawHawksbillFlipper(-22, 24, -1.25 + pose.nearFlipperAngle * 0.35, 118, 44);
+    }
+    if (chinAmt > 0.4) {
+      drawHawksbillFlipper(68, 28, -2.1 + pose.farFlipperAngle * 0.25, 114, 40);
+    }
+
     ctx.restore();
   }
 

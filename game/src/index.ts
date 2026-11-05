@@ -168,6 +168,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   const foodList = Object.values(FOOD_CATALOG);
 
   let rejectedDrops: RejectedDropAnimation[] = [];
+  let floatingCoins: import('./game/types').FloatingGreenbit[] = [];
   const shoreShells = [
     { id: 'sh1', x: 364000, y: 420 },
     { id: 'sh2', x: 412000, y: 432 },
@@ -1170,6 +1171,30 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     return floorY - 18;
   }
 
+  function applyAnimalCareAndAwardLevelUp(animal: PlacedAnimal, xpGain: number): void {
+    const res = recordAnimalCareInteraction(animal, xpGain);
+    if (res.greenbitsEarned > 0) {
+      saveState.greenbits += res.greenbitsEarned;
+      options?.onBalanceChange?.(saveState.greenbits);
+      floatingCoins.push({
+        uid: `gb_${Date.now()}_${Math.random()}`,
+        x: animal.x,
+        y: animal.y - 64,
+        vy: -46,
+        amount: res.greenbitsEarned,
+        label: `Lv.${res.oldLevel} → Lv.${res.newLevel} (+${res.greenbitsEarned})`,
+        alpha: 1,
+        collected: false,
+      });
+      soundEngine.playCoinChime();
+      syncHudDOM();
+      const rawName = ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
+      const displayName = animal.customName || getLocalizedAssetName(animal.assetId, rawName, currentLang);
+      showToast(`${displayName} Lv.${res.oldLevel} → Lv.${res.newLevel}! +${res.greenbitsEarned} Greenbits`, 3200);
+    }
+    persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+  }
+
   /** Grazing an aquatic plant in place: the animal eats the plant itself, not a store item. */
   function startAnimalGrazing(animal: PlacedAnimal, plant: PlacedPlant): void {
     const eco = ASSET_ECO_CONFIG[plant.assetId];
@@ -1184,7 +1209,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     animal.eatingTimerSec = 1.8;
     animal.eatingFoodId = undefined;
     animal.hunger = Math.min(100, animal.hunger + 30);
-    recordAnimalCareInteraction(animal, 10);
+    applyAnimalCareAndAwardLevelUp(animal, 18);
     animal.currentEmotion = 'laugh';
     animal.emotionTimerSec = 3.5;
     soundEngine.playEatMunch();
@@ -1200,7 +1225,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       100,
       animal.hunger + (foodSpec?.hungerRestore ?? 35) * (isGolden ? 1.5 : 1),
     );
-    recordAnimalCareInteraction(animal, 18);
+    applyAnimalCareAndAwardLevelUp(animal, 26);
     animal.currentEmotion = 'laugh';
     animal.emotionTimerSec = 3.5;
 
@@ -1466,7 +1491,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     if (mode === 'pet') {
       animal.currentEmotion = 'laugh';
       animal.emotionTimerSec = 3.6;
-      recordAnimalCareInteraction(animal, 12);
+      applyAnimalCareAndAwardLevelUp(animal, 15);
       soundEngine.playLaughGiggle();
       renderEntityCard();
       showToast(getGameString('isHappy', currentLang).replace('{name}', displayName));
@@ -1476,7 +1501,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const reaction = rollAwakeTapReaction(Math.random());
     animal.currentEmotion = reaction;
     animal.emotionTimerSec = 3.6;
-    recordAnimalCareInteraction(animal, 8);
+    applyAnimalCareAndAwardLevelUp(animal, 12);
     soundEngine.playWaveChirp();
     renderEntityCard();
     showToast(
@@ -1741,7 +1766,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const closeBtn = document.createElement('button');
     closeBtn.className = 'modal-close-btn buy-confirm-close-btn';
     closeBtn.textContent = getGameString('close', currentLang);
-    closeBtn.setAttribute('aria-label', getGameString('cancel', currentLang));
+    closeBtn.setAttribute('aria-label', getGameString('close', currentLang));
     closeBtn.style.position = 'absolute';
     closeBtn.style.top = '14px';
     closeBtn.style.right = '14px';
@@ -1787,23 +1812,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     confirmBtn.className = 'primary-button';
     confirmBtn.style.width = '100%';
     confirmBtn.style.minHeight = '48px';
-    confirmBtn.style.marginBottom = '10px';
+    confirmBtn.style.marginBottom = '0';
     confirmBtn.textContent = getGameString('confirmBuy', currentLang);
     confirmBtn.addEventListener('click', () => {
       backdrop.remove();
       onConfirm();
     });
 
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'text-button';
-    cancelBtn.style.width = '100%';
-    cancelBtn.style.color = '#15432a';
-    cancelBtn.style.fontWeight = '700';
-    cancelBtn.textContent = getGameString('cancel', currentLang);
-    cancelBtn.addEventListener('click', () => backdrop.remove());
-
-    card.append(closeBtn, itemImg, heading, prompt, confirmBtn, cancelBtn);
+    // Single dismiss control: the top-right Close button (redundant Cancel button removed)
+    card.append(closeBtn, itemImg, heading, prompt, confirmBtn);
     backdrop.appendChild(card);
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) backdrop.remove();
@@ -1859,30 +1876,75 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     link.rel = 'noopener noreferrer';
     link.textContent = getGameString('learnMore', currentLang);
 
+    const ecoMeta = ASSET_ECO_CONFIG[itemId];
+    const dietFoodIds = ecoMeta?.kind === 'animal' ? (ecoMeta.dietFoodIds ?? []) : [];
     const dietText = getAnimalRealLifeDiet(itemId, currentLang);
-    if (dietText) {
-      const divider = document.createElement('hr');
-      divider.className = 'info-popup-divider';
+    if (dietFoodIds.length > 0 || dietText) {
+      const divider = document.createElement('div');
+      divider.className = 'info-popup-divider-line';
+      divider.style.margin = '10px 0 8px';
+      divider.style.color = 'rgba(21, 67, 42, 0.55)';
+      divider.style.fontWeight = '700';
+      divider.style.letterSpacing = '1px';
+      divider.textContent = '-----------';
 
       const dietBlock = document.createElement('div');
       dietBlock.className = 'info-popup-diet-block';
 
       const dietLabel = document.createElement('div');
       dietLabel.className = 'info-popup-diet-label';
-      dietLabel.textContent =
-        currentLang === '中文'
-          ? '饮食习惯：'
-          : currentLang === 'Bahasa Melayu'
-          ? 'Pemakanannya:'
-          : currentLang === 'தமிழ்'
-          ? 'உணவு முறை:'
-          : 'Its diet:';
+      dietLabel.style.fontWeight = '800';
+      dietLabel.style.marginBottom = '6px';
+      dietLabel.textContent = 'Diet:';
 
-      const dietSentence = document.createElement('p');
-      dietSentence.className = 'info-popup-text info-popup-diet-sentence';
-      dietSentence.innerHTML = dietText;
+      dietBlock.appendChild(dietLabel);
 
-      dietBlock.append(dietLabel, dietSentence);
+      if (dietFoodIds.length > 0) {
+        const dietList = document.createElement('div');
+        dietList.className = 'info-popup-diet-list';
+        dietList.style.display = 'flex';
+        dietList.style.flexDirection = 'column';
+        dietList.style.gap = '4px';
+        dietList.style.marginBottom = '8px';
+
+        for (const fId of dietFoodIds) {
+          const fSpec = FOOD_CATALOG[fId];
+          if (!fSpec) continue;
+          const locFoodName = getLocalizedFoodName(fId, fSpec.name, currentLang);
+          const itemLine = document.createElement('div');
+          itemLine.style.fontSize = '14px';
+          itemLine.style.lineHeight = '1.45';
+          itemLine.style.color = '#1a1c15';
+
+          const bullet = document.createElement('span');
+          bullet.textContent = '- ';
+
+          const foodLink = document.createElement('a');
+          foodLink.href = `#store-food-${fId}`;
+          foodLink.className = 'diet-store-link';
+          foodLink.textContent = locFoodName;
+          foodLink.style.color = '#15803d';
+          foodLink.style.fontWeight = '700';
+          foodLink.style.textDecoration = 'underline';
+          foodLink.style.cursor = 'pointer';
+          foodLink.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            backdrop.remove();
+            openStoreModal('food', fId);
+          });
+
+          itemLine.append(bullet, foodLink);
+          dietList.appendChild(itemLine);
+        }
+        dietBlock.appendChild(dietList);
+      } else if (dietText) {
+        const dietSentence = document.createElement('p');
+        dietSentence.className = 'info-popup-text info-popup-diet-sentence';
+        dietSentence.innerHTML = dietText;
+        dietBlock.appendChild(dietSentence);
+      }
+
       card.append(header, text, divider, dietBlock, link);
     } else {
       card.append(header, text, link);
@@ -1898,7 +1960,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   // MODAL 1: CUTE & CLEAN SANCTUARY STORE
   // Only Name + (i) SVG on right of name + Buy button with Greenbit logo
   // ============================================================================
-  function openStoreModal(initialTab: StoreTab = 'animals'): void {
+  function openStoreModal(initialTab: StoreTab = 'animals', highlightFoodId?: string): void {
     activeStoreTab = initialTab;
     const existing = document.getElementById('store-modal');
     if (existing) existing.remove();
@@ -2015,6 +2077,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         for (const food of filteredFood) {
           const card = document.createElement('div');
           card.className = 'store-item-card';
+          card.dataset.storeFoodId = food.id;
 
           const thumb = document.createElement('img');
           thumb.className = 'store-item-thumb';
@@ -2174,6 +2237,22 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     sheet.append(header, body);
     backdrop.appendChild(sheet);
     root!.appendChild(backdrop);
+
+    if (highlightFoodId && activeStoreTab === 'food') {
+      window.requestAnimationFrame(() => {
+        const targetCard = grid.querySelector(`[data-store-food-id="${highlightFoodId}"]`) as HTMLElement | null;
+        if (targetCard) {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetCard.style.outline = '3px solid #16a34a';
+          targetCard.style.boxShadow = '0 0 0 6px rgba(34, 197, 94, 0.28)';
+          targetCard.style.transition = 'outline 0.3s ease, box-shadow 0.3s ease';
+          window.setTimeout(() => {
+            targetCard.style.outline = '';
+            targetCard.style.boxShadow = '';
+          }, 2800);
+        }
+      });
+    }
   }
 
   // ============================================================================
@@ -2784,11 +2863,17 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       }
     }
 
-    // 4. Update Rejected Drop Animations
+    // 4. Update Rejected Drop Animations & Floating Level-Up Greenbits
     for (const rej of rejectedDrops) {
       rej.progress += dt * 1.45;
     }
     rejectedDrops = rejectedDrops.filter((rej) => rej.progress < 1);
+
+    for (const coin of floatingCoins) {
+      coin.y += coin.vy * dt;
+      coin.alpha -= dt * 0.45;
+    }
+    floatingCoins = floatingCoins.filter((coin) => coin.alpha > 0.02);
 
     // 5. Update Placed Animals (Stop-on-Site Emotes, 6h Biological Hunger, Foraging & Collision Avoidance)
     const animals = saveState.placedAnimals;
@@ -2874,6 +2959,31 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const targetLoco = isStoppedOnSite ? 0 : 1;
       animal.locoBlend =
         (animal.locoBlend ?? 1) + (targetLoco - (animal.locoBlend ?? 1)) * Math.min(1, dt * 8);
+
+      // Smooth vertical climbing / perching transition when not falling
+      if (!animal.isFalling) {
+        const desiredRestY = getAnimalRestY(animal, saveState.placedPlants, viewportHeight);
+        const dyRest = desiredRestY - animal.y;
+        const nearTree =
+          eco?.canopyHabit === 'canopy' ? findPerchTree(animal, saveState.placedPlants, 220) : null;
+        if (Math.abs(dyRest) > 4) {
+          const climbSpeed = nearTree ? 95 : 130;
+          const stepY = Math.sign(dyRest) * Math.min(Math.abs(dyRest), climbSpeed * dt);
+          animal.y += stepY;
+          animal.isClimbing = Boolean(nearTree && Math.abs(dyRest) > 7);
+        } else {
+          animal.y = desiredRestY;
+          // Also show climbing motion when actively ascending/descending along the trunk center
+          animal.isClimbing = Boolean(
+            nearTree &&
+              Math.abs(animal.x - nearTree.x) < 28 &&
+              (animal.locoBlend ?? 1) > 0.25 &&
+              animal.emotionTimerSec <= 0,
+          );
+        }
+      } else {
+        animal.isClimbing = false;
+      }
 
       // Only move/walk when NOT doing an emote on site, NOT falling, and NOT sleeping
       if (!isStoppedOnSite && !animal.isFalling && animal.locoBlend > 0.15) {
@@ -3054,7 +3164,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         zoom: cameraZoom,
         state: saveState,
         elapsedSec: totalElapsedSec,
-        floatingCoins: [],
+        floatingCoins,
         rejectedDrops,
         activeDrag: activeDrag
           ? {
