@@ -684,11 +684,11 @@ function drawDetailedLeaf(
 
     const [lLight, lMid, lDark] = leafColors;
     for (const item of boughItems) {
-      const { forkX, forkY, subEndX, subEndY, endX, endY, dir } = item;
+      const { forkX, forkY, endX, endY, dir } = item;
       drawDetailedLeaf(
         ctx,
-        forkX + dir * 8,
-        forkY - 8,
+        forkX,
+        forkY,
         dir > 0 ? -0.45 + sway * 0.1 : -2.68 + sway * 0.1,
         24,
         9.5,
@@ -697,21 +697,7 @@ function drawDetailedLeaf(
         lDark,
         'rgba(240,255,220,0.6)',
         '#152914',
-        true,
-      );
-      drawDetailedLeaf(
-        ctx,
-        subEndX,
-        subEndY,
-        dir > 0 ? -0.85 + sway * 0.12 : -2.28 + sway * 0.12,
-        22,
-        9,
-        lLight,
-        lMid,
-        lDark,
-        'rgba(240,255,220,0.6)',
-        '#152914',
-        true,
+        false,
       );
       drawDetailedLeaf(
         ctx,
@@ -725,7 +711,7 @@ function drawDetailedLeaf(
         lDark,
         'rgba(240,255,220,0.6)',
         '#152914',
-        true,
+        false,
       );
     }
   }
@@ -827,9 +813,14 @@ function drawDetailedLeaf(
     outline = '#152914',
     flowerPalette?: readonly [string, string, string, string],
   ): void {
+    const hubX = 0;
+    const hubY = ry * 0.64;
+
     ctx.save();
-    ctx.translate(cx + sway * 22 + activePlant3DYaw * 18, cy + activePlant3DPitch * -14);
-    ctx.rotate(sway * 0.08 + activePlant3DYaw * 0.04);
+    ctx.translate(cx + sway * 22 + activePlant3DYaw * 14, cy + activePlant3DPitch * -8);
+    ctx.translate(hubX, hubY);
+    ctx.rotate(sway * 0.05 + activePlant3DYaw * 0.03);
+    ctx.translate(-hubX, -hubY);
 
     const isTualang = activePlantAssetId.includes('tualang');
     const isDurian = activePlantAssetId.includes('durian');
@@ -859,9 +850,6 @@ function drawDetailedLeaf(
         mt * mt * y0 + 2 * mt * t * cy1 + t * t * y2,
       ];
     };
-
-    const hubX = 0;
-    const hubY = ry * 0.64;
 
     // 0. Lush, layered under-canopy foliage silhouette cushion behind the upper branch network
     // (Leaves the lower basal hub (0, hubY) open so the trunk/bough visibly enters and forks!)
@@ -915,8 +903,6 @@ function drawDetailedLeaf(
     // Exact midpoints on the secondary limbs for anchoring tertiary twiglets
     const [lMidSubX, lMidSubY] = evalQuad(pLeftMid[0], pLeftMid[1], pLeftMid[2], pLeftMid[3], pLeftMid[4], pLeftMid[5], 0.52);
     const [rMidSubX, rMidSubY] = evalQuad(pRightMid[0], pRightMid[1], pRightMid[2], pRightMid[3], pRightMid[4], pRightMid[5], 0.52);
-    const [lHighSubX, lHighSubY] = evalQuad(pLeftHigh[0], pLeftHigh[1], pLeftHigh[2], pLeftHigh[3], pLeftHigh[4], pLeftHigh[5], 0.52);
-    const [rHighSubX, rHighSubY] = evalQuad(pRightHigh[0], pRightHigh[1], pRightHigh[2], pRightHigh[3], pRightHigh[4], pRightHigh[5], 0.52);
     const [cMidSubX, cMidSubY] = evalQuad(pCenter[0], pCenter[1], pCenter[2], pCenter[3], pCenter[4], pCenter[5], 0.58);
 
     // 2. Every leaf spray [lx, ly, ang, baseLen, parentX, parentY] is anchored to an EXACT point on branchCoords!
@@ -930,56 +916,13 @@ function drawDetailedLeaf(
       [-rx * 0.38, -ry * 0.74, -1.88, 46, pLeftHigh[4], pLeftHigh[5]],
       [rx * 0.38, -ry * 0.74, -1.26, 46, pRightHigh[4], pRightHigh[5]],
       [0, -ry * 0.84, -1.57, 50, pCenter[4], pCenter[5]],
-      [-rx * 0.52, ry * 0.16, -2.52, 46, lFork2X, lFork2Y],
-      [rx * 0.52, ry * 0.16, -0.62, 46, rFork2X, rFork2Y],
       [-rx * 0.38, -ry * 0.16, -2.12, 48, lMidSubX, lMidSubY],
       [rx * 0.38, -ry * 0.16, -1.02, 48, rMidSubX, rMidSubY],
-      [-rx * 0.20, -ry * 0.45, -1.78, 46, lHighSubX, lHighSubY],
-      [rx * 0.20, -ry * 0.45, -1.36, 46, rHighSubX, rHighSubY],
       [0, -ry * 0.26, -1.57, 46, cMidSubX, cMidSubY],
-      [-rx * 0.64, ry * 0.22, -2.68, 42, lFork2X, lFork2Y],
-      [rx * 0.64, ry * 0.22, -0.46, 42, rFork2X, rFork2Y],
-      [-rx * 0.24, ry * 0.32, -2.25, 42, lFork1X, lFork1Y],
-      [rx * 0.24, ry * 0.32, -0.88, 42, rFork1X, rFork1Y],
     ];
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-
-    // Shaded inner under-canopy individual leaves anchored directly along the wooden limbs
-    for (const [x0, y0, cx1, cy1, x2, y2] of branchCoords) {
-      const underAng = Math.atan2(y2 - y0, x2 - x0);
-      const [midX, midY] = evalQuad(x0, y0, cx1, cy1, x2, y2, 0.5);
-      const [q3X, q3Y] = evalQuad(x0, y0, cx1, cy1, x2, y2, 0.78);
-      drawDetailedLeaf(
-        ctx,
-        midX,
-        midY,
-        underAng - 0.52 + sway * 0.08,
-        38,
-        15,
-        cMid,
-        cDark,
-        '#0b2210',
-        'rgba(187, 247, 208, 0.42)',
-        outline,
-        false,
-      );
-      drawDetailedLeaf(
-        ctx,
-        q3X,
-        q3Y,
-        underAng + 0.52 + sway * 0.08,
-        36,
-        14,
-        cMid,
-        cDark,
-        '#0b2210',
-        'rgba(187, 247, 208, 0.42)',
-        outline,
-        false,
-      );
-    }
 
     // Two-pass welded wooden limb & twig rendering:
     // Pass 1: Dark bark outline for all primary/secondary limbs and connected tertiary twigs
@@ -1038,9 +981,9 @@ function drawDetailedLeaf(
         ctx.moveTo(-4, 0);
         ctx.lineTo(baseLen * 1.12, 0);
         ctx.stroke();
-        for (const t of [0.22, 0.48, 0.74, 0.96]) {
-          drawDetailedLeaf(ctx, baseLen * t, -2, -0.85, 19, 7.5, cLight, cMid, cDark, 'rgba(240,255,220,0.7)', outline, false);
-          drawDetailedLeaf(ctx, baseLen * t, 2, 0.85, 19, 7.5, cLight, cMid, cDark, 'rgba(240,255,220,0.7)', outline, false);
+        for (const t of [0.24, 0.56, 0.88]) {
+          drawDetailedLeaf(ctx, baseLen * t, 0, -0.82, 19, 7.5, cLight, cMid, cDark, 'rgba(240,255,220,0.7)', outline, false);
+          drawDetailedLeaf(ctx, baseLen * t, 0, 0.82, 19, 7.5, cLight, cMid, cDark, 'rgba(240,255,220,0.7)', outline, false);
         }
         // Terminal leaflet at tip of compound rachis
         drawDetailedLeaf(ctx, baseLen * 1.08, 0, 0, 18, 7.0, cLight, cMid, cDark, 'rgba(240,255,220,0.7)', outline, false);
@@ -1663,13 +1606,13 @@ function drawDetailedLeaf(
         // - 2 wide lower horizontal honey-bearing boughs reaching (-104, -44) & (104, -42)
         // - 2 mid ascending boughs reaching (-78, -74) & (78, -72)
         // - 2 tall central ascending leader boughs converging into the top umbrella crown hub (0, -108)
-        drawWoodyTrunkAndBranches(ctx, sway, 244, 34, 15, '#d6d3c9', '#9e9a8e', '#5c584f', true, [
-          [-0.46, -0.68, -98, -26, 18],
-          [0.46, -0.67, 98, -25, 18],
-          [-0.36, -0.82, -74, -36, 15],
-          [0.36, -0.82, 74, -35, 15],
-          [-0.18, -0.95, -24, -38, 13],
-          [0.18, -0.95, 24, -38, 13],
+        drawWoodyTrunkAndBranches(ctx, sway, 258, 34, 15, '#d6d3c9', '#9e9a8e', '#5c584f', true, [
+          [-0.44, -0.66, -98, -28, 18],
+          [0.44, -0.65, 98, -27, 18],
+          [-0.34, -0.80, -74, -36, 15],
+          [0.34, -0.80, 74, -35, 15],
+          [-0.18, -0.94, -22, -36, 13],
+          [0.18, -0.94, 22, -36, 13],
         ]);
 
         // Wild Apis dorsata Tualang honeycombs attached directly flush against the underside of the lower horizontal boughs
@@ -1918,6 +1861,8 @@ function drawDetailedLeaf(
        * ====================================================================== */
       case 'plant_04_mangosteen_tree': {
         drawWoodyTrunkAndBranches(ctx, sway, 195, 28, 14, '#785238', '#4f331f', '#2e1c0f', false);
+        drawCanopyCrown(ctx, -82, -52, 58, 36, sway, '#4ade80', '#15803d', '#064e3b', '#052e16', ['#fbcfe8', '#f472b6', '#db2777', '#facc15']);
+        drawCanopyCrown(ctx, 82, -50, 58, 36, sway, '#4ade80', '#15803d', '#064e3b', '#052e16', ['#fbcfe8', '#f472b6', '#db2777', '#facc15']);
         drawCanopyCrown(ctx, 0, -102, 132, 84, sway, '#4ade80', '#15803d', '#064e3b', '#052e16', ['#fbcfe8', '#f472b6', '#db2777', '#facc15']);
         for (const [mx, my] of (
           [
@@ -2835,6 +2780,8 @@ function drawDetailedLeaf(
        * ====================================================================== */
       case 'plant_15_rambutan_tree': {
         drawWoodyTrunkAndBranches(ctx, sway, 195, 28, 14, '#8c6546', '#5e4028', '#382313', false);
+        drawCanopyCrown(ctx, -82, -52, 58, 36, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#ecfccb', '#bef264', '#84cc16', '#facc15']);
+        drawCanopyCrown(ctx, 82, -50, 58, 36, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#ecfccb', '#bef264', '#84cc16', '#facc15']);
         drawCanopyCrown(ctx, 0, -104, 134, 82, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#ecfccb', '#bef264', '#84cc16', '#facc15']);
         // Branched fruiting panicle stalks connecting rambutan bunches to crown
         for (const [bx, by] of [
@@ -3079,6 +3026,8 @@ function drawDetailedLeaf(
           }
         }
         drawWoodyTrunkAndBranches(ctx, sway, 180, 22, 12, '#8c583a', '#5e371f', '#381e0e', false);
+        drawCanopyCrown(ctx, -78, -46, 56, 34, sway, '#4ade80', '#15803d', '#052e16', '#052e16', ['#fef9c3', '#fde047', '#eab308', '#ca8a04']);
+        drawCanopyCrown(ctx, 78, -44, 56, 34, sway, '#4ade80', '#15803d', '#052e16', '#052e16', ['#fef9c3', '#fde047', '#eab308', '#ca8a04']);
         drawCanopyCrown(ctx, 0, -98, 126, 72, sway, '#4ade80', '#15803d', '#052e16', '#052e16', ['#fef9c3', '#fde047', '#eab308', '#ca8a04']);
         // Elongated viviparous torpedo propagules connected via pedicel stalks to the canopy twigs
         for (const [px, py] of (
@@ -3124,6 +3073,8 @@ function drawDetailedLeaf(
           ctx.stroke();
         }
         drawWoodyTrunkAndBranches(ctx, sway, 185, 28, 14, '#8d6e63', '#5d4037', '#3e2723', false);
+        drawCanopyCrown(ctx, -80, -48, 56, 34, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#78350f']);
+        drawCanopyCrown(ctx, 80, -46, 56, 34, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#78350f']);
         drawCanopyCrown(ctx, 0, -96, 132, 78, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#78350f']);
         // Heart-shaped green-gold Api-Api viviparous fruit capsules attached via short woody stalks
         for (const [fx, fy] of (

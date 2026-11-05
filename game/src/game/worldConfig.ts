@@ -68,7 +68,7 @@ export const HABITAT_ZONES: HabitatZoneSpec[] = [
 export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   {
     id: 'tower_forest_canopy',
-    name: 'Tualang High Canopy',
+    name: 'Tualang Canopy',
     zoneId: 'forest',
     worldX: 42000,
     worldYOffset: -460,
@@ -78,7 +78,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_forest_grove',
-    name: 'Taman Negara Glade',
+    name: 'Taman Negara',
     zoneId: 'forest',
     worldX: 85500,
     worldYOffset: 0,
@@ -88,7 +88,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_forest_orchard',
-    name: 'Durian & Hibiscus Valley',
+    name: 'Durian Valley',
     zoneId: 'forest',
     worldX: 142000,
     worldYOffset: 0,
@@ -98,7 +98,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_river_shallows',
-    name: 'Lotus & Lily Shallows',
+    name: 'Lotus Shallows',
     zoneId: 'river',
     worldX: 202000,
     worldYOffset: 0,
@@ -108,7 +108,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_river_basin',
-    name: 'Kinabatangan River Bend',
+    name: 'Kinabatangan',
     zoneId: 'river',
     worldX: 247500,
     worldYOffset: 110,
@@ -118,7 +118,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_river_deep',
-    name: 'Arowana Deep Pool',
+    name: 'Arowana Pool',
     zoneId: 'river',
     worldX: 292000,
     worldYOffset: 320,
@@ -128,7 +128,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_mud_mangrove',
-    name: 'Matang Mangrove Crown',
+    name: 'Matang Crown',
     zoneId: 'mud',
     worldX: 356000,
     worldYOffset: -180,
@@ -138,7 +138,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_mud_estuary',
-    name: 'Intertidal Stilt-Root Bank',
+    name: 'Stilt-Root Bank',
     zoneId: 'mud',
     worldX: 391500,
     worldYOffset: 0,
@@ -148,7 +148,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_sea_reef',
-    name: 'Sipadan Sunlit Reef',
+    name: 'Sipadan Reef',
     zoneId: 'sea',
     worldX: 495000,
     worldYOffset: 0,
@@ -158,7 +158,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_sea_sanctuary',
-    name: 'Turtle Seagrass Sanctuary',
+    name: 'Turtle Sanctuary',
     zoneId: 'sea',
     worldX: 543600,
     worldYOffset: 160,
@@ -168,7 +168,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_sea_pelagic',
-    name: 'Whale Shark Pelagic Drift',
+    name: 'Pelagic Drift',
     zoneId: 'sea',
     worldX: 594000,
     worldYOffset: 680,
@@ -178,7 +178,7 @@ export const TELEPORT_TOWERS: TeleportTowerSpec[] = [
   },
   {
     id: 'tower_sea_abyss',
-    name: 'Midnight Pelagic Trench',
+    name: 'Midnight Trench',
     zoneId: 'sea',
     worldX: 630000,
     worldYOffset: 1380,
@@ -737,13 +737,13 @@ const ANIMAL_ZONE_OVERRIDES: Record<
     price: 300,
     passive: 0,
     diet: ['fruit'],
-    dietFoods: ['food_durian_fruit', 'food_wild_figs', 'food_rambutan_fruit'],
+    dietFoods: ['food_durian_fruit', 'food_banana_bunch', 'food_wild_figs'],
     favFood: 'food_durian_fruit',
     radius: 76,
     habit: 'canopy',
     sentences: [
       'Known as the Person of the Forest in Malay, the Bornean Orangutan has shaggy reddish-orange hair and long, powerful arms.',
-      'Highly intelligent and gentle, it climbs tall rainforest trees and spends its life in the canopy eating wild durians, figs, and rambutans.',
+      'Highly intelligent and gentle, it climbs tall rainforest trees and spends its life in the canopy eating wild durians, bananas, and figs.',
     ],
   },
   animal_05_sun_bear: {
@@ -2014,38 +2014,53 @@ export function canAnimalEatFood(animalAssetId: string, foodId: string): boolean
  */
 export function createDefaultSanctuaryPlants(): PlacedPlant[] {
   const specs: Array<{ assetId: string; zoneId: HabitatZoneId; x: number; stage: 1 | 2 | 3 }> = [
-    // 1. Rainforest Land (x: 0 .. 171,000): Varied canopy trees, palms, ferns & understory blooms
+    // 1. Rainforest Land (x: 0 .. 171,000): Multi-style varied canopy trees, palms, fruit trees, ferns & blooms
     { assetId: 'plant_02_tualang_tree', zoneId: 'forest', x: 41650, stage: 2 },
     { assetId: 'plant_17_tree_fern', zoneId: 'forest', x: 42320, stage: 2 },
+    { assetId: 'plant_08_tropical_pitcher_plant', zoneId: 'forest', x: 42900, stage: 2 },
     { assetId: 'plant_14_banyan_fig', zoneId: 'forest', x: 85100, stage: 2 },
     { assetId: 'plant_10_torch_ginger', zoneId: 'forest', x: 85780, stage: 2 },
     { assetId: 'plant_07_bamboo', zoneId: 'forest', x: 86350, stage: 2 },
+    { assetId: 'plant_05_banana_plant', zoneId: 'forest', x: 86980, stage: 2 },
+    { assetId: 'plant_04_mangosteen_tree', zoneId: 'forest', x: 111600, stage: 2 },
+    { assetId: 'plant_15_rambutan_tree', zoneId: 'forest', x: 112350, stage: 2 },
+    { assetId: 'plant_06_papaya_tree', zoneId: 'forest', x: 112980, stage: 2 },
     { assetId: 'plant_03_durian_tree', zoneId: 'forest', x: 141250, stage: 2 },
     { assetId: 'plant_01_rafflesia', zoneId: 'forest', x: 141760, stage: 2 },
     { assetId: 'plant_11_hibiscus', zoneId: 'forest', x: 142320, stage: 2 },
+    { assetId: 'plant_12_ixora', zoneId: 'forest', x: 142860, stage: 2 },
 
-    // 2. River Pond Basin (x: 171,000 .. 324,000): Diverse floating & submerged freshwater flora
+    // 2. River Pond Basin (x: 171,000 .. 324,000): Multi-style floating & submerged freshwater flora
     { assetId: 'plant_26_lotus', zoneId: 'river', x: 201620, stage: 2 },
     { assetId: 'plant_27_water_lily', zoneId: 'river', x: 202260, stage: 2 },
     { assetId: 'plant_30_water_spinach', zoneId: 'river', x: 202820, stage: 2 },
     { assetId: 'plant_25_water_hyacinth', zoneId: 'river', x: 247150, stage: 2 },
     { assetId: 'plant_29_hornwort', zoneId: 'river', x: 247780, stage: 2 },
+    { assetId: 'plant_26_lotus', zoneId: 'river', x: 248360, stage: 2 },
     { assetId: 'plant_28_duckweed', zoneId: 'river', x: 291650, stage: 2 },
     { assetId: 'plant_29_hornwort', zoneId: 'river', x: 292280, stage: 2 },
+    { assetId: 'plant_27_water_lily', zoneId: 'river', x: 292850, stage: 2 },
 
-    // 3. Mud / Mangrove Shore (x: 324,000 .. 459,000): Diverse stilt-root mangroves, pneumatophore Api-Api, Nipa & coastal palms
+    // 3. Mud / Mangrove Shore (x: 324,000 .. 459,000): Multi-style stilt-root mangroves, Api-Api, Nipa, coconut & sugar palms
     { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 355560, stage: 2 },
     { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 356280, stage: 2 },
+    { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 356920, stage: 2 },
     { assetId: 'plant_20_api_api_mangrove', zoneId: 'mud', x: 391120, stage: 2 },
     { assetId: 'plant_13_coconut_palm', zoneId: 'mud', x: 391860, stage: 2 },
     { assetId: 'plant_16_sugar_palm', zoneId: 'mud', x: 392480, stage: 2 },
+    { assetId: 'plant_19_red_mangrove', zoneId: 'mud', x: 393120, stage: 2 },
+    { assetId: 'plant_21_nipa_palm', zoneId: 'mud', x: 425400, stage: 2 },
+    { assetId: 'plant_13_coconut_palm', zoneId: 'mud', x: 426150, stage: 2 },
 
-    // 4. Coral Sea Shallow Sunlit Reef & Seagrass Meadow (x: 465,000 .. 545,000): All 3 distinct seagrass species
+    // 4. Coral Sea Shallow Sunlit Reef & Seagrass Meadow (x: 465,000 .. 548,000): Multi-style seagrass & turtle grass meadows
     { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 494620, stage: 2 },
     { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 495340, stage: 2 },
-    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 543160, stage: 2 },
-    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 543920, stage: 2 },
-    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 544460, stage: 2 },
+    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 495980, stage: 2 },
+    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 542760, stage: 2 },
+    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 543260, stage: 2 },
+    { assetId: 'plant_24_eelgrass', zoneId: 'sea', x: 543860, stage: 2 },
+    { assetId: 'plant_23_tropical_turtle_grass_thalassia_hemprichii', zoneId: 'sea', x: 544420, stage: 2 },
+    { assetId: 'plant_22_tropical_seagrass_enhalus_acoroides', zoneId: 'sea', x: 544960, stage: 2 },
   ];
 
   return specs.map((s, idx) => ({

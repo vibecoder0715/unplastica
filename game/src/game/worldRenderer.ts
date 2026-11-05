@@ -48,92 +48,140 @@ const animalRestYCache = new Map<string, number>();
 let lastWorldElapsedSec = -1;
 let worldFrameDt = 0.016;
 
+let cachedGreenbitsLogoImg: HTMLImageElement | null = null;
+let greenbitsLogoLoading = false;
+
+export function getGreenbitsCoinImage(): HTMLImageElement | null {
+  if (typeof Image === 'undefined') return null;
+  if (!cachedGreenbitsLogoImg && !greenbitsLogoLoading) {
+    greenbitsLogoLoading = true;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => {
+      cachedGreenbitsLogoImg = img;
+    };
+    img.src = '/assets/aistudio/image_3961e3ca.png';
+  }
+  return cachedGreenbitsLogoImg;
+}
+
 /**
- * Pure Canvas2D Vector Greenbits Coin.
- * 100% Vector replacement for raster coin bitmap: metallic gold rim, concentric milled edge,
- * glossy radial specular gradient, embossed green sprout/leaf insignia, and ambient glow.
+ * Renders the exact official Greenbit logo (`/assets/aistudio/image_3961e3ca.png`):
+ * - Uses the loaded `/assets/aistudio/image_3961e3ca.png` asset directly when ready.
+ * - Falls back while loading to a 1:1 vector rendition of the official Greenbit logo
+ *   (tilted 3D chartreuse-lime coin with dark forest-green border `#043e21`, 3D green side wall,
+ *   top-left white pill highlight, twin white sprout leaves with dark green outline, and 3 green sparkle pills at top-right).
  */
 export function drawVectorGreenbitsCoin(ctx: CanvasRenderingContext2D, radius = 16): void {
   ctx.save();
 
-  // 1. Subtle outer drop shadow & ambient glow
-  const glowGrad = ctx.createRadialGradient(0, 0, radius * 0.7, 0, 0, radius * 1.25);
-  glowGrad.addColorStop(0, 'rgba(234, 179, 8, 0.35)');
-  glowGrad.addColorStop(1, 'rgba(234, 179, 8, 0)');
-  ctx.fillStyle = glowGrad;
-  ctx.beginPath();
-  ctx.arc(0, 0, radius * 1.25, 0, Math.PI * 2);
-  ctx.fill();
+  const logoImg = getGreenbitsCoinImage();
+  if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+    const size = radius * 2.35;
+    ctx.drawImage(logoImg, -size * 0.5, -size * 0.5, size, size);
+    ctx.restore();
+    return;
+  }
 
-  // 2. Outer golden coin rim (milled edge)
-  const rimGrad = ctx.createLinearGradient(-radius, -radius, radius, radius);
-  rimGrad.addColorStop(0, '#fef08a');
-  rimGrad.addColorStop(0.3, '#eab308');
-  rimGrad.addColorStop(0.7, '#ca8a04');
-  rimGrad.addColorStop(1, '#854d0e');
-  ctx.fillStyle = rimGrad;
-  ctx.strokeStyle = '#422006';
+  const s = radius / 16;
+  ctx.scale(s, s);
+
+  // 1. 3D Coin Outer Dark Forest-Green Border & Left-Bottom Extruded Edge
+  ctx.fillStyle = '#15803d';
+  ctx.strokeStyle = '#043e21';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.arc(-1.2, 1.0, 14.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Diagonal 3D edge shading stripes on lower-left rim
+  ctx.strokeStyle = '#22c55e';
   ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.moveTo(-13.2, -3.5);
+  ctx.lineTo(-9.5, -6.5);
+  ctx.moveTo(-13.8, 1.5);
+  ctx.lineTo(-9.8, -1.5);
+  ctx.moveTo(-12.2, 6.2);
+  ctx.lineTo(-8.2, 3.2);
+  ctx.stroke();
+
+  // 2. Front Tilted Chartreuse-Lime Coin Face
+  const rimGrad = ctx.createLinearGradient(-11, -12, 12, 12);
+  rimGrad.addColorStop(0, '#fef08a');
+  rimGrad.addColorStop(0.35, '#d9f938');
+  rimGrad.addColorStop(1, '#84cc16');
+  ctx.fillStyle = rimGrad;
+  ctx.strokeStyle = '#043e21';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.arc(0.6, -0.4, 12.6, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // Concentric milled inner ring
-  ctx.strokeStyle = 'rgba(254, 240, 138, 0.6)';
-  ctx.lineWidth = 1.0;
+  // 3. Recessed Inner Lime Dish
+  const dishGrad = ctx.createRadialGradient(-2, -4, 1, 0.8, 0, 10.2);
+  dishGrad.addColorStop(0, '#ecfccb');
+  dishGrad.addColorStop(0.35, '#bef264');
+  dishGrad.addColorStop(1, '#65a30d');
+  ctx.fillStyle = dishGrad;
+  ctx.strokeStyle = '#4d7c0f';
+  ctx.lineWidth = 1.1;
   ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.86, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // 3. Inner recessed coin face
-  const faceGrad = ctx.createRadialGradient(-radius * 0.25, -radius * 0.3, 1, 0, 0, radius * 0.82);
-  faceGrad.addColorStop(0, '#fef9c3');
-  faceGrad.addColorStop(0.5, '#eab308');
-  faceGrad.addColorStop(1, '#a16207');
-  ctx.fillStyle = faceGrad;
-  ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.82, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 4. Embossed Greenbits Insignia (Lush green leaf / sprout with drop shadow)
-  ctx.fillStyle = '#713f12';
-  ctx.beginPath();
-  ctx.moveTo(1, radius * 0.42);
-  ctx.bezierCurveTo(-radius * 0.38, radius * 0.1, -radius * 0.48, -radius * 0.28, 1, -radius * 0.48);
-  ctx.bezierCurveTo(radius * 0.48, -radius * 0.28, radius * 0.38, radius * 0.1, 1, radius * 0.42);
-  ctx.closePath();
-  ctx.fill();
-
-  const leafGrad = ctx.createLinearGradient(0, -radius * 0.5, 0, radius * 0.4);
-  leafGrad.addColorStop(0, '#86efac');
-  leafGrad.addColorStop(0.5, '#22c55e');
-  leafGrad.addColorStop(1, '#15803d');
-  ctx.fillStyle = leafGrad;
-  ctx.strokeStyle = '#14532d';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(0, radius * 0.38);
-  ctx.bezierCurveTo(-radius * 0.4, radius * 0.08, -radius * 0.48, -radius * 0.3, 0, -radius * 0.5);
-  ctx.bezierCurveTo(radius * 0.48, -radius * 0.3, radius * 0.4, radius * 0.08, 0, radius * 0.38);
-  ctx.closePath();
+  ctx.arc(0.8, -0.3, 9.8, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // Leaf midrib
-  ctx.strokeStyle = '#dcfce7';
-  ctx.lineWidth = 1.0;
+  // 4. Top-Left White Specular Pill Highlight
+  ctx.save();
+  ctx.translate(-4.6, -5.2);
+  ctx.rotate(-0.68);
+  ctx.fillStyle = '#f8fafc';
   ctx.beginPath();
-  ctx.moveTo(0, radius * 0.32);
-  ctx.lineTo(0, -radius * 0.42);
+  ctx.roundRect(-1.3, -3.2, 2.6, 6.4, 1.3);
+  ctx.fill();
+  ctx.restore();
+
+  // 5. Twin White Sprout Leaves with Thick Dark-Green (`#043e21`) Outline & Open Stem Base
+  ctx.fillStyle = '#f8fafc';
+  ctx.strokeStyle = '#043e21';
+  ctx.lineWidth = 2.1;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  // Left stem base up to left leaf
+  ctx.moveTo(0.8, 7.6);
+  ctx.lineTo(-0.2, 4.8);
+  ctx.bezierCurveTo(-4.8, 5.2, -7.2, 2.2, -7.2, -1.0);
+  ctx.bezierCurveTo(-3.4, -1.8, -0.2, -0.2, 1.0, 2.5);
+  // Right larger leaf
+  ctx.bezierCurveTo(1.2, -1.8, 4.2, -4.6, 7.8, -4.4);
+  ctx.bezierCurveTo(9.2, -0.5, 7.2, 3.6, 2.8, 4.4);
+  ctx.lineTo(3.6, 7.2);
+  ctx.fill();
   ctx.stroke();
 
-  // 5. Specular highlight crescent across top rim
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.arc(0, 0, radius * 0.88, -Math.PI * 0.85, -Math.PI * 0.15);
-  ctx.stroke();
+  // 6. Three Floating Green Sparkle Pills at Top-Right
+  const sparkles = [
+    { x: 9.8, y: -13.6, rot: 0.32, w: 2.4, h: 5.4 },
+    { x: 13.6, y: -10.4, rot: 0.78, w: 2.4, h: 5.4 },
+    { x: 15.4, y: -5.8, rot: 1.28, w: 2.2, h: 4.8 },
+  ];
+  for (const sp of sparkles) {
+    ctx.save();
+    ctx.translate(sp.x, sp.y);
+    ctx.rotate(sp.rot);
+    ctx.fillStyle = '#22c55e';
+    ctx.strokeStyle = '#043e21';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.roundRect(-sp.w * 0.5, -sp.h * 0.5, sp.w, sp.h, sp.w * 0.5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
 
   ctx.restore();
 }
@@ -283,10 +331,6 @@ export function drawOverheadEmotionBadge(
   ctx.restore();
 }
 
-/** Legacy stub: coin is now 100% pure Canvas2D vector graphics */
-export function getGreenbitsCoinImage(): HTMLImageElement | null {
-  return null;
-}
 
 function drawRoundedRect(
   ctx: CanvasRenderingContext2D,
@@ -381,7 +425,7 @@ export function getAssetThumbnailDataUrl(assetId: string): string {
 
   try {
     const c = document.createElement('canvas');
-    const dpr = 2.5; // Significantly increase resolution for assets / stickers
+    const dpr = 1.5; // Balanced crispness & fast lag-free thumbnail generation
     c.width = Math.round(220 * dpr);
     c.height = Math.round(185 * dpr);
     const cCtx = c.getContext('2d');
@@ -418,6 +462,44 @@ export function getAssetThumbnailDataUrl(assetId: string): string {
 }
 
 const foodThumbCache = new Map<string, string>();
+const plantSpriteCache = new Map<string, HTMLCanvasElement>();
+
+function getCachedPlantSprite(
+  assetId: string,
+  drawW: number,
+  drawH: number,
+  growthStage: 1 | 2 | 3,
+  fruitCount: number,
+): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null;
+  const w = Math.max(64, Math.round(drawW));
+  const h = Math.max(64, Math.round(drawH));
+  const key = `${assetId}|${w}x${h}|${growthStage}|${fruitCount}`;
+  const cached = plantSpriteCache.get(key);
+  if (cached) return cached;
+
+  try {
+    const c = document.createElement('canvas');
+    const padX = Math.round(w * 0.28);
+    const padY = Math.round(h * 0.22);
+    c.width = w + padX * 2;
+    c.height = h + padY * 2;
+    const cCtx = c.getContext('2d');
+    if (!cCtx) return null;
+    cCtx.save();
+    cCtx.translate(padX, padY);
+    renderPlantAsset(cCtx, assetId, w, h, STATIC_PLANT_BASE_POSE, 1.0, {
+      growthStage,
+      fruitCount,
+      skipClear: true,
+    });
+    cCtx.restore();
+    plantSpriteCache.set(key, c);
+    return c;
+  } catch {
+    return null;
+  }
+}
 
 export function getFoodThumbnailDataUrl(foodId: string): string {
   const existing = foodThumbCache.get(foodId);
@@ -426,7 +508,7 @@ export function getFoodThumbnailDataUrl(foodId: string): string {
 
   try {
     const c = document.createElement('canvas');
-    const dpr = 2.5; // Significantly increase resolution for food icons / stickers
+    const dpr = 1.5; // Balanced crispness & fast lag-free food icon generation
     c.width = Math.round(120 * dpr);
     c.height = Math.round(104 * dpr);
     const cCtx = c.getContext('2d');
@@ -2862,14 +2944,39 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
     depthRenderQueue.push({
       depthY: plant.y,
       render: () => {
-        ctx.save();
-        ctx.translate(plant.x - drawW * 0.5, plant.y - drawH * 0.84);
-        renderPlantAsset(ctx, plant.assetId, drawW, drawH, pose, elapsedSec, {
-          growthStage: plant.growthStage,
-          fruitCount: plant.fruitCount,
-          skipClear: true,
-        });
-        ctx.restore();
+        const cachedSprite = getCachedPlantSprite(
+          plant.assetId,
+          drawW,
+          drawH,
+          plant.growthStage,
+          plant.fruitCount,
+        );
+        if (cachedSprite) {
+          const w = Math.max(64, Math.round(drawW));
+          const h = Math.max(64, Math.round(drawH));
+          const padX = Math.round(w * 0.28);
+          const padY = Math.round(h * 0.22);
+          ctx.save();
+          ctx.translate(plant.x, plant.y);
+          ctx.rotate(pose.headRot * 0.14);
+          ctx.drawImage(
+            cachedSprite,
+            -drawW * 0.5 - padX,
+            -drawH * 0.84 - padY,
+            drawW + padX * 2,
+            drawH + padY * 2,
+          );
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.translate(plant.x - drawW * 0.5, plant.y - drawH * 0.84);
+          renderPlantAsset(ctx, plant.assetId, drawW, drawH, pose, elapsedSec, {
+            growthStage: plant.growthStage,
+            fruitCount: plant.fruitCount,
+            skipClear: true,
+          });
+          ctx.restore();
+        }
 
         // Draw natural soil / sand lip over the bottom root insertion
         if (!isFloatingPlant) {
@@ -3066,6 +3173,14 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
       laughMarksAlpha: rig.pose.laughMarksAlpha,
       angryVeinAlpha: rig.pose.angryVeinAlpha,
     };
+
+    if (isSeaTurtleAsset && targetEmotion === 'normal' && locoBlend > 0.1) {
+      const scullWave = Math.sin(elapsedSec * 3.2 + animal.x * 0.015);
+      pose.nearFlipperAngle += scullWave * 0.28 * locoBlend;
+      pose.farFlipperAngle -= scullWave * 0.28 * locoBlend;
+      pose.bodyY += Math.sin(elapsedSec * 2.2 + animal.x * 0.01) * 6 * locoBlend;
+      pose.bodyRot += Math.cos(elapsedSec * 2.2 + animal.x * 0.01) * 0.04 * locoBlend;
+    }
 
     const drawW = 220 * worldScale;
     const drawH = 200 * worldScale;

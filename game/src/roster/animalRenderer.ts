@@ -3386,74 +3386,130 @@ export interface AnimalRenderOptions {
 
     const slitherPhase = pose.waveRaysPhase * 1.15;
     const waveAmt = clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1);
-    // Phase 1 Alternative Gesture for Limbless Python (A16): Rear-upper S-coil rises and waves at a 120° offset away from the +X head!
-    const w1 = Math.sin(slitherPhase) * 10 + pose.nearFlipperAngle * (10 + 18 * waveAmt) - 24 * waveAmt;
-    const w2 = Math.cos(slitherPhase * 0.9) * 8 - 32 * waveAmt;
-    const w3 = Math.sin(slitherPhase - 1.1) * 7;
+    const w1 = Math.sin(slitherPhase) * 8 + pose.nearFlipperAngle * (8 + 14 * waveAmt) - 18 * waveAmt;
+    const w2 = Math.cos(slitherPhase * 0.9) * 6 - 22 * waveAmt;
+    const w3 = Math.sin(slitherPhase - 1.1) * 5;
 
-    // 1. Single Continuous Undulating S-Curve Serpent Body Strip (from tail tip to neck!)
+    // Control points along a single non-self-intersecting S-coil from tapered tail tip to neck base
+    const ctrlPts: Array<[number, number, number]> = [
+      [-152 + w1, -24 + w2, 3.5],       // 0: Tapered tail tip (upper-left rear)
+      [-166 + w1 * 0.6, 36 + w2 * 0.4, 12], // 1: Left rear descending curve
+      [-136, 98, 20],                   // 2: Bottom-left coil bend
+      [-42, 118, 24],                   // 3: Bottom belly center
+      [68 - w3, 112, 24],               // 4: Bottom-right approach
+      [112 - w3, 82, 23],               // 5: Rightmost smooth U-turn apex
+      [64 - w3, 52, 22],                // 6: Middle-right upper return
+      [-22, 48, 22],                    // 7: Middle S-coil center
+      [-92 + w3, 34, 21],               // 8: Middle-left bend
+      [-98 + w3, -4, 20],               // 9: Upper-left neck turn
+      [-34, -24, 20],                   // 10: Rising neck approach
+      [28, -42, 19],                    // 11: Neck entering head base
+    ];
+
+    // Evaluate smooth uniform cubic B-spline along ctrlPts (C2-continuous curvature everywhere!)
+    const totalSamples = 72;
+    const nSegs = ctrlPts.length - 3;
+    const spine: Array<{ x: number; y: number; tx: number; ty: number; nx: number; ny: number; r: number }> = [];
+
+    for (let s = 0; s <= totalSamples; s++) {
+      const uGlobal = (s / totalSamples) * nSegs;
+      const segIdx = Math.min(nSegs - 1, Math.floor(uGlobal));
+      const u = uGlobal - segIdx;
+      const u2 = u * u;
+      const u3 = u2 * u;
+
+      const b0 = (1 - 3 * u + 3 * u2 - u3) / 6;
+      const b1 = (4 - 6 * u2 + 3 * u3) / 6;
+      const b2 = (1 + 3 * u + 3 * u2 - 3 * u3) / 6;
+      const b3 = u3 / 6;
+
+      const db0 = (-3 + 6 * u - 3 * u2) / 6;
+      const db1 = (-12 * u + 9 * u2) / 6;
+      const db2 = (3 + 6 * u - 9 * u2) / 6;
+      const db3 = (3 * u2) / 6;
+
+      const p0 = ctrlPts[segIdx];
+      const p1 = ctrlPts[segIdx + 1];
+      const p2 = ctrlPts[segIdx + 2];
+      const p3 = ctrlPts[segIdx + 3];
+
+      const x = b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0];
+      const y = b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1];
+      const r = b0 * p0[2] + b1 * p1[2] + b2 * p2[2] + b3 * p3[2];
+
+      const dx = db0 * p0[0] + db1 * p1[0] + db2 * p2[0] + db3 * p3[0];
+      const dy = db0 * p0[1] + db1 * p1[1] + db2 * p2[1] + db3 * p3[1];
+      const len = Math.hypot(dx, dy) || 1;
+      const tx = dx / len;
+      const ty = dy / len;
+      const nx = -ty;
+      const ny = tx;
+
+      spine.push({ x, y, tx, ty, nx, ny, r });
+    }
+
     const serpentBody = new Path2D();
-    serpentBody.moveTo(-4, -36);
-    serpentBody.bezierCurveTo(-58, -32, -112 + w3, -18, -112 + w3, 14);
-    serpentBody.bezierCurveTo(-112 + w3, 46, 128 - w3, 38, 128 - w3, 88);
-    serpentBody.bezierCurveTo(128 - w3, 142, -124, 152, -164, 88);
-    serpentBody.bezierCurveTo(-182, 52, -176 + w1 * 0.6, 4 + w2, -152 + w1, -34 + w2);
-    serpentBody.bezierCurveTo(-150 + w1 * 0.5, 4 + w2, -142, 46, -116, 74);
-    serpentBody.bezierCurveTo(-76, 102, 56 - w3, 102, 56 - w3, 84);
-    serpentBody.bezierCurveTo(56 - w3, 66, -112 + w3, 74, -112 + w3, 28);
-    serpentBody.bezierCurveTo(-48 + w3, 18, 42, 12, 52, -24);
+    const first = spine[0];
+    serpentBody.moveTo(first.x + first.nx * first.r, first.y + first.ny * first.r);
+    for (let i = 1; i <= totalSamples; i++) {
+      const sp = spine[i];
+      serpentBody.lineTo(sp.x + sp.nx * sp.r, sp.y + sp.ny * sp.r);
+    }
+    const last = spine[totalSamples];
+    serpentBody.quadraticCurveTo(
+      last.x + last.tx * last.r * 1.25,
+      last.y + last.ty * last.r * 1.25,
+      last.x - last.nx * last.r,
+      last.y - last.ny * last.r,
+    );
+    for (let i = totalSamples - 1; i >= 0; i--) {
+      const sp = spine[i];
+      serpentBody.lineTo(sp.x - sp.nx * sp.r, sp.y - sp.ny * sp.r);
+    }
+    serpentBody.quadraticCurveTo(
+      first.x - first.tx * first.r * 1.4,
+      first.y - first.ty * first.r * 1.4,
+      first.x + first.nx * first.r,
+      first.y + first.ny * first.r,
+    );
     serpentBody.closePath();
 
-    fillRimAndStroke(ctx, serpentBody, -176, -38, 130, 148, cLight, cMid, cDark, outline, 3.6);
+    fillRimAndStroke(ctx, serpentBody, -170, -45, 130, 140, cLight, cMid, cDark, outline, 3.6);
 
     ctx.save();
     ctx.clip(serpentBody);
 
-    ctx.fillStyle = bellyCream;
-    const bellyP = new Path2D();
-    bellyP.moveTo(-164, 72);
-    bellyP.bezierCurveTo(-124, 134, 84, 132, 128 - w3, 88);
-    bellyP.lineTo(132, 156);
-    bellyP.lineTo(-176, 156);
-    bellyP.closePath();
-    ctx.fill(bellyP);
-
-    ctx.strokeStyle = 'rgba(125, 82, 16, 0.28)';
-    ctx.lineWidth = 1.6;
-    for (let vx = -136; vx <= 98; vx += 18) {
-      ctx.beginPath();
-      ctx.moveTo(vx, 118);
-      ctx.lineTo(vx - 6, 144);
-      ctx.stroke();
+    // Cream ventral belly scales along the underside of each coil
+    ctx.strokeStyle = bellyCream;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    for (let i = 0; i <= totalSamples; i++) {
+      const sp = spine[i];
+      // Lower side of the tube in screen space (positive Y offset)
+      const bx = sp.x;
+      const by = sp.y + sp.r * 0.72;
+      if (i === 0) ctx.moveTo(bx, by);
+      else ctx.lineTo(bx, by);
     }
+    ctx.stroke();
 
-    const diamondChain = [
-      [-142 + w1 * 0.3, 38, 10, -0.35],
-      [-124, 76, 14, -0.2],
-      [-82, 108, 18, -0.05],
-      [-28, 114, 19, 0],
-      [28, 112, 19, 0.04],
-      [82 - w3 * 0.5, 98, 17, -0.15],
-      [48 - w3 * 0.4, 62, 17, 0.12],
-      [-6, 52, 18, 0.08],
-      [-58 + w3 * 0.4, 40, 17, 0.05],
-      [-82 + w3 * 0.5, 10, 16, -0.15],
-      [-38, -8, 16, -0.08],
-      [12, -16, 15, -0.05],
-    ] as const;
-
-    for (const [dx, dy, dr, rot] of diamondChain) {
+    // Reticulated geometric diamond saddles spaced evenly along the C2 spine
+    for (let idx = 6; idx <= totalSamples - 5; idx += 6) {
+      const sp = spine[idx];
+      const dr = sp.r * 0.64;
+      if (dr < 6) continue;
       ctx.save();
-      ctx.translate(dx, dy);
-      ctx.rotate(rot);
+      ctx.translate(sp.x, sp.y);
+      ctx.rotate(Math.atan2(sp.ty, sp.tx));
       ctx.fillStyle = '#3b230c';
       ctx.strokeStyle = '#fff5cc';
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.moveTo(0, -dr);
-      ctx.lineTo(dr * 1.15, 0);
-      ctx.lineTo(0, dr * 0.88);
+      ctx.moveTo(dr * 1.15, 0);
+      ctx.lineTo(0, -dr * 0.88);
       ctx.lineTo(-dr * 1.15, 0);
+      ctx.lineTo(0, dr * 0.88);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -3462,49 +3518,20 @@ export interface AnimalRenderOptions {
       ctx.restore();
     }
 
-    ctx.strokeStyle = outline;
-    ctx.lineWidth = 3.2;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-88 + w3, 42);
-    ctx.bezierCurveTo(-24, 34, 48 - w3, 44, 78 - w3, 72);
-    ctx.moveTo(-64 + w3, 86);
-    ctx.bezierCurveTo(-8, 78, 52 - w3, 82, 86 - w3, 96);
-    ctx.stroke();
-
     ctx.restore();
     ctx.lineWidth = 3.6;
     ctx.strokeStyle = outline;
     ctx.stroke(serpentBody);
+
     ctx.restore();
 
-    // 2. Sculpted Wedge Python Head with Shorter Anterior Jaw Cleft & Close Flicking Forked Tongue
+    // 2. Sculpted Wedge Python Head with Prominent Flicking Forked Crimson Tongue in Front of Snout!
     ctx.save();
     ctx.translate(24 + pose.headX, -54 + pose.headY);
     ctx.rotate(pose.headRot);
     ctx.scale(pose.headScaleX, pose.headScaleY);
     const lookX = pose.headLookX * 14;
     const lookY = pose.headLookY * 10;
-
-    const tongueExtend = 1 + Math.sin(pose.waveRaysPhase * 2.2) * 0.16 + pose.mouthOpen * 0.25;
-    const tongueFlick = Math.sin(pose.waveRaysPhase * 2.6) * 3.5;
-    const snoutTipX = 66 + lookX * 0.9;
-    const snoutTipY = 20 + lookY * 0.75;
-    ctx.strokeStyle = '#e11d48';
-    ctx.lineWidth = 3.0;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(snoutTipX - 4, snoutTipY);
-    ctx.quadraticCurveTo(
-      snoutTipX + 8 * tongueExtend,
-      snoutTipY + 3 + tongueFlick * 0.5,
-      snoutTipX + 16 * tongueExtend,
-      snoutTipY + 6 + tongueFlick,
-    );
-    ctx.lineTo(snoutTipX + 24 * tongueExtend, snoutTipY + 1 + tongueFlick);
-    ctx.moveTo(snoutTipX + 16 * tongueExtend, snoutTipY + 6 + tongueFlick);
-    ctx.lineTo(snoutTipX + 23 * tongueExtend, snoutTipY + 13 + tongueFlick);
-    ctx.stroke();
 
     const headP = new Path2D();
     headP.ellipse(6, -4, 92, 68, 0.05, 0, Math.PI * 2);
@@ -3530,18 +3557,59 @@ export interface AnimalRenderOptions {
     ctx.strokeStyle = outline;
     ctx.stroke(headP);
 
+    // Labial jaw cleft extending right to the anterior rostral snout tip
+    const snoutTipX = 94 + lookX * 0.45;
+    const snoutTipY = 12 + lookY * 0.45;
     ctx.strokeStyle = outline;
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = 2.8;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(16 + lookX * 0.8, 26 + lookY * 0.75);
-    ctx.quadraticCurveTo(42 + lookX * 0.9, 29 + lookY * 0.8, snoutTipX, snoutTipY);
+    ctx.moveTo(22 + lookX * 0.6, 22 + lookY * 0.6);
+    ctx.quadraticCurveTo(60 + lookX * 0.55, 24 + lookY * 0.55, snoutTipX, snoutTipY);
     ctx.stroke();
 
+    // Labial thermal-sensing pits along the upper jaw
     ctx.fillStyle = '#4a2c0a';
-    for (const px of [22, 36, 48, 58]) {
-      drawOvalSpot(ctx, px + lookX * 0.85, 18 + lookY * 0.75, 2.6, 1.8, 0.08);
+    for (const [px, py] of [
+      [34, 15],
+      [48, 15],
+      [62, 13],
+      [76, 10],
+    ] as const) {
+      drawOvalSpot(ctx, px + lookX * 0.55, py + lookY * 0.55, 2.6, 1.8, 0.08);
     }
+
+    // Flicking Forked Crimson Tongue drawn AFTER headP so it clearly extends out in front of the snout!
+    const tongueExtend = 1 + Math.sin(pose.waveRaysPhase * 2.4) * 0.18 + pose.mouthOpen * 0.3;
+    const tongueFlick = Math.sin(pose.waveRaysPhase * 3.0) * 4.5;
+    const forkX = snoutTipX + 22 * tongueExtend;
+    const forkY = snoutTipY + 3 + tongueFlick * 0.7;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    // Dark outline behind tongue for crisp readability against any background
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 5.2;
+    ctx.beginPath();
+    ctx.moveTo(snoutTipX - 3, snoutTipY);
+    ctx.quadraticCurveTo(snoutTipX + 10 * tongueExtend, snoutTipY + 1 + tongueFlick * 0.35, forkX, forkY);
+    ctx.lineTo(forkX + 13 * tongueExtend, forkY - 7 + tongueFlick * 0.5);
+    ctx.moveTo(forkX, forkY);
+    ctx.lineTo(forkX + 12 * tongueExtend, forkY + 8 + tongueFlick * 0.5);
+    ctx.stroke();
+
+    // Bright crimson-rose tongue fill stroke
+    ctx.strokeStyle = '#f43f5e';
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.moveTo(snoutTipX - 3, snoutTipY);
+    ctx.quadraticCurveTo(snoutTipX + 10 * tongueExtend, snoutTipY + 1 + tongueFlick * 0.35, forkX, forkY);
+    ctx.lineTo(forkX + 13 * tongueExtend, forkY - 7 + tongueFlick * 0.5);
+    ctx.moveTo(forkX, forkY);
+    ctx.lineTo(forkX + 12 * tongueExtend, forkY + 8 + tongueFlick * 0.5);
+    ctx.stroke();
+    ctx.restore();
 
     drawGlossyAnimalEye(ctx, 'left', -28 + lookX * 0.85, -10 + lookY * 0.85, 11.5, 13.5, -0.08, pose, IRIS_PALETTES.amber, cLight, cMid, outline);
     drawGlossyAnimalEye(ctx, 'right', 54 + lookX * 0.85, -2 + lookY * 0.85, 10, 12, 0.12, pose, IRIS_PALETTES.amber, cLight, cMid, outline);

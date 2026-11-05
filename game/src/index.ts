@@ -30,6 +30,7 @@ import {
   loadSaveState,
   persistSaveState,
   computeAnimalLoveLevel,
+  getAnimalLoveMeterProgress,
   recordAnimalCareInteraction,
 } from './game/persistence';
 import { soundEngine } from './game/sound';
@@ -1171,8 +1172,12 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     return floorY - 18;
   }
 
-  function applyAnimalCareAndAwardLevelUp(animal: PlacedAnimal, xpGain: number): void {
-    const res = recordAnimalCareInteraction(animal, xpGain);
+  function applyAnimalCareAndAwardLevelUp(
+    animal: PlacedAnimal,
+    xpGain: number,
+    interactionKind: 'feed' | 'interact' = 'interact',
+  ): void {
+    const res = recordAnimalCareInteraction(animal, xpGain, interactionKind);
     if (res.greenbitsEarned > 0) {
       saveState.greenbits += res.greenbitsEarned;
       options?.onBalanceChange?.(saveState.greenbits);
@@ -1189,8 +1194,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       soundEngine.playCoinChime();
       syncHudDOM();
       const rawName = ASSET_ECO_CONFIG[animal.assetId]?.name || 'Animal';
-      const displayName = animal.customName || getLocalizedAssetName(animal.assetId, rawName, currentLang);
-      showToast(`${displayName} Lv.${res.oldLevel} → Lv.${res.newLevel}! +${res.greenbitsEarned} Greenbits`, 3200);
+      const displayName = (animal.customName || getLocalizedAssetName(animal.assetId, rawName, currentLang)).replace(
+        /[<>'"&]/g,
+        '',
+      );
+      showToast(`${displayName} Lv.${res.oldLevel} → Lv.${res.newLevel}! ${GB_LOGO_HTML} +${res.greenbitsEarned}`, 3200, true);
     }
     persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
   }
@@ -1209,7 +1217,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     animal.eatingTimerSec = 1.8;
     animal.eatingFoodId = undefined;
     animal.hunger = Math.min(100, animal.hunger + 30);
-    applyAnimalCareAndAwardLevelUp(animal, 18);
+    applyAnimalCareAndAwardLevelUp(animal, 20, 'feed');
     animal.currentEmotion = 'laugh';
     animal.emotionTimerSec = 3.5;
     soundEngine.playEatMunch();
@@ -1225,7 +1233,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       100,
       animal.hunger + (foodSpec?.hungerRestore ?? 35) * (isGolden ? 1.5 : 1),
     );
-    applyAnimalCareAndAwardLevelUp(animal, 26);
+    applyAnimalCareAndAwardLevelUp(animal, 20, 'feed');
     animal.currentEmotion = 'laugh';
     animal.emotionTimerSec = 3.5;
 
@@ -1472,6 +1480,30 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     animal.emoteSpamCount = 0;
     animal.lastEmoteTriggerMs = nowMs;
 
+    function getEmotionToastKey(emotion: import('./turtle/types').EmotionType): string {
+      switch (emotion) {
+        case 'waving':
+          return 'waves';
+        case 'laugh':
+          return 'isLaughing';
+        case 'blush':
+          return 'isBlushing';
+        case 'describing':
+          return 'isDescribing';
+        case 'congratulate':
+          return 'isCongratulating';
+        case 'angry':
+          return 'isAngry';
+        case 'crying':
+          return 'isCrying';
+        case 'sleepy':
+          return 'isSleepy';
+        case 'wondered':
+        default:
+          return 'isCurious';
+      }
+    }
+
     // Waking a resting animal (by its own schedule: nocturnal species sleep by day)
     if (isAnimalResting(animal.assetId, saveState.timeOfDayHours) && animal.emotionTimerSec <= 0) {
       const reaction = rollSleepingTouchReaction(Math.random());
@@ -1480,35 +1512,34 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       renderEntityCard();
       if (reaction === 'angry') {
         soundEngine.playRejectBoing();
-        showToast(getGameString('isAngry', currentLang).replace('{name}', displayName));
       } else {
         soundEngine.playWaveChirp();
-        showToast(getGameString('isCurious', currentLang).replace('{name}', displayName));
       }
+      showToast(getGameString(getEmotionToastKey(reaction), currentLang).replace('{name}', displayName));
       return;
     }
 
     if (mode === 'pet') {
       animal.currentEmotion = 'laugh';
       animal.emotionTimerSec = 3.6;
-      applyAnimalCareAndAwardLevelUp(animal, 15);
+      applyAnimalCareAndAwardLevelUp(animal, 1, 'interact');
       soundEngine.playLaughGiggle();
       renderEntityCard();
-      showToast(getGameString('isHappy', currentLang).replace('{name}', displayName));
+      showToast(getGameString('isLaughing', currentLang).replace('{name}', displayName));
       return;
     }
 
     const reaction = rollAwakeTapReaction(Math.random());
     animal.currentEmotion = reaction;
     animal.emotionTimerSec = 3.6;
-    applyAnimalCareAndAwardLevelUp(animal, 12);
-    soundEngine.playWaveChirp();
+    applyAnimalCareAndAwardLevelUp(animal, 1, 'interact');
+    if (reaction === 'laugh' || reaction === 'congratulate' || reaction === 'blush') {
+      soundEngine.playLaughGiggle();
+    } else {
+      soundEngine.playWaveChirp();
+    }
     renderEntityCard();
-    showToast(
-      reaction === 'waving'
-        ? getGameString('waves', currentLang).replace('{name}', displayName)
-        : getGameString('isCurious', currentLang).replace('{name}', displayName),
-    );
+    showToast(getGameString(getEmotionToastKey(reaction), currentLang).replace('{name}', displayName));
   }
 
   function handleWorldTap(worldX: number, worldY: number): void {
@@ -1521,9 +1552,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       }
     }
 
-    // 2. Check if tapping a dropped fruit/food
+    // 2. Check if tapping a dropped/wild scene fruit or food source (collects directly to bag)
     for (const df of saveState.droppedFoods) {
-      if (Math.hypot(df.x - worldX, df.y - worldY) < 36) {
+      if (Math.hypot(df.x - worldX, df.y - worldY) < 46) {
         saveState.foodInventory[df.foodId] = (saveState.foodInventory[df.foodId] ?? 0) + 1;
         saveState.droppedFoods = saveState.droppedFoods.filter((item) => item.uid !== df.uid);
         soundEngine.playPluckPop();
@@ -1545,7 +1576,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       return;
     }
 
-    // 5. Check if tapping a plant (Sway + Pluck ripe fruit when growthStage === 3)
+    // 5. Check if tapping a plant (One click harvests ripe fruit directly into the bag!)
     const hitPlant = findPlantAtPoint(worldX, worldY);
     if (hitPlant) {
       hitPlant.swayImpulse = 1.0;
@@ -1553,27 +1584,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       const asset = ROSTER_ASSETS.find((a) => a.id === hitPlant.assetId);
       if (hitPlant.growthStage >= 3 && hitPlant.fruitCount > 0 && eco?.producesFruitId) {
         hitPlant.fruitCount -= 1;
-        const isGolden = hitPlant.hasGoldenFruit || Math.random() < 0.12;
         hitPlant.hasGoldenFruit = false;
-        const dropX = hitPlant.x + (Math.random() - 0.5) * 44;
-        const groundY = getFoodRestY(eco.producesFruitId, dropX);
-        // Fruit falls from where it hangs in the crown; shoots and seagrass are picked at the base
-        const growsAtBase =
-          eco.producesFruitId === 'food_bamboo_shoots' || eco.producesFruitId === 'food_seaweed_kelp';
-        const startY = growsAtBase ? hitPlant.y - 14 : hitPlant.y - getPlantDrawSize(hitPlant).h * 0.5;
-        saveState.droppedFoods.push({
-          uid: `fruit_${Date.now()}_${Math.random()}`,
-          foodId: eco.producesFruitId,
-          zoneId: hitPlant.zoneId,
-          x: dropX,
-          y: Math.min(startY, groundY - 4),
-          vy: -65,
-          groundY,
-          isGolden,
-          bitesRemaining: 1,
-          createdAtSec: performance.now() / 1000,
-        });
+        saveState.foodInventory[eco.producesFruitId] =
+          (saveState.foodInventory[eco.producesFruitId] ?? 0) + 1;
         soundEngine.playPluckPop();
+        renderDockCards();
         const foodSpec = FOOD_CATALOG[eco.producesFruitId];
         const foodName = getLocalizedFoodName(eco.producesFruitId, foodSpec?.name ?? 'fruit', currentLang);
         const plantName = getLocalizedAssetName(hitPlant.assetId, asset?.name ?? 'plant', currentLang);
@@ -1660,13 +1675,45 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     nameRow.append(nameInput, infoBtn);
 
-    // (ii) Standalone <SVG> Lv. x (pink color, max 5, without rounded container)
+    // (ii) Standalone <SVG> Lv. x + Metered Love Progress Bar (5 consecutive feeds / 100 interactions at Lv.1, distinct per user)
+    const loveMeter = getAnimalLoveMeterProgress(animal);
     const loveRow = document.createElement('div');
     loveRow.className = 'entity-item-row';
+    loveRow.style.flexDirection = 'column';
+    loveRow.style.alignItems = 'stretch';
+    loveRow.style.gap = '4px';
+
+    const loveTopLine = document.createElement('div');
+    loveTopLine.style.display = 'flex';
+    loveTopLine.style.alignItems = 'center';
+    loveTopLine.style.justifyContent = 'space-between';
+
     const loveStandalone = document.createElement('span');
     loveStandalone.className = 'love-standalone';
     loveStandalone.innerHTML = `${HEART_SVG_ICON}<span>Lv. ${loveLevel}</span>`;
-    loveRow.appendChild(loveStandalone);
+
+    const loveMeterText = document.createElement('span');
+    loveMeterText.style.fontSize = '11px';
+    loveMeterText.style.fontWeight = '700';
+    loveMeterText.style.color = '#be185d';
+    loveMeterText.textContent = `${loveMeter.currentStepXp}/${loveMeter.requiredStepXp}`;
+
+    loveTopLine.append(loveStandalone, loveMeterText);
+
+    const loveMeterTrack = document.createElement('div');
+    loveMeterTrack.className = 'hunger-bar-track';
+    loveMeterTrack.style.height = '6px';
+    loveMeterTrack.style.background = 'rgba(219, 39, 119, 0.16)';
+
+    const loveMeterFill = document.createElement('div');
+    loveMeterFill.style.height = '100%';
+    loveMeterFill.style.borderRadius = '999px';
+    loveMeterFill.style.background = '#db2777';
+    loveMeterFill.style.transition = 'width 0.25s ease';
+    loveMeterFill.style.width = `${Math.max(4, loveMeter.progressPct)}%`;
+    loveMeterTrack.appendChild(loveMeterFill);
+
+    loveRow.append(loveTopLine, loveMeterTrack);
 
     // (iii) Fullness
     const fullnessWrap = document.createElement('div');
@@ -1880,13 +1927,12 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     const dietFoodIds = ecoMeta?.kind === 'animal' ? (ecoMeta.dietFoodIds ?? []) : [];
     const dietText = getAnimalRealLifeDiet(itemId, currentLang);
     if (dietFoodIds.length > 0 || dietText) {
-      const divider = document.createElement('div');
+      const divider = document.createElement('hr');
       divider.className = 'info-popup-divider-line';
-      divider.style.margin = '10px 0 8px';
-      divider.style.color = 'rgba(21, 67, 42, 0.55)';
-      divider.style.fontWeight = '700';
-      divider.style.letterSpacing = '1px';
-      divider.textContent = '-----------';
+      divider.style.border = 'none';
+      divider.style.borderTop = '1.5px solid rgba(21, 67, 42, 0.28)';
+      divider.style.margin = '12px 0 10px';
+      divider.style.width = '100%';
 
       const dietBlock = document.createElement('div');
       dietBlock.className = 'info-popup-diet-block';
@@ -1916,9 +1962,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           itemLine.style.lineHeight = '1.45';
           itemLine.style.color = '#1a1c15';
 
-          const bullet = document.createElement('span');
-          bullet.textContent = '- ';
-
           const foodLink = document.createElement('a');
           foodLink.href = `#store-food-${fId}`;
           foodLink.className = 'diet-store-link';
@@ -1934,7 +1977,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
             openStoreModal('food', fId);
           });
 
-          itemLine.append(bullet, foodLink);
+          itemLine.appendChild(foodLink);
           dietList.appendChild(itemLine);
         }
         dietBlock.appendChild(dietList);
@@ -2440,6 +2483,79 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       listPanel.appendChild(item);
     }
 
+    // Field Expansion ("+") Mechanic in World Map:
+    // Unlocked when 20 animals have Lv. 20 (or more), purchasable with 2000-4000 Greenbits!
+    const lv20AnimalsCount = saveState.placedAnimals.filter((a) => computeAnimalLoveLevel(a) >= 20).length;
+    const currentExpansions = saveState.fieldExpansions ?? 0;
+    const expandPrice = Math.min(4000, 2000 + currentExpansions * 1000);
+    const canUnlockExpand = lv20AnimalsCount >= 20;
+
+    const expandCard = document.createElement('div');
+    expandCard.className = 'tower-list-item';
+    expandCard.style.marginTop = '8px';
+    expandCard.style.border = canUnlockExpand
+      ? '2px solid #16a34a'
+      : '1.5px dashed rgba(21, 67, 42, 0.35)';
+    expandCard.style.background = canUnlockExpand
+      ? 'rgba(187, 247, 208, 0.35)'
+      : 'rgba(21, 67, 42, 0.04)';
+
+    const expandInfo = document.createElement('div');
+    expandInfo.className = 'tower-list-info';
+
+    const expandTitle = document.createElement('div');
+    expandTitle.className = 'tower-list-name';
+    expandTitle.innerHTML = `<span>+ Expand Fields</span> ${currentExpansions > 0 ? `<span style="font-size:11px;color:#15803d;">(Tier +${currentExpansions})</span>` : ''}`;
+
+    const expandSub = document.createElement('div');
+    expandSub.style.fontSize = '11px';
+    expandSub.style.color = canUnlockExpand ? '#15803d' : '#64748b';
+    expandSub.style.marginTop = '2px';
+    expandSub.innerHTML = `Lv.20+ Animals: <b>${lv20AnimalsCount}/20</b> • Cost: <span class="price-token-inline">${GB_LOGO_HTML}<b>${expandPrice}</b></span>`;
+
+    expandInfo.append(expandTitle, expandSub);
+
+    const plusBtn = document.createElement('button');
+    plusBtn.type = 'button';
+    plusBtn.className = 'teleport-go-btn';
+    plusBtn.style.minWidth = '42px';
+    plusBtn.style.fontWeight = '900';
+    plusBtn.style.fontSize = '18px';
+    plusBtn.style.opacity = canUnlockExpand && saveState.greenbits >= expandPrice ? '1' : '0.65';
+    plusBtn.textContent = '+';
+    plusBtn.title = 'Expand Sanctuary Fields';
+    plusBtn.addEventListener('click', () => {
+      if (!canUnlockExpand) {
+        soundEngine.playRejectBoing();
+        showToast(`Requires 20 animals at Lv. 20+ (${lv20AnimalsCount}/20)`, 2800);
+        return;
+      }
+      if (saveState.greenbits < expandPrice) {
+        soundEngine.playRejectBoing();
+        showToast(getGameString('notEnoughGreenbits', currentLang));
+        return;
+      }
+      openBuyConfirmationDialog({
+        itemName: `Expand Sanctuary Fields (+Tier ${currentExpansions + 1})`,
+        price: expandPrice,
+        thumbSrc: '/assets/aistudio/image_3961e3ca.png',
+        onConfirm: () => {
+          if (saveState.greenbits < expandPrice) return;
+          saveState.greenbits -= expandPrice;
+          saveState.fieldExpansions = (saveState.fieldExpansions ?? 0) + 1;
+          options?.onBalanceChange?.(saveState.greenbits);
+          soundEngine.playCoinChime();
+          persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
+          syncHudDOM();
+          showToast(`Sanctuary Fields Expanded! (Tier +${saveState.fieldExpansions})`, 3000);
+          openTeleportMapModal(preselectedTowerId);
+        },
+      });
+    });
+
+    expandCard.append(expandInfo, plusBtn);
+    listPanel.appendChild(expandCard);
+
     layout.append(board, listPanel);
     body.appendChild(layout);
     sheet.append(header, body);
@@ -2804,12 +2920,77 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
   let lastFrameTime = performance.now();
   let totalElapsedSec = 0;
+  let naturalFoodSpawnTimerSec = 3.5;
 
   // Biological 6-hour hunger decay rate: 100 fullness points over 6 hours (21,600 seconds)
   const HUNGER_DECAY_PER_SEC = 100 / (6 * 3600);
 
+  /**
+   * Spawns sparse, low-density natural food sources across scenes so every food item in FOOD_CATALOG
+   * can be obtained randomly by clicking in its habitat, or eaten automatically by nearby animals.
+   */
+  function spawnSparseNaturalSceneFood(): void {
+    // Low density cap: max 8 wild food sources across the entire world (max 2 near current viewport)
+    const wildFoods = saveState.droppedFoods.filter((df) => df.uid.startsWith('wild_'));
+    if (wildFoods.length >= 8) return;
+
+    const currentCamCenterX = cameraX + viewportWidth * 0.5;
+    const currentZone = getZoneAtWorldX(currentCamCenterX);
+    const nearViewportCount = saveState.droppedFoods.filter(
+      (df) => Math.abs(df.x - currentCamCenterX) < viewportWidth * 0.9,
+    ).length;
+
+    // Choose either current camera zone (if < 2 nearby) or a zone withplaced animals
+    const targetZone: HabitatZoneId =
+      nearViewportCount < 2
+        ? currentZone
+        : (saveState.placedAnimals[Math.floor(Math.random() * saveState.placedAnimals.length)]?.zoneId ?? currentZone);
+
+    const eligibleFoods = foodList.filter((f) => f.allowedZones.includes(targetZone));
+    if (eligibleFoods.length === 0) return;
+
+    const chosenFood = eligibleFoods[Math.floor(Math.random() * eligibleFoods.length)];
+    const zSpec = getZoneSpec(targetZone);
+
+    let spawnX: number;
+    if (targetZone === currentZone && nearViewportCount < 2) {
+      const offset = (Math.random() - 0.5) * viewportWidth * 0.78;
+      spawnX = clamp(currentCamCenterX + offset, zSpec.xStart + 180, zSpec.xEnd - 180);
+    } else {
+      const zoneAnimals = saveState.placedAnimals.filter((a) => a.zoneId === targetZone);
+      if (zoneAnimals.length > 0) {
+        const anchor = zoneAnimals[Math.floor(Math.random() * zoneAnimals.length)];
+        spawnX = clamp(anchor.x + (Math.random() - 0.5) * 680, zSpec.xStart + 180, zSpec.xEnd - 180);
+      } else {
+        spawnX = zSpec.xStart + 400 + Math.random() * Math.max(400, zSpec.xEnd - zSpec.xStart - 800);
+      }
+    }
+
+    // Keep low density: avoid spawning too close to any existing food
+    if (saveState.droppedFoods.some((df) => Math.abs(df.x - spawnX) < 340)) return;
+
+    const groundY = getFoodRestY(chosenFood.id, spawnX);
+    saveState.droppedFoods.push({
+      uid: `wild_${chosenFood.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      foodId: chosenFood.id,
+      zoneId: targetZone,
+      x: spawnX,
+      y: groundY,
+      vy: 0,
+      groundY,
+      isGolden: false,
+      bitesRemaining: 1,
+      createdAtSec: performance.now() / 1000,
+    });
+  }
+
   function stepSimulation(dt: number): void {
     totalElapsedSec += dt;
+    naturalFoodSpawnTimerSec -= dt;
+    if (naturalFoodSpawnTimerSec <= 0) {
+      naturalFoodSpawnTimerSec = 22 + Math.random() * 12;
+      spawnSparseNaturalSceneFood();
+    }
 
     // Smooth 2D camera interpolation
     cameraX += (targetCameraX - cameraX) * Math.min(1, dt * 10);

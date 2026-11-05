@@ -35,15 +35,47 @@ export function sanitizeKeys(obj: any): any {
 
 export const MAX_ANIMAL_LEVEL = 100;
 
+let activeUserMeterSalt = 0;
+
+export function setActiveUserMeterIdentity(userId?: string, seed?: number): void {
+  const raw = `${userId || 'guest'}_${seed ?? 0}`;
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    h ^= raw.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  activeUserMeterSalt = Math.abs(h >>> 0);
+}
+
+function getDistinctMeterFactor(animal?: Pick<PlacedAnimal, 'uid' | 'assetId'> | null): number {
+  if (!animal) return 1.0;
+  const key = `${animal.assetId}_${animal.uid}_${activeUserMeterSalt}`;
+  let h = 2166136261 ^ activeUserMeterSalt;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const norm = ((h >>> 0) % 1000) / 1000; // 0 .. 1
+  return 0.94 + norm * 0.14; // Distinct between users & animals (0.94x .. 1.08x)
+}
+
 /**
  * Minimum bondXp required to reach a given Love Level (1 .. 100).
- * Baseline bondXp is 100 for Lv.1; Lv.2 requires 125 XP (+25 XP), Lv.3 requires 155 XP (+30 XP), etc.
+ * - Baseline bondXp is 100 for Lv.1.
+ * - Lv.1 -> Lv.2 requires ~100 XP (5 consecutive feeds at +20 XP each, or 100 interactions at +1 XP each).
+ * - Higher levels scale progressively and distinctly per user/animal.
  */
-export function getXpRequiredForLevel(level: number): number {
+export function getXpRequiredForLevel(
+  level: number,
+  animal?: Pick<PlacedAnimal, 'uid' | 'assetId'> | null,
+): number {
   const clamped = Math.max(1, Math.min(MAX_ANIMAL_LEVEL, Math.floor(level)));
   if (clamped <= 1) return 100;
   const steps = clamped - 1;
-  return 100 + 25 * steps + 2 * steps * (steps - 1);
+  const factor = getDistinctMeterFactor(animal);
+  // Step 1 (Lv.1 -> Lv.2) is 100 XP base; subsequent levels scale smoothly
+  const rawDelta = 100 * steps + 25 * steps * (steps - 1) + 2 * steps * (steps - 1) * (steps - 2);
+  return 100 + Math.max(90, Math.round(rawDelta * factor));
 }
 
 /**
@@ -53,10 +85,50 @@ export function computeAnimalLoveLevel(animal: PlacedAnimal | null | undefined):
   if (!animal) return 1;
   const xp = typeof animal.bondXp === 'number' && Number.isFinite(animal.bondXp) ? Math.max(0, animal.bondXp) : 100;
   let lvl = 1;
-  while (lvl < MAX_ANIMAL_LEVEL && xp >= getXpRequiredForLevel(lvl + 1)) {
+  while (lvl < MAX_ANIMAL_LEVEL && xp >= getXpRequiredForLevel(lvl + 1, animal)) {
     lvl += 1;
   }
   return lvl;
+}
+
+export interface LoveMeterProgress {
+  level: number;
+  currentStepXp: number;
+  requiredStepXp: number;
+  progressPct: number;
+  consecutiveFeeds: number;
+}
+
+/**
+ * Returns the metered progress within the animal's current Love Level.
+ */
+export function getAnimalLoveMeterProgress(animal: PlacedAnimal | null | undefined): LoveMeterProgress {
+  if (!animal) {
+    return { level: 1, currentStepXp: 0, requiredStepXp: 100, progressPct: 0, consecutiveFeeds: 0 };
+  }
+  const level = computeAnimalLoveLevel(animal);
+  if (level >= MAX_ANIMAL_LEVEL) {
+    return {
+      level: MAX_ANIMAL_LEVEL,
+      currentStepXp: 100,
+      requiredStepXp: 100,
+      progressPct: 100,
+      consecutiveFeeds: animal.consecutiveFeeds ?? 0,
+    };
+  }
+  const xp = typeof animal.bondXp === 'number' && Number.isFinite(animal.bondXp) ? Math.max(100, animal.bondXp) : 100;
+  const floorXp = getXpRequiredForLevel(level, animal);
+  const nextXp = getXpRequiredForLevel(level + 1, animal);
+  const requiredStepXp = Math.max(1, nextXp - floorXp);
+  const currentStepXp = Math.max(0, Math.min(requiredStepXp, Math.round(xp - floorXp)));
+  const progressPct = Math.max(0, Math.min(100, Math.round((currentStepXp / requiredStepXp) * 100)));
+  return {
+    level,
+    currentStepXp,
+    requiredStepXp,
+    progressPct,
+    consecutiveFeeds: animal.consecutiveFeeds ?? 0,
+  };
 }
 
 /**
@@ -92,6 +164,7 @@ export interface AnimalCareLevelResult {
 export function recordAnimalCareInteraction(
   animal: PlacedAnimal | null | undefined,
   xpGain: number,
+  interactionKind: 'feed' | 'interact' = 'interact',
 ): AnimalCareLevelResult {
   if (!animal) return { oldLevel: 1, newLevel: 1, greenbitsEarned: 0 };
   const oldLevel = computeAnimalLoveLevel(animal);
@@ -114,10 +187,26 @@ export function recordAnimalCareInteraction(
   if (currentHunger > 30 && elapsedDaysSinceAdoption + 1 > animal.careDaysCount) {
     animal.careDaysCount = Math.min(365, elapsedDaysSinceAdoption + 1);
   }
+
   const currentXp = Number.isFinite(animal.bondXp) ? animal.bondXp : 100;
-  const maxXpCap = getXpRequiredForLevel(MAX_ANIMAL_LEVEL);
-  animal.bondXp = Math.min(maxXpCap, Math.max(0, currentXp + gain));
+  const maxXpCap = getXpRequiredForLevel(MAX_ANIMAL_LEVEL, animal);
+
+  if (interactionKind === 'feed') {
+    animal.consecutiveFeeds = (animal.consecutiveFeeds ?? 0) + 1;
+    // At Lv.1, 5 consecutive feeds guarantees completing the Lv.1 -> Lv.2 meter!
+    const nextLvXp = getXpRequiredForLevel(oldLevel + 1, animal);
+    const stepReq = Math.max(1, nextLvXp - getXpRequiredForLevel(oldLevel, animal));
+    const feedStepGain = Math.max(gain, Math.ceil(stepReq / (5 + (oldLevel - 1) * 2)));
+    animal.bondXp = Math.min(maxXpCap, Math.max(0, currentXp + feedStepGain));
+  } else {
+    animal.consecutiveFeeds = 0;
+    animal.bondXp = Math.min(maxXpCap, Math.max(0, currentXp + gain));
+  }
+
   const newLevel = computeAnimalLoveLevel(animal);
+  if (newLevel > oldLevel) {
+    animal.consecutiveFeeds = 0;
+  }
   const greenbitsEarned = computeLevelUpGreenbitsReward(oldLevel, newLevel);
   return { oldLevel, newLevel, greenbitsEarned };
 }
@@ -484,8 +573,18 @@ export function loadSaveState(
           ? Math.max(0, parsed.dailyEarnedGreenbits)
           : 0,
       lastEarnDayStamp: typeof parsed.lastEarnDayStamp === 'string' ? parsed.lastEarnDayStamp : '',
+      fieldExpansions:
+        typeof parsed.fieldExpansions === 'number' && Number.isFinite(parsed.fieldExpansions)
+          ? Math.max(0, Math.floor(parsed.fieldExpansions))
+          : 0,
+      userMeterSeed:
+        typeof parsed.userMeterSeed === 'number' && Number.isFinite(parsed.userMeterSeed)
+          ? parsed.userMeterSeed
+          : Math.floor(Math.random() * 1000000),
       lastSavedTimestampMs: Date.now(),
     };
+
+    setActiveUserMeterIdentity(userId, state.userMeterSeed);
 
     const cappedOfflineMins = Math.min(240, offlineMinutes);
     let passivePerMin = 0;

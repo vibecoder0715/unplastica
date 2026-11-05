@@ -134,6 +134,7 @@ export interface PlacedAnimal {
   hunger: number; // 0 (starving/crying) .. 100 (full), 6 hours full decay
   happiness: number; // 0 .. 100
   bondXp: number; // 100 baseline for Lv.1, scales up to Lv.100
+  consecutiveFeeds?: number; // Tracks consecutive feed streak for metered Love Lv progression
   careStartTimestampMs?: number;
   careDaysCount?: number;
   lastCareDayStamp?: string;
@@ -243,4 +244,6 @@ export interface SaveState {
   dailyEarnedGreenbits?: number;
   lastEarnDayStamp?: string;
   graphicQuality?: 'dynamic' | 'performance' | 'quality';
+  fieldExpansions?: number;
+  userMeterSeed?: number;
 }
