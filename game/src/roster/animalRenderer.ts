@@ -946,13 +946,16 @@ export interface AnimalRenderOptions {
     const activityScale = rawLoco * rawLoco * (3 - 2 * rawLoco);
 
     // Iteration 1-4: Smooth C2-continuous 4-beat biological gait & hydrodynamic S-wave propulsion
+    const isSeaTurtle = assetId.includes('sea_turtle') || assetId.includes('turtle');
     const walkPhase = locoTime * 4.4;
-    const swimPhase = locoTime * 3.8;
+    // Sea turtles swim with slow, graceful ocean glides (1.35 rad/s) rather than rapid paddling
+    const swimPhase = locoTime * (isSeaTurtle ? 1.35 : 2.6);
     const breathWave = Math.sin(locoTime * 2.3);
 
     // Smooth C2 harmonic vertical bob (eliminates the sharp |sin| cusp at footfall)
     const walkBob = -(0.5 - 0.5 * Math.cos(walkPhase * 2)) * 3.8 * activityScale + breathWave * 0.9 * (1 - activityScale);
-    const walkSurge = Math.sin(walkPhase) * 2.4 * activityScale;
+    // Unidirectional forward surge thrust (always in the facing forward vector, eliminating backward drift)
+    const walkSurge = (0.5 - 0.5 * Math.cos(walkPhase)) * 2.6 * activityScale;
     const walkPitch = Math.sin(walkPhase - 0.35) * 0.014 * activityScale;
     // 4-beat lateral gait stride with subtle second-harmonic asymmetry (stance push vs swing lift)
     const walkStrideFrontNear = (Math.sin(walkPhase) + 0.14 * Math.sin(walkPhase * 2)) * 0.38 * activityScale;
@@ -960,8 +963,8 @@ export interface AnimalRenderOptions {
     const walkStrideHindNear = (Math.sin(walkPhase + Math.PI * 0.82) + 0.14 * Math.sin((walkPhase + Math.PI * 0.82) * 2)) * 0.40 * activityScale;
     const walkStrideHindFar = (Math.sin(walkPhase - Math.PI * 0.18) + 0.14 * Math.sin((walkPhase - Math.PI * 0.18) * 2)) * 0.40 * activityScale;
 
-    const swimBob = Math.sin(swimPhase) * 5.6 * activityScale + breathWave * 1.6 * (1 - activityScale);
-    const swimSurge = Math.cos(swimPhase * 0.5) * 4.2 * activityScale;
+    const swimBob = Math.sin(swimPhase) * (isSeaTurtle ? 4.2 : 5.6) * activityScale + breathWave * 1.6 * (1 - activityScale);
+    const swimSurge = (0.5 - 0.5 * Math.cos(swimPhase)) * (isSeaTurtle ? 3.2 : 4.2) * activityScale;
     const swimPitch = Math.cos(swimPhase - 0.45) * 0.036 * activityScale;
     const swimTailKick = Math.sin(swimPhase * 1.4 - 0.65) * 0.34 * activityScale;
     const swimFinScull = Math.sin(swimPhase - 0.35) * 0.28 * activityScale;

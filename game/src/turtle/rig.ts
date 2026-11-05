@@ -160,6 +160,7 @@ export class TurtleRigController {
 
   public setFacing(facing: 1 | -1): void {
     this.setDirection(facing >= 0 ? 'right' : 'left');
+    this.pose.facing = facing;
   }
 
   public update(dt: number, _speed = 1): TurtlePose {
@@ -449,27 +450,27 @@ export class TurtleRigController {
   private computeTargetPose(t: number, mt: number): TurtlePose {
     const p = createDefaultPose(this.pose.facing);
 
-    // Base continuous swimming buoyancy, walking cadence & breathing (graceful sea turtle pace)
-    const swimBob = Math.sin(t * 1.8);
-    const swimSway = Math.cos(t * 1.3);
-    const breathWave = Math.sin(t * 2.2);
-    const locoCycle = Math.sin(t * 2.1);
-    const locoCos = Math.cos(t * 2.1);
+    // Serene, majestic sea turtle swimming pace (calibrated to slow, graceful ocean glides)
+    const swimBob = Math.sin(t * 1.1);
+    const swimSway = Math.cos(t * 0.85);
+    const breathWave = Math.sin(t * 1.4);
+    const locoCycle = Math.sin(t * 1.25);
+    const locoCos = Math.cos(t * 1.25);
 
     p.breath = breathWave;
-    p.bodyX = swimSway * 3.5;
-    p.bodyY = swimBob * 5.0;
-    p.bodyRot = Math.sin(t * 1.3) * 0.022;
-    p.bodyScaleX = 1 + breathWave * 0.011;
-    p.bodyScaleY = 1 - breathWave * 0.009;
+    p.bodyX = swimSway * 3.0;
+    p.bodyY = swimBob * 4.2;
+    p.bodyRot = Math.sin(t * 0.85) * 0.018;
+    p.bodyScaleX = 1 + breathWave * 0.010;
+    p.bodyScaleY = 1 - breathWave * 0.008;
     p.waveRaysPhase = t * 4.8;
 
-    p.shellRot = Math.sin(t * 1.8 - 0.5) * 0.018;
-    p.shellOffsetY = Math.sin(t * 1.8 - 0.4) * 2.0;
+    p.shellRot = Math.sin(t * 1.1 - 0.5) * 0.014;
+    p.shellOffsetY = Math.sin(t * 1.1 - 0.4) * 1.6;
 
-    // Hind flippers / hind legs trailing kick with natural phase delay
-    p.hindNearAngle = Math.sin(t * 2.1 + Math.PI) * 0.22;
-    p.hindFarAngle = Math.sin(t * 2.1) * 0.22;
+    // Hind flippers / hind legs trailing gently with slow phase delay
+    p.hindNearAngle = Math.sin(t * 1.25 + Math.PI) * 0.18;
+    p.hindFarAngle = Math.sin(t * 1.25) * 0.18;
 
     // Smooth, continuous entrance easing (smoothstep over 280ms) avoids step-function snapping when emotions begin
     const enterProgress = clamp(mt / 0.28, 0, 1);
@@ -478,34 +479,34 @@ export class TurtleRigController {
     switch (this.motion) {
       case 'idle': {
         // Active natural walking/swimming locomotion with gentle smile and rhythmic limbs
-        const idleCycle = Math.sin(t * 1.8);
-        p.bodyX = Math.cos(t * 1.5) * 3.2;
-        p.bodyY = idleCycle * 4.2;
-        p.bodyRot = Math.sin(t * 1.5) * 0.022;
+        const idleCycle = Math.sin(t * 1.1);
+        p.bodyX = Math.cos(t * 0.95) * 2.5;
+        p.bodyY = idleCycle * 3.6;
+        p.bodyRot = Math.sin(t * 0.95) * 0.018;
 
-        p.headX = Math.sin(t * 1.8) * 2.2;
-        p.headY = Math.sin(t * 1.8 - 0.3) * 2.6;
-        p.headRot = Math.sin(t * 1.5) * 0.028;
-        p.headLookX = Math.sin(t * 1.0) * 0.05;
-        p.headLookY = Math.cos(t * 1.2) * 0.03;
+        p.headX = Math.sin(t * 1.1) * 1.8;
+        p.headY = Math.sin(t * 1.1 - 0.3) * 2.0;
+        p.headRot = Math.sin(t * 0.95) * 0.022;
+        p.headLookX = Math.sin(t * 0.7) * 0.04;
+        p.headLookY = Math.cos(t * 0.8) * 0.025;
 
         // Both front limbs swing in alternating walking/swimming rhythm
         p.nearFlipperDownAmount = 1.0;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = locoCycle * 0.24;
-        p.nearFlipperBend = locoCos * 0.12;
+        p.nearFlipperAngle = locoCycle * 0.22;
+        p.nearFlipperBend = locoCos * 0.10;
 
         p.farFlipperChinAmount = 0;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = -locoCycle * 0.24;
-        p.farFlipperBend = -locoCos * 0.12;
+        p.farFlipperAngle = -locoCycle * 0.22;
+        p.farFlipperBend = -locoCos * 0.10;
 
-        p.eyeGazeX = Math.sin(t * 1.0) * 0.05;
+        p.eyeGazeX = Math.sin(t * 0.8) * 0.04;
         p.eyeGazeY = -0.01;
         p.pupilScale = 1.0;
         p.browRaise = 0.14 + idleCycle * 0.04;
 
-        p.mouthOpen = 0.22 + Math.sin(t * 1.6) * 0.04;
+        p.mouthOpen = 0.22 + Math.sin(t * 1.2) * 0.04;
         p.mouthSmile = 0.92;
         p.mouthWidth = 0.94;
         p.blushAlpha = 0.18;
@@ -516,40 +517,40 @@ export class TurtleRigController {
       }
 
       case 'waving': {
-        // Energetic waving of the near flipper (left-to-right hand waving motion)
-        const waveCycle = Math.sin(t * 4.8);
-        const waveFollow = Math.cos(t * 4.8 - 0.4);
+        // Obvious, energetic waving of the near flipper (bold and unmistakably clear)
+        const waveCycle = Math.sin(t * 5.8);
+        const waveFollow = Math.cos(t * 5.8 - 0.4);
 
-        p.headX = Math.sin(t * 2.4) * 2.5 * enterEase;
-        p.headY = Math.sin(t * 2.4 - 0.3) * 2.8 * enterEase;
-        p.headRot = Math.sin(t * 2.4) * 0.038 * enterEase;
-        p.headLookX = (0.05 + Math.sin(t * 1.8) * 0.04) * enterEase;
-        p.headLookY = -0.02 * enterEase;
+        p.headX = Math.sin(t * 2.8) * 3.2;
+        p.headY = Math.sin(t * 2.8 - 0.3) * 3.5;
+        p.headRot = Math.sin(t * 2.8) * 0.048;
+        p.headLookX = 0.06 + Math.sin(t * 1.8) * 0.04;
+        p.headLookY = -0.02;
 
-        // Near flipper raised high, waving left & right smoothly with wrist follow-through
-        p.nearFlipperDownAmount = 1 - enterEase;
+        // Near flipper raised high in air, waving left & right prominently with wrist follow-through
+        p.nearFlipperDownAmount = 0;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = waveCycle * 0.25 * enterEase;
-        p.nearFlipperBend = waveFollow * 0.15 * enterEase;
+        p.nearFlipperAngle = waveCycle * 0.38;
+        p.nearFlipperBend = waveFollow * 0.22;
 
         // Far flipper extended down-right balancing gently
         p.farFlipperChinAmount = 0;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = Math.sin(t * 2.4 + 1.1) * 0.08 * enterEase;
-        p.farFlipperBend = Math.cos(t * 2.4) * 0.05 * enterEase;
+        p.farFlipperAngle = Math.sin(t * 2.8 + 1.1) * 0.08;
+        p.farFlipperBend = Math.cos(t * 2.8) * 0.05;
 
-        p.eyeGazeX = (0.04 + Math.sin(t * 2.1) * 0.04) * enterEase;
-        p.eyeGazeY = -0.02 * enterEase;
-        p.pupilScale = 1.0 + 0.02 * enterEase;
-        p.browRaise = 0.14 + (0.08 + Math.sin(t * 2.4) * 0.04) * enterEase;
+        p.eyeGazeX = 0.04 + Math.sin(t * 2.1) * 0.04;
+        p.eyeGazeY = -0.02;
+        p.pupilScale = 1.02;
+        p.browRaise = 0.22 + Math.sin(t * 2.8) * 0.05;
 
-        p.mouthOpen = 0.22 + (0.42 + Math.sin(t * 2.4) * 0.05) * enterEase;
-        p.mouthSmile = 0.92 + 0.04 * enterEase;
-        p.mouthWidth = 0.94 + 0.06 * enterEase;
-        p.blushAlpha = 0.18 + 0.06 * enterEase;
+        p.mouthOpen = 0.68 + Math.sin(t * 2.8) * 0.07;
+        p.mouthSmile = 0.95;
+        p.mouthWidth = 1.0;
+        p.blushAlpha = 0.18;
 
-        p.waveRaysAlpha = 0.95 * enterEase;
-        p.waveRaysPhase = t * 4.8;
+        p.waveRaysAlpha = 1.0;
+        p.waveRaysPhase = t * 5.8;
         break;
       }
 
@@ -637,49 +638,47 @@ export class TurtleRigController {
       }
 
       case 'angry': {
-        // Grumpy crouched posture, deep V-furrowed brows, tight downturned frown, pulsing red vein
-        // Smooth grumpy huff cadence (no high-frequency 22 rad/s tremor)
-        const huffCycle = Math.sin(t * 3.2);
-        const huffSwell = Math.max(0, huffCycle);
+        // Deep angry glare, pronounced V-furrowed brows, tight downturned frown & pulsing red vein
+        const huff = Math.sin(t * 3.2);
 
-        p.bodyX = Math.cos(t * 1.6) * 1.2 * enterEase;
-        p.bodyY = (5 + huffCycle * 2.8) * enterEase;
-        p.bodyRot = (0.03 + huffCycle * 0.015) * enterEase;
-        p.bodyScaleX = 1.0 + (0.02 + huffSwell * 0.02) * enterEase;
-        p.bodyScaleY = 1.0 - 0.02 * enterEase;
+        p.bodyX = Math.cos(t * 1.6) * 1.2;
+        p.bodyY = 7 + huff * 3.5;
+        p.bodyRot = 0.04 + huff * 0.018;
+        p.bodyScaleX = 1.025 + Math.max(0, huff) * 0.02;
+        p.bodyScaleY = 0.975;
 
-        p.headX = (4 + Math.sin(t * 1.6) * 1.4) * enterEase;
-        p.headY = (7 + huffCycle * 2.4) * enterEase;
-        p.headRot = (0.05 + huffCycle * 0.012) * enterEase;
-        p.headLookX = 0.05 * enterEase;
-        p.headLookY = 0.06 * enterEase;
+        p.headX = 4 + Math.sin(t * 1.6) * 1.4;
+        p.headY = 8 + huff * 3.0;
+        p.headRot = 0.06;
+        p.headLookX = 0.05;
+        p.headLookY = 0.06;
 
-        // Near flipper angled down-left, far flipper angled down-right
+        // Limbs angled firmly down
         p.nearFlipperDownAmount = 1.0;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = huffCycle * 0.06 * enterEase;
+        p.nearFlipperAngle = huff * 0.08;
 
         p.farFlipperChinAmount = 0;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = -huffCycle * 0.06 * enterEase;
+        p.farFlipperAngle = -huff * 0.08;
 
-        p.angryLidAmount = 1.0 * enterEase;
-        p.eyeGazeX = 0.04 * enterEase;
-        p.eyeGazeY = -0.04 * enterEase;
-        p.pupilScale = 1.0 - 0.05 * enterEase;
-        p.browRaise = 0.14 - (0.55 + huffSwell * 0.06) * enterEase;
-        p.browTilt = -0.85 * enterEase;
+        p.angryLidAmount = 1.0;
+        p.eyeGazeX = 0.04;
+        p.eyeGazeY = -0.04;
+        p.pupilScale = 0.92;
+        p.browRaise = -0.52 - Math.max(0, huff) * 0.08;
+        p.browTilt = -0.92;
 
         // Tight downturned frown curve
-        p.mouthFrownLine = 1.0 * enterEase;
-        p.mouthOpen = 0.22 - 0.22 * enterEase;
-        p.mouthSmile = 0.92 - 1.82 * enterEase;
-        p.mouthWidth = 0.94 - 0.16 * enterEase;
-        p.blushAlpha = 0.18 - 0.1 * enterEase;
+        p.mouthFrownLine = 1.0;
+        p.mouthOpen = 0.0;
+        p.mouthSmile = -0.95;
+        p.mouthWidth = 0.76;
+        p.blushAlpha = 0.06;
 
         p.waveRaysAlpha = 0;
-        p.angryVeinAlpha = 1.0 * enterEase;
-        p.angryVeinPulse = Math.sin(t * 4.8);
+        p.angryVeinAlpha = 1.0;
+        p.angryVeinPulse = Math.sin(t * 6.5);
         break;
       }
 

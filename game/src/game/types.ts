@@ -161,6 +161,8 @@ export interface PlacedPlant {
   swayImpulse: number;
   grazingBitesRemaining: number; // for aquatic food plants
   isDefaultScenery?: boolean;
+  lastGrowthDayStamp?: string; // Tracks calendar day for 1 day = 1 round growth
+  plantedTimestampMs?: number;
 }
 
 export interface DroppedFood {

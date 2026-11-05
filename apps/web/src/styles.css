@@ -1573,9 +1573,16 @@ img { max-width: 100%; }
   color: #f0fdf4 !important;
 }
 .dotted-loading-spinner {
-  animation: dotted-spin 0.95s steps(12, end) infinite;
   display: block;
-  color: currentColor;
+  overflow: visible;
+  color: #15432a;
+}
+:root[data-theme="dark"] .dotted-loading-spinner {
+  color: #86efac !important;
+}
+.dotted-spinner-group {
+  transform-origin: 32px 32px;
+  animation: dotted-spin 1.0s steps(12, end) infinite;
 }
 @keyframes dotted-spin {
   0% { transform: rotate(0deg); }

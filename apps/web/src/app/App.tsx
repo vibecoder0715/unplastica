@@ -3323,10 +3323,13 @@ function DottedSpinner({ size = 52 }: { size?: number }) {
       viewBox="0 0 64 64"
       aria-label="Loading"
       role="progressbar"
+      style={{ overflow: "visible" }}
     >
-      {dots.map((dot, i) => (
-        <circle key={i} cx={dot.cx} cy={dot.cy} r={3.8} fill="currentColor" opacity={dot.opacity} />
-      ))}
+      <g className="dotted-spinner-group">
+        {dots.map((dot, i) => (
+          <circle key={i} cx={dot.cx} cy={dot.cy} r={3.8} fill="currentColor" opacity={dot.opacity} />
+        ))}
+      </g>
     </svg>
   );
 }

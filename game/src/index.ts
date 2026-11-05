@@ -93,10 +93,6 @@ const CART_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" heigh
 
 const POSTCARD_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
 
-const DYNAMIC_PERF_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" fill-opacity="0.25"/></svg>`;
-const ROCKET_PERF_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4.5c1.62-1.63 5-2.5 5-2.5"/><path d="M12 15v5s3.03-.55 4.5-2c1.63-1.62 2.5-5 2.5-5"/></svg>`;
-const QUALITY_SHARP_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" fill="currentColor" fill-opacity="0.25"/></svg>`;
-
 const EXIT_DOOR_ROUND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
 
 const CAMERA_CAPTURE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
@@ -310,51 +306,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   storeBtn.title = getGameString('store', currentLang);
   storeBtn.addEventListener('click', () => openStoreModal('animals'));
 
-  // Dynamic Quality & Performance Mode Button (Auto 60 FPS / Performance / Quality)
-  const perfBtn = document.createElement('button');
-  perfBtn.type = 'button';
-  perfBtn.className = 'hud-circle-btn perf-btn';
-  const updatePerfBtn = () => {
-    const q = saveState.graphicQuality || 'dynamic';
-    perfBtn.innerHTML =
-      q === 'performance'
-        ? ROCKET_PERF_ROUND_SVG
-        : q === 'quality'
-          ? QUALITY_SHARP_ROUND_SVG
-          : DYNAMIC_PERF_ROUND_SVG;
-    const label =
-      q === 'performance'
-        ? getGameString('graphicsPerf', currentLang)
-        : q === 'quality'
-          ? getGameString('graphicsSharp', currentLang)
-          : getGameString('graphicsAuto', currentLang);
-    perfBtn.setAttribute('aria-label', `${getGameString('graphicsQuality', currentLang)}: ${label}`);
-    perfBtn.title = `${getGameString('graphicsQuality', currentLang)}: ${label}`;
-  };
-  updatePerfBtn();
-  perfBtn.addEventListener('click', () => {
-    const cur = saveState.graphicQuality || 'dynamic';
-    const next: 'dynamic' | 'performance' | 'quality' =
-      cur === 'dynamic' ? 'performance' : cur === 'performance' ? 'quality' : 'dynamic';
-    saveState.graphicQuality = next;
-    try {
-      persistSaveState(saveState, options?.userId, options?.onSaveStateChange);
-    } catch {
-      // ignore
-    }
-    dynamicDprScale = 1.0;
-    handleResize();
-    updatePerfBtn();
-    const label =
-      next === 'performance'
-        ? getGameString('graphicsPerf', currentLang)
-        : next === 'quality'
-          ? getGameString('graphicsSharp', currentLang)
-          : getGameString('graphicsAuto', currentLang);
-    const icon = next === 'performance' ? '🚀' : next === 'quality' ? '✨' : '⚡';
-    showToast(`${icon} ${label}`);
-  });
-
   const postcardBtn = document.createElement('button');
   postcardBtn.type = 'button';
   postcardBtn.className = 'hud-circle-btn postcard-btn';
@@ -363,7 +314,7 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
   postcardBtn.title = getGameString('postcardView', currentLang);
   postcardBtn.addEventListener('click', () => setPostcardView(true));
 
-  buttonCluster.append(petsBtn, mapBtn, storeBtn, perfBtn, postcardBtn);
+  buttonCluster.append(petsBtn, mapBtn, storeBtn, postcardBtn);
 
   let exitBtn: HTMLButtonElement | null = null;
   if (options?.onExit) {
@@ -386,7 +337,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     mapBtn.title = getGameString('worldMap', currentLang);
     storeBtn.setAttribute('aria-label', getGameString('store', currentLang));
     storeBtn.title = getGameString('store', currentLang);
-    updatePerfBtn();
     postcardBtn.setAttribute('aria-label', getGameString('postcardView', currentLang));
     postcardBtn.title = getGameString('postcardView', currentLang);
     if (exitBtn) {
@@ -638,34 +588,63 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       isHolding = false;
     };
 
+    cardEl.style.userSelect = 'none';
+    cardEl.style.webkitUserSelect = 'none';
+
     cardEl.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       startX = e.clientX;
       startY = e.clientY;
       isHolding = true;
 
-      holdTimer = window.setTimeout(() => {
-        if (!isHolding) return;
-        const item = getItem(e.clientX, e.clientY);
-        if (!item) return;
-        cardEl.classList.add('is-held');
-        startDraggingItem(item);
-      }, 500); // 0.5s hold threshold activates drag; quick swipes/scrolls cancel before this fires
+      const isMouse = e.pointerType === 'mouse';
+      if (isMouse) {
+        // Prevent default native ghost image dragging and text selection on PC/laptop
+        e.preventDefault();
+      } else {
+        holdTimer = window.setTimeout(() => {
+          if (!isHolding) return;
+          const item = getItem(e.clientX, e.clientY);
+          if (!item) return;
+          cardEl.classList.add('is-held');
+          startDraggingItem(item);
+        }, 360);
+      }
     });
 
     cardEl.addEventListener('pointermove', (e) => {
       if (!isHolding) return;
+      const isMouse = e.pointerType === 'mouse';
       const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
-      // If moved more than 16px before 0.5s hold timer fires, user is scrolling or swiping the strip!
-      // Deadzone threshold of 16px accommodates finger micro-tremors while quickly canceling on intentful swipes.
-      if (dist > 16) {
+
+      if (isMouse && dist > 5 && !activeDrag) {
+        // Immediate drag activation for PC / laptop mouse users!
+        clearHold();
+        const item = getItem(e.clientX, e.clientY);
+        if (item) {
+          startDraggingItem(item);
+        }
+        return;
+      }
+
+      if (!isMouse && dist > 16) {
         clearHold();
       }
     });
 
     cardEl.addEventListener('pointerup', clearHold);
     cardEl.addEventListener('pointercancel', clearHold);
-    cardEl.addEventListener('pointerleave', clearHold);
+    cardEl.addEventListener('pointerleave', (e) => {
+      if (isHolding && e.pointerType === 'mouse' && !activeDrag) {
+        clearHold();
+        const item = getItem(e.clientX, e.clientY);
+        if (item) {
+          startDraggingItem(item);
+        }
+      } else {
+        clearHold();
+      }
+    });
   }
 
   function renderDockCards(): void {
@@ -1086,6 +1065,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         fruitRegenTimerSec: 25,
         swayImpulse: 1.0,
         grazingBitesRemaining: eco.isAquaticFoodSource ? 5 : 0,
+        lastGrowthDayStamp: new Date().toISOString().slice(0, 10),
+        plantedTimestampMs: Date.now(),
       };
       saveState.placedPlants.push(newPlant);
       // Consume 1 plant from owned bag when planted
@@ -2710,8 +2691,8 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     } else if (quality === 'quality') {
       effectiveDpr = Math.min(1.85, nativeDpr);
     } else {
-      // Dynamic mode: scale smoothly based on live load
-      effectiveDpr = Math.max(0.85, Math.min(1.4, nativeDpr) * dynamicDprScale);
+      // Dynamic mode (Auto): default to Quality (up to 1.65 native DPR) when spec allows, dynamically optimizing to maintain smooth 60 FPS
+      effectiveDpr = Math.max(0.9, Math.min(1.65, nativeDpr) * dynamicDprScale);
     }
     const dpr = Math.round(effectiveDpr * 100) / 100;
     worldCanvas.width = Math.round(cssW * dpr);
@@ -2761,16 +2742,19 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
         plant.grazingBitesRemaining = Math.min(5, (plant.grazingBitesRemaining ?? 0) + dt / 40);
       }
 
-      if (plant.growthStage < 3) {
-        // Grow from Stage 1 (0..49) -> Stage 2 (50..99) -> Stage 3 (100)
-        plant.growthProgress = Math.min(100, (plant.growthProgress ?? 0) + dt * 2.2);
-        if (plant.growthProgress >= 100) {
-          plant.growthStage = 3;
-          plant.fruitCount = eco?.producesFruitId ? 3 : 0;
-        } else if (plant.growthProgress >= 50 && plant.growthStage === 1) {
-          plant.growthStage = 2;
+      // Plant growth mechanics: strictly 1 day = 1 round only!
+      const todayDateStamp = new Date().toISOString().slice(0, 10);
+      if (!plant.lastGrowthDayStamp) {
+        plant.lastGrowthDayStamp = todayDateStamp;
+      } else if (plant.lastGrowthDayStamp !== todayDateStamp && plant.growthStage < 3) {
+        // A new calendar day has arrived -> advance 1 round!
+        plant.growthStage = (plant.growthStage + 1) as 2 | 3;
+        plant.growthProgress = plant.growthStage === 2 ? 50 : 100;
+        plant.lastGrowthDayStamp = todayDateStamp;
+        if (plant.growthStage === 3 && eco?.producesFruitId) {
+          plant.fruitCount = 3;
         }
-      } else if (eco?.producesFruitId && plant.fruitCount < 3) {
+      } else if (eco?.producesFruitId && plant.growthStage >= 3 && plant.fruitCount < 3) {
         plant.fruitRegenTimerSec -= dt;
         if (plant.fruitRegenTimerSec <= 0) {
           plant.fruitCount += 1;
@@ -2923,18 +2907,20 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
             );
             startAnimalEating(animal, targetDrop.foodId, targetDrop.isGolden);
           } else {
+            const dir: 1 | -1 = dx >= 0 ? 1 : -1;
+            animal.facing = dir;
             const speed = 32 * animal.locoBlend;
-            animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-            if (Math.abs(dx) > 2) animal.facing = dx >= 0 ? 1 : -1;
+            animal.x = clamp(animal.x + dir * speed * dt, minX, maxX);
           }
         } else if (grazePlant) {
           const dx = grazePlant.x - animal.x;
           if (Math.abs(dx) < 36) {
             startAnimalGrazing(animal, grazePlant);
           } else {
+            const dir: 1 | -1 = dx >= 0 ? 1 : -1;
+            animal.facing = dir;
             const speed = 24 * animal.locoBlend;
-            animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-            if (Math.abs(dx) > 2) animal.facing = dx >= 0 ? 1 : -1;
+            animal.x = clamp(animal.x + dir * speed * dt, minX, maxX);
           }
         } else {
           const dx = animal.targetX - animal.x;
@@ -2951,12 +2937,18 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
               }
             }
             animal.targetX = clamp(nextTarget, minX, maxX);
+            const newDx = animal.targetX - animal.x;
+            if (Math.abs(newDx) > 2) {
+              animal.facing = newDx >= 0 ? 1 : -1;
+            }
           } else {
             // Natural calm cruising pace: sea turtles glide gracefully at 12, others at 18
-            const baseSpeed = animal.assetId.includes('sea_turtle') ? 12 : 18;
+            const isHungry = animal.hunger <= 22;
+            const baseSpeed = (animal.assetId.includes('sea_turtle') ? 12 : 18) * (isHungry ? 0.6 : 1);
             const speed = baseSpeed * animal.locoBlend;
-            animal.x = clamp(animal.x + Math.sign(dx) * speed * dt, minX, maxX);
-            if (Math.abs(dx) > 2) animal.facing = dx >= 0 ? 1 : -1;
+            const dir: 1 | -1 = dx >= 0 ? 1 : -1;
+            animal.facing = dir;
+            animal.x = clamp(animal.x + dir * speed * dt, minX, maxX);
           }
         }
       }
@@ -3002,15 +2994,11 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           } else if (!aPinned && !bPinned) {
             a.x = clamp(a.x - dir * push, minX, maxX);
             b.x = clamp(b.x + dir * push, minX, maxX);
-            // Politely steer waypoints away from each other so they don't keep walking into each other
-            if ((a.targetX - a.x) * dir > 0) {
-              a.targetX = clamp(a.x - dir * (160 + Math.random() * 140), minX, maxX);
-              a.facing = oppDir;
-            }
-            if ((b.targetX - b.x) * dir < 0) {
-              b.targetX = clamp(b.x + dir * (160 + Math.random() * 140), minX, maxX);
-              b.facing = dir;
-            }
+            // Steer waypoints and facing away from collision push so neither animal moves backward
+            a.targetX = clamp(a.x - dir * (160 + Math.random() * 140), minX, maxX);
+            a.facing = oppDir;
+            b.targetX = clamp(b.x + dir * (160 + Math.random() * 140), minX, maxX);
+            b.facing = dir;
           }
         }
       }

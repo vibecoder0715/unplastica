@@ -320,6 +320,8 @@ export function loadSaveState(
                   ? Math.max(0, Math.floor(p.grazingBitesRemaining))
                   : 4,
                 isDefaultScenery: Boolean(p.isDefaultScenery),
+                lastGrowthDayStamp: typeof p.lastGrowthDayStamp === 'string' ? p.lastGrowthDayStamp : new Date().toISOString().slice(0, 10),
+                plantedTimestampMs: typeof p.plantedTimestampMs === 'number' && Number.isFinite(p.plantedTimestampMs) ? p.plantedTimestampMs : Date.now(),
               };
             })
         : createDefaultSanctuaryPlants();
