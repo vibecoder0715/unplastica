@@ -2402,82 +2402,135 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
       ctx.scale(scaleX, scaleY);
       ctx.globalAlpha = alpha;
 
-      // 1. Soft atmospheric anvil/vapor halo underneath and behind
-      const mistGrad = ctx.createRadialGradient(14, 6, 8, 14, 10, 96);
-      mistGrad.addColorStop(0, cloudBaseCol);
-      mistGrad.addColorStop(0.65, cloudMidCol);
-      mistGrad.addColorStop(1, 'rgba(148, 163, 184, 0)');
+      const hexToRgba = (hex: string, a: number): string => {
+        const clean = hex.replace('#', '');
+        const num = parseInt(clean, 16);
+        const r = (num >> 16) & 255;
+        const g = (num >> 8) & 255;
+        const b = num & 255;
+        return `rgba(${r}, ${g}, ${b}, ${a})`;
+      };
+
+      // 0. Distant virga rain shafts beneath storm clouds (strictly in sky above horizon)
+      if (isStorm) {
+        const virgaGrad = ctx.createLinearGradient(0, 10, -18, 92);
+        virgaGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.34));
+        virgaGrad.addColorStop(0.6, hexToRgba(cloudMidCol, 0.14));
+        virgaGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
+        ctx.fillStyle = virgaGrad;
+        ctx.beginPath();
+        ctx.moveTo(-64, 12);
+        ctx.lineTo(74, 12);
+        ctx.lineTo(48, 92);
+        ctx.lineTo(-90, 92);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // 1. Soft atmospheric vapor halo & diffused anvil mist around cloud base
+      const mistGrad = ctx.createRadialGradient(6, 8, 10, 6, 12, 112);
+      mistGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.65));
+      mistGrad.addColorStop(0.55, hexToRgba(cloudMidCol, 0.28));
+      mistGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
       ctx.fillStyle = mistGrad;
       ctx.beginPath();
-      ctx.ellipse(14, 12, 92, 22, 0, 0, Math.PI * 2);
+      ctx.ellipse(6, 12, 108, 24, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Shadowed condensation base deck (flat-bottomed natural cloud base)
-      ctx.fillStyle = cloudBaseCol;
-      ctx.beginPath();
-      ctx.moveTo(-68, 16);
-      ctx.quadraticCurveTo(-76, 4, -54, -4);
-      ctx.lineTo(82, -4);
-      ctx.quadraticCurveTo(104, 4, 96, 16);
-      ctx.quadraticCurveTo(14, 21, -68, 16);
-      ctx.closePath();
-      ctx.fill();
+      // 2. Continuous sculpted cumulus silhouette path (seamless billowing domes + flat condensation base)
+      const sil = new Path2D();
+      if (variant === 0) {
+        sil.moveTo(-84, 15);
+        sil.bezierCurveTo(-92, 6, -78, -8, -60, -6);
+        sil.bezierCurveTo(-54, -22, -32, -28, -18, -18);
+        sil.bezierCurveTo(-8, -42, 26, -44, 38, -20);
+        sil.bezierCurveTo(52, -26, 74, -16, 76, -2);
+        sil.bezierCurveTo(92, -2, 100, 8, 90, 15);
+        sil.bezierCurveTo(42, 20, -36, 20, -84, 15);
+      } else if (variant === 1) {
+        sil.moveTo(-88, 15);
+        sil.bezierCurveTo(-96, 5, -80, -10, -62, -8);
+        sil.bezierCurveTo(-50, -30, -18, -36, -2, -22);
+        sil.bezierCurveTo(10, -46, 46, -42, 56, -16);
+        sil.bezierCurveTo(72, -18, 90, -6, 86, 8);
+        sil.bezierCurveTo(96, 12, 92, 17, 78, 16);
+        sil.bezierCurveTo(28, 20, -40, 20, -88, 15);
+      } else {
+        sil.moveTo(-80, 14);
+        sil.bezierCurveTo(-88, 4, -72, -12, -50, -10);
+        sil.bezierCurveTo(-36, -34, 2, -38, 16, -20);
+        sil.bezierCurveTo(28, -32, 60, -28, 68, -8);
+        sil.bezierCurveTo(84, -8, 94, 6, 82, 14);
+        sil.bezierCurveTo(32, 19, -32, 19, -80, 14);
+      }
+      sil.closePath();
 
-      // 3. Mid-tier billowing cumulus turrets
-      const midLobes: ReadonlyArray<readonly [number, number, number, number]> =
+      const bodyGrad = ctx.createLinearGradient(0, -44, 0, 19);
+      bodyGrad.addColorStop(0, cloudTopCol);
+      bodyGrad.addColorStop(0.52, cloudMidCol);
+      bodyGrad.addColorStop(0.84, cloudBaseCol);
+      bodyGrad.addColorStop(1, hexToRgba(cloudBaseCol, 0.88));
+      ctx.fillStyle = bodyGrad;
+      ctx.fill(sil);
+
+      // 3. Soft radial-gradient 3D volumetric puffs clipped inside and along the cumulus turrets
+      // (Zero hard concentric ellipse rings — every puff feathers smoothly to 0 alpha!)
+      const puffs: ReadonlyArray<readonly [number, number, number]> =
         variant === 0
           ? [
-            [-46, 2, 28, 20],
-            [-16, -8, 34, 26],
-            [20, -12, 38, 28],
-            [54, -2, 30, 22],
-            [78, 6, 22, 15],
-          ]
+              [-52, 0, 26],
+              [-24, -10, 32],
+              [10, -20, 38],
+              [44, -8, 30],
+              [70, 3, 22],
+              [-6, 2, 30],
+              [28, 3, 28],
+            ]
           : variant === 1
             ? [
-              [-54, 4, 26, 18],
-              [-24, -10, 36, 28],
-              [12, -18, 42, 32],
-              [48, -8, 34, 25],
-              [74, 4, 24, 17],
-            ]
+                [-56, 1, 25],
+                [-22, -14, 35],
+                [18, -22, 40],
+                [50, -8, 30],
+                [72, 4, 22],
+                [0, 2, 32],
+              ]
             : [
-              [-48, 4, 30, 19],
-              [-10, -6, 38, 24],
-              [30, -8, 36, 23],
-              [66, 2, 28, 18],
-            ];
+                [-46, -1, 28],
+                [-12, -16, 36],
+                [26, -14, 34],
+                [58, -2, 26],
+                [8, 3, 30],
+              ];
 
-      ctx.fillStyle = cloudMidCol;
-      ctx.beginPath();
-      for (const [lx, ly, lrx, lry] of midLobes) {
-        ctx.moveTo(lx + lrx, ly);
-        ctx.ellipse(lx, ly, lrx, lry, 0, 0, Math.PI * 2);
+      for (const [px, py, pr] of puffs) {
+        const pGrad = ctx.createRadialGradient(
+          px - pr * 0.28,
+          py - pr * 0.32,
+          pr * 0.08,
+          px,
+          py,
+          pr,
+        );
+        pGrad.addColorStop(0, hexToRgba(cloudTopCol, 0.92));
+        pGrad.addColorStop(0.55, hexToRgba(cloudMidCol, 0.45));
+        pGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
+        ctx.fillStyle = pGrad;
+        ctx.beginPath();
+        ctx.arc(px, py, pr, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.fill();
 
-      // 4. Sunlit upper cauliflower cumulus domes with vertical luminance gradient
-      const topGrad = ctx.createLinearGradient(0, -44, 0, 14);
-      topGrad.addColorStop(0, cloudTopCol);
-      topGrad.addColorStop(0.7, cloudMidCol);
-      topGrad.addColorStop(1, cloudBaseCol);
-      ctx.fillStyle = topGrad;
-      ctx.beginPath();
-      ctx.moveTo(-58, 12);
-      for (const [lx, ly, lrx, lry] of midLobes) {
-        ctx.moveTo(lx + lrx * 0.92, ly - 4);
-        ctx.ellipse(lx - 2, ly - 5, lrx * 0.92, lry * 0.92, 0, 0, Math.PI * 2);
-      }
-      ctx.fill();
-
-      // 5. Crisp sunlit silver-lining rim along upper-left turret crowns
-      ctx.fillStyle = cloudTopCol;
-      ctx.beginPath();
-      for (const [lx, ly, lrx, lry] of midLobes) {
-        ctx.moveTo(lx - 4 + lrx * 0.65, ly - 9);
-        ctx.ellipse(lx - 4, ly - 9, lrx * 0.65, lry * 0.62, -0.12, 0, Math.PI * 2);
-      }
-      ctx.fill();
+      // 4. Flat atmospheric condensation base shadow band
+      ctx.save();
+      ctx.clip(sil);
+      const baseShadow = ctx.createLinearGradient(0, 2, 0, 20);
+      baseShadow.addColorStop(0, hexToRgba(cloudBaseCol, 0));
+      baseShadow.addColorStop(0.65, hexToRgba(cloudBaseCol, 0.55));
+      baseShadow.addColorStop(1, hexToRgba(cloudBaseCol, 0.85));
+      ctx.fillStyle = baseShadow;
+      ctx.fillRect(-100, 2, 200, 20);
+      ctx.restore();
 
       ctx.restore();
     };
@@ -3409,18 +3462,21 @@ function renderWeatherScreenOverlay(
 ): void {
   if (weather === 'sunny' || weather === 'cloudy' || weather === 'rainbow') return;
 
-  // Helper: exact screen-space Y of the water surface or ground contour at screen X
+  const waterDatumWorldY = 0.56 * h;
+  const seaLevelScreenY = (waterDatumWorldY - h * 0.5 - cameraY) * zoom + h * 0.5;
+
+  // Helper: exact screen-space Y of the water surface or ground contour at screen X.
+  // Crucially, surfaceWorldY is clamped to Math.min(waterDatumWorldY, floorWorldY) so rain
+  // NEVER crosses below the hydrostatic water surface plane (0.56 * h) anywhere in the world!
   const getSurfaceInfoAtScreenX = (sx: number): { screenY: number; isWater: boolean } => {
     const worldX = cameraX + w * 0.5 + (sx - w * 0.5) / zoom;
     const waterWorldY = getWaterSurfaceY(worldX, h);
-    // In river/sea basins (including near levee edges), water surface is hydrostatic 0.56 * h
     const inRiverOrSeaBasin =
-      (worldX >= HABITAT_ZONES[1].xStart + 24 && worldX <= HABITAT_ZONES[1].xEnd - 24) ||
-      worldX >= HABITAT_ZONES[3].xStart + 24;
-    const effectiveWaterY = waterWorldY ?? (inRiverOrSeaBasin ? 0.56 * h : null);
+      (worldX >= HABITAT_ZONES[1].xStart && worldX <= HABITAT_ZONES[1].xEnd) ||
+      worldX >= HABITAT_ZONES[3].xStart;
     const floorWorldY = getTerrainFloorY(worldX, h);
-    const isWater = effectiveWaterY !== null && effectiveWaterY < floorWorldY;
-    const surfaceWorldY = isWater ? effectiveWaterY! : floorWorldY;
+    const isWater = waterWorldY !== null || inRiverOrSeaBasin || floorWorldY > waterDatumWorldY;
+    const surfaceWorldY = Math.min(waterDatumWorldY, floorWorldY);
     const screenY = (surfaceWorldY - h * 0.5 - cameraY) * zoom + h * 0.5;
     return { screenY, isWater };
   };
@@ -3437,10 +3493,14 @@ function renderWeatherScreenOverlay(
     if (clampedSx === w) break;
   }
 
-  // If the camera is deep underwater (surface is above top of screen), zero weather is visible!
+  // If the camera is deep underwater (water surface is above top of screen), zero weather is visible!
   if (maxAirBottomY <= 2) {
     return;
   }
+
+  // When diving underwater (cameraY > 35), airborne rain streaks fade out rapidly so that
+  // underwater you only see the raindrop impact ripples on the surface above you!
+  const airStreakVisibility = clamp(1 - (cameraY - 35) / 75, 0, 1);
 
   ctx.save();
   // Clip strictly to the air column above the water surface / ground contour
@@ -3448,153 +3508,194 @@ function renderWeatherScreenOverlay(
   ctx.moveTo(0, 0);
   ctx.lineTo(w, 0);
   for (let i = samples.length - 1; i >= 0; i--) {
-    ctx.lineTo(samples[i].sx, Math.min(h, samples[i].screenY + 3));
+    ctx.lineTo(samples[i].sx, Math.min(h, samples[i].screenY + 2));
   }
   ctx.closePath();
   ctx.clip();
 
   if (weather === 'windy') {
-    ctx.lineCap = 'round';
-    for (let i = 0; i < 18; i++) {
-      const depth = (i % 3) / 2; // 0, 0.5, 1
-      const spd = 340 + depth * 220;
-      const wx = ((elapsedSec * spd + i * 197) % (w + 320)) - 160;
-      const wy = ((i * 67) % Math.max(80, Math.min(h * 0.72, maxAirBottomY - 24))) + 24;
-      const len = 85 + depth * 65;
-      const wGrad = ctx.createLinearGradient(wx, wy, wx + len, wy);
-      wGrad.addColorStop(0, 'rgba(248, 250, 252, 0)');
-      wGrad.addColorStop(0.35, `rgba(241, 245, 249, ${0.16 + depth * 0.16})`);
-      wGrad.addColorStop(0.7, `rgba(255, 255, 255, ${0.24 + depth * 0.18})`);
-      wGrad.addColorStop(1, 'rgba(248, 250, 252, 0)');
-      ctx.strokeStyle = wGrad;
-      ctx.lineWidth = 1.2 + depth * 1.1;
-      ctx.beginPath();
-      ctx.moveTo(wx, wy);
-      ctx.bezierCurveTo(
-        wx + len * 0.35,
-        wy - 8 - (i % 2) * 5,
-        wx + len * 0.7,
-        wy + 7 + (i % 2) * 4,
-        wx + len,
-        wy - 2,
-      );
-      ctx.stroke();
+    if (airStreakVisibility > 0.02) {
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 18; i++) {
+        const depth = (i % 3) / 2;
+        const spd = 340 + depth * 220;
+        const wx = ((elapsedSec * spd + i * 197) % (w + 320)) - 160;
+        const wy = ((i * 67) % Math.max(80, Math.min(h * 0.72, maxAirBottomY - 24))) + 24;
+        const len = 85 + depth * 65;
+        const wGrad = ctx.createLinearGradient(wx, wy, wx + len, wy);
+        wGrad.addColorStop(0, 'rgba(248, 250, 252, 0)');
+        wGrad.addColorStop(0.35, `rgba(241, 245, 249, ${(0.14 + depth * 0.14) * airStreakVisibility})`);
+        wGrad.addColorStop(0.7, `rgba(255, 255, 255, ${(0.22 + depth * 0.16) * airStreakVisibility})`);
+        wGrad.addColorStop(1, 'rgba(248, 250, 252, 0)');
+        ctx.strokeStyle = wGrad;
+        ctx.lineWidth = 1.1 + depth * 0.9;
+        ctx.beginPath();
+        ctx.moveTo(wx, wy);
+        ctx.bezierCurveTo(
+          wx + len * 0.35,
+          wy - 8 - (i % 2) * 5,
+          wx + len * 0.7,
+          wy + 7 + (i % 2) * 4,
+          wx + len,
+          wy - 2,
+        );
+        ctx.stroke();
+      }
     }
   } else if (weather === 'rain') {
-    // 1. Atmospheric rain-curtain mist sheet & distant Virga rain shafts in the sky
-    const curtainGrad = ctx.createLinearGradient(0, 0, 0, Math.min(h, maxAirBottomY));
-    curtainGrad.addColorStop(0, 'rgba(148, 163, 184, 0.16)');
-    curtainGrad.addColorStop(0.7, 'rgba(186, 230, 253, 0.08)');
-    curtainGrad.addColorStop(1, 'rgba(224, 242, 254, 0.14)');
-    ctx.fillStyle = curtainGrad;
-    ctx.fillRect(0, 0, w, Math.min(h, maxAirBottomY));
+    const clipBottomY = Math.min(h, maxAirBottomY);
 
-    ctx.lineCap = 'round';
-    const windTilt = -0.21 + Math.sin(elapsedSec * 0.9) * 0.025;
+    if (airStreakVisibility > 0.02) {
+      // 1. Atmospheric rain-curtain mist & slanting precipitation shafts in the sky
+      const curtainGrad = ctx.createLinearGradient(0, 0, 0, clipBottomY);
+      curtainGrad.addColorStop(0, `rgba(148, 163, 184, ${0.15 * airStreakVisibility})`);
+      curtainGrad.addColorStop(0.65, `rgba(186, 230, 253, ${0.07 * airStreakVisibility})`);
+      curtainGrad.addColorStop(1, `rgba(224, 242, 254, ${0.14 * airStreakVisibility})`);
+      ctx.fillStyle = curtainGrad;
+      ctx.fillRect(0, 0, w, clipBottomY);
 
-    // 2. 4 Depth Planes of Realistic Optical Motion-Blurred Raindrop Streaks
-    // Each drop has a translucent elongated motion-blur tail and a brighter lower specular head
-    const layers = [
-      { count: 48, speedY: 640, speedX: -135, len: 18, width: 0.9, tailAlpha: 0.14, headAlpha: 0.32 },
-      { count: 42, speedY: 860, speedX: -180, len: 26, width: 1.25, tailAlpha: 0.22, headAlpha: 0.48 },
-      { count: 32, speedY: 1080, speedX: -225, len: 36, width: 1.6, tailAlpha: 0.30, headAlpha: 0.64 },
-      { count: 18, speedY: 1320, speedX: -275, len: 46, width: 2.0, tailAlpha: 0.38, headAlpha: 0.80 },
-    ];
+      ctx.lineCap = 'round';
+      const windTilt = -0.18 + Math.sin(elapsedSec * 0.75) * 0.02;
 
-    for (const layer of layers) {
-      // Pass A: Full motion-blur streak tail
-      ctx.strokeStyle = `rgba(203, 232, 252, ${layer.tailAlpha})`;
-      ctx.lineWidth = layer.width * 0.85;
-      ctx.beginPath();
-      for (let i = 0; i < layer.count; i++) {
-        const seedX = i * 131.7 + layer.len * 19;
-        const seedY = i * 83.3 + layer.len * 31;
-        const dropScale = 0.8 + (i % 5) * 0.1;
-        const dLen = layer.len * dropScale;
-        const rx = (((seedX + elapsedSec * layer.speedX) % (w + 140)) + (w + 140)) % (w + 140) - 70;
-        const ry = (((seedY + elapsedSec * layer.speedY) % (h + 100)) + (h + 100)) % (h + 100) - 50;
-        const dx = dLen * windTilt;
-        ctx.moveTo(rx, ry);
-        ctx.lineTo(rx + dx, ry + dLen);
+      // 2. 4 Depth Planes of 100% Realistic Tapered Optical Raindrop Needles
+      // Uses non-periodic hash distribution + 3-stage tapered alpha-gradient segments
+      // (feathered upper tail -> translucent mid -> crisp glistening lower meniscus tip)
+      const layers = [
+        { id: 1, count: 56, speedY: 760, speedX: -138, len: 24, width: 0.65, alpha: 0.24 },
+        { id: 2, count: 46, speedY: 980, speedX: -176, len: 34, width: 0.88, alpha: 0.38 },
+        { id: 3, count: 34, speedY: 1220, speedX: -220, len: 46, width: 1.12, alpha: 0.52 },
+        { id: 4, count: 20, speedY: 1480, speedX: -268, len: 58, width: 1.35, alpha: 0.68 },
+      ];
+
+      const spanW = w + 180;
+      const spanH = Math.max(160, clipBottomY + 90);
+
+      for (const layer of layers) {
+        const effAlpha = layer.alpha * airStreakVisibility;
+
+        // Pass A: Feathered upper-to-mid motion trail (top 100% of streak, slender & faint)
+        ctx.strokeStyle = `rgba(203, 232, 252, ${effAlpha * 0.36})`;
+        ctx.lineWidth = layer.width * 0.62;
+        ctx.beginPath();
+        for (let i = 0; i < layer.count; i++) {
+          const h1 = seededHash(i * 19.37 + layer.id * 71.3);
+          const h2 = seededHash(i * 43.11 + layer.id * 113.7);
+          const h3 = seededHash(i * 79.23 + layer.id * 37.9);
+          const dLen = layer.len * (0.78 + h3 * 0.44);
+          const spdMul = 0.9 + h3 * 0.2;
+          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 90;
+          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 60;
+          const dx = dLen * windTilt;
+          ctx.moveTo(rx, ry);
+          ctx.lineTo(rx + dx, ry + dLen);
+        }
+        ctx.stroke();
+
+        // Pass B: Translucent mid-to-lower body (bottom 58% of streak)
+        ctx.strokeStyle = `rgba(224, 242, 254, ${effAlpha * 0.68})`;
+        ctx.lineWidth = layer.width * 0.85;
+        ctx.beginPath();
+        for (let i = 0; i < layer.count; i++) {
+          const h1 = seededHash(i * 19.37 + layer.id * 71.3);
+          const h2 = seededHash(i * 43.11 + layer.id * 113.7);
+          const h3 = seededHash(i * 79.23 + layer.id * 37.9);
+          const dLen = layer.len * (0.78 + h3 * 0.44);
+          const spdMul = 0.9 + h3 * 0.2;
+          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 90;
+          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 60;
+          const dx = dLen * windTilt;
+          ctx.moveTo(rx + dx * 0.42, ry + dLen * 0.42);
+          ctx.lineTo(rx + dx, ry + dLen);
+        }
+        ctx.stroke();
+
+        // Pass C: Bright specular droplet tip (bottom 22% of streak)
+        ctx.strokeStyle = `rgba(248, 250, 252, ${Math.min(0.95, effAlpha * 1.12)})`;
+        ctx.lineWidth = layer.width;
+        ctx.beginPath();
+        for (let i = 0; i < layer.count; i++) {
+          const h1 = seededHash(i * 19.37 + layer.id * 71.3);
+          const h2 = seededHash(i * 43.11 + layer.id * 113.7);
+          const h3 = seededHash(i * 79.23 + layer.id * 37.9);
+          const dLen = layer.len * (0.78 + h3 * 0.44);
+          const spdMul = 0.9 + h3 * 0.2;
+          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 90;
+          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 60;
+          const dx = dLen * windTilt;
+          ctx.moveTo(rx + dx * 0.78, ry + dLen * 0.78);
+          ctx.lineTo(rx + dx, ry + dLen);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
-
-      // Pass B: Specular lower droplet core (bottom 42% of streak)
-      ctx.strokeStyle = `rgba(240, 249, 255, ${layer.headAlpha})`;
-      ctx.lineWidth = layer.width;
-      ctx.beginPath();
-      for (let i = 0; i < layer.count; i++) {
-        const seedX = i * 131.7 + layer.len * 19;
-        const seedY = i * 83.3 + layer.len * 31;
-        const dropScale = 0.8 + (i % 5) * 0.1;
-        const dLen = layer.len * dropScale;
-        const rx = (((seedX + elapsedSec * layer.speedX) % (w + 140)) + (w + 140)) % (w + 140) - 70;
-        const ry = (((seedY + elapsedSec * layer.speedY) % (h + 100)) + (h + 100)) % (h + 100) - 50;
-        const dx = dLen * windTilt;
-        ctx.moveTo(rx + dx * 0.58, ry + dLen * 0.58);
-        ctx.lineTo(rx + dx, ry + dLen);
-      }
-      ctx.stroke();
     }
+  } else if (weather === 'fog') {
+    if (airStreakVisibility > 0.02) {
+      for (let band = 0; band < 4; band++) {
+        const by = Math.min(maxAirBottomY - 25, h * (0.24 + band * 0.16));
+        if (by < -40) continue;
+        const driftX = Math.sin(elapsedSec * 0.35 + band * 1.4) * 45;
+        const mistGrad = ctx.createLinearGradient(0, by - 65, 0, by + 65);
+        mistGrad.addColorStop(0, 'rgba(241, 245, 249, 0)');
+        mistGrad.addColorStop(0.5, `rgba(241, 245, 249, ${0.32 * airStreakVisibility})`);
+        mistGrad.addColorStop(1, 'rgba(241, 245, 249, 0)');
+        ctx.fillStyle = mistGrad;
+        ctx.fillRect(-60 + driftX, by - 65, w + 120, 130);
+      }
+    }
+  }
 
-    // 3. Realistic Water-Surface & Ground Rain Impacts (concentric capillary ripples + Worthington crown droplets)
-    for (let s = 0; s < 22; s++) {
-      const phase = (elapsedSec * 2.6 + s * 0.29) % 1;
-      const sx = ((s * 139.7 + Math.floor(elapsedSec * 2.6 + s * 0.29) * 53) % Math.max(80, w - 32)) + 16;
+  ctx.restore();
+
+  // 3. Water-Surface & Ground Rain Impacts (drawn right on the water surface meniscus / ground contour!)
+  // Visible whenever the surface line is on screen (0 < sy < h), even when looking at the surface from shallow water!
+  if (weather === 'rain' && seaLevelScreenY > -12 && seaLevelScreenY < h + 12) {
+    ctx.save();
+    for (let s = 0; s < 26; s++) {
+      const cycle = elapsedSec * 2.4 + s * 0.37;
+      const phase = cycle % 1;
+      const pulseIdx = Math.floor(cycle);
+      const sx = 16 + seededHash(s * 97.3 + pulseIdx * 31.7) * Math.max(60, w - 32);
       const surf = getSurfaceInfoAtScreenX(sx);
-      const sy = surf.screenY + (surf.isWater ? ((s % 3) - 1) * 1.5 : ((s * 17) % 14) - 4);
-      if (sy < 4 || sy > h - 2) continue;
+      const sy = surf.screenY + (surf.isWater ? (seededHash(s * 13.1) - 0.5) * 3 : (seededHash(s * 17.9) - 0.5) * 6);
+      if (sy < 2 || sy > h - 2) continue;
 
-      const fade = 1 - phase;
-      const rx = (surf.isWater ? 5 : 3.5) + phase * (surf.isWater ? 18 : 11);
-      const ry = rx * (surf.isWater ? 0.24 : 0.28);
+      const fade = (1 - phase) * (1 - phase * 0.35);
+      const rx = (surf.isWater ? 4.5 : 3.0) + phase * (surf.isWater ? 20 : 11);
+      const ry = rx * (surf.isWater ? 0.22 : 0.26);
 
       // Outer expanding capillary wave ring
-      ctx.strokeStyle = `rgba(224, 242, 254, ${(surf.isWater ? 0.58 : 0.42) * fade})`;
-      ctx.lineWidth = surf.isWater ? 1.4 : 1.1;
+      ctx.strokeStyle = `rgba(224, 242, 254, ${(surf.isWater ? 0.64 : 0.44) * fade})`;
+      ctx.lineWidth = surf.isWater ? 1.35 : 1.05;
       ctx.beginPath();
       ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // Secondary inner concentric ripple on water surface
-      if (surf.isWater && phase > 0.18) {
+      if (surf.isWater && phase > 0.16) {
         const innerRx = rx * 0.52;
         const innerRy = ry * 0.52;
-        ctx.strokeStyle = `rgba(240, 249, 255, ${0.42 * fade})`;
-        ctx.lineWidth = 1.0;
+        ctx.strokeStyle = `rgba(248, 250, 252, ${0.46 * fade})`;
+        ctx.lineWidth = 0.95;
         ctx.beginPath();
         ctx.ellipse(sx, sy, innerRx, innerRy, 0, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // Upward rebounding Worthington crown splash droplets at impact start
-      if (phase < 0.36) {
-        const crownT = phase / 0.36;
-        const lift = Math.sin(crownT * Math.PI) * (surf.isWater ? 8.5 : 5.5);
-        const spread = crownT * (surf.isWater ? 6.5 : 4.5);
-        ctx.fillStyle = `rgba(240, 249, 255, ${0.78 * (1 - crownT)})`;
+      // Upward rebounding Worthington crown splash jet & micro-droplets at impact start
+      if (phase < 0.34) {
+        const crownT = phase / 0.34;
+        const lift = Math.sin(crownT * Math.PI) * (surf.isWater ? 9.0 : 5.5);
+        const spread = crownT * (surf.isWater ? 7.0 : 4.5);
+        ctx.fillStyle = `rgba(248, 250, 252, ${0.82 * (1 - crownT)})`;
         ctx.beginPath();
-        ctx.arc(sx - spread, sy - lift, 1.3, 0, Math.PI * 2);
-        ctx.arc(sx, sy - lift * 1.25, 1.5, 0, Math.PI * 2);
-        ctx.arc(sx + spread, sy - lift, 1.3, 0, Math.PI * 2);
+        ctx.arc(sx - spread, sy - lift * 0.85, 1.15, 0, Math.PI * 2);
+        ctx.arc(sx, sy - lift * 1.25, 1.35, 0, Math.PI * 2);
+        ctx.arc(sx + spread, sy - lift * 0.85, 1.15, 0, Math.PI * 2);
         ctx.fill();
       }
     }
-  } else if (weather === 'fog') {
-    for (let band = 0; band < 4; band++) {
-      const by = Math.min(maxAirBottomY - 25, h * (0.24 + band * 0.16));
-      if (by < -40) continue;
-      const driftX = Math.sin(elapsedSec * 0.35 + band * 1.4) * 45;
-      const mistGrad = ctx.createLinearGradient(0, by - 65, 0, by + 65);
-      mistGrad.addColorStop(0, 'rgba(241, 245, 249, 0)');
-      mistGrad.addColorStop(0.5, 'rgba(241, 245, 249, 0.32)');
-      mistGrad.addColorStop(1, 'rgba(241, 245, 249, 0)');
-      ctx.fillStyle = mistGrad;
-      ctx.fillRect(-60 + driftX, by - 65, w + 120, 130);
-    }
+    ctx.restore();
   }
-
-  ctx.restore();
 }
 
 export function getDefaultPlacementY(

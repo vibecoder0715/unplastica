@@ -2676,11 +2676,15 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     );
     cameraX = targetCameraX;
     // Underwater towers frame the actual water column at that spot (surface to seabed),
-    // so arriving at a reef or the deep sea shows the habitat rather than empty water
+    // submerging the camera below the surface when diving to underwater sanctuary/pelagic/abyssal sites
     const towerWaterY = getWaterSurfaceY(tower.worldX, viewportHeight);
+    const towerFloorY = getTerrainFloorY(tower.worldX, viewportHeight);
     const underwaterCameraY =
       towerWaterY !== null && tower.worldYOffset > 0
-        ? (towerWaterY + getTerrainFloorY(tower.worldX, viewportHeight)) * 0.5 - viewportHeight * 0.5
+        ? Math.max(
+            towerWaterY - viewportHeight * 0.34 + Math.min(220, tower.worldYOffset * 0.75),
+            (towerWaterY + towerFloorY) * 0.5 - viewportHeight * 0.42,
+          )
         : tower.worldYOffset;
     targetCameraY = clamp(
       underwaterCameraY,
