@@ -231,10 +231,10 @@ export class TurtleRigController {
     target.headScaleX *= 1 - turnMidFactor * 0.07;
     target.headRot += blinkHeadNod;
 
-    // Smooth exponential interpolation across all channels
-    const kBody = 1 - Math.exp(-clampedDt * 10);
-    const kLimb = 1 - Math.exp(-clampedDt * 13);
-    const kFace = 1 - Math.exp(-clampedDt * 15);
+    // Responsive, jitter-free exponential smoothing rates (eliminates motion lag and aliasing)
+    const kBody = 1 - Math.exp(-clampedDt * 18);
+    const kLimb = 1 - Math.exp(-clampedDt * 22);
+    const kFace = 1 - Math.exp(-clampedDt * 24);
     const kBlink = 1 - Math.exp(-clampedDt * 35);
 
     this.pose.bodyX = lerp(this.pose.bodyX, target.bodyX, kBody);
@@ -471,6 +471,10 @@ export class TurtleRigController {
     p.hindNearAngle = Math.sin(t * 2.1 + Math.PI) * 0.22;
     p.hindFarAngle = Math.sin(t * 2.1) * 0.22;
 
+    // Smooth, continuous entrance easing (smoothstep over 280ms) avoids step-function snapping when emotions begin
+    const enterProgress = clamp(mt / 0.28, 0, 1);
+    const enterEase = enterProgress * enterProgress * (3 - 2 * enterProgress);
+
     switch (this.motion) {
       case 'idle': {
         // Active natural walking/swimming locomotion with gentle smile and rhythmic limbs
@@ -512,429 +516,419 @@ export class TurtleRigController {
       }
 
       case 'waving': {
-        // Energetic waving of the near flipper (left-to-right hand waving motion!)
-        const waveCycle = Math.sin(t * 6.4);
-        const waveFollow = Math.cos(t * 6.4 - 0.4);
+        // Energetic waving of the near flipper (left-to-right hand waving motion)
+        const waveCycle = Math.sin(t * 4.8);
+        const waveFollow = Math.cos(t * 4.8 - 0.4);
 
-        p.headX = Math.sin(t * 3.2) * 3;
-        p.headY = Math.sin(t * 3.2 - 0.3) * 3.5;
-        p.headRot = Math.sin(t * 3.2) * 0.045;
-        p.headLookX = 0.05 + Math.sin(t * 1.8) * 0.04;
-        p.headLookY = -0.02;
+        p.headX = Math.sin(t * 2.4) * 2.5 * enterEase;
+        p.headY = Math.sin(t * 2.4 - 0.3) * 2.8 * enterEase;
+        p.headRot = Math.sin(t * 2.4) * 0.038 * enterEase;
+        p.headLookX = (0.05 + Math.sin(t * 1.8) * 0.04) * enterEase;
+        p.headLookY = -0.02 * enterEase;
 
         // Near flipper raised high, waving left & right smoothly with wrist follow-through
-        p.nearFlipperDownAmount = 0;
+        p.nearFlipperDownAmount = 1 - enterEase;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = waveCycle * 0.28;
-        p.nearFlipperBend = waveFollow * 0.18;
+        p.nearFlipperAngle = waveCycle * 0.25 * enterEase;
+        p.nearFlipperBend = waveFollow * 0.15 * enterEase;
 
         // Far flipper extended down-right balancing gently
         p.farFlipperChinAmount = 0;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = Math.sin(t * 3.2 + 1.1) * 0.08;
-        p.farFlipperBend = Math.cos(t * 3.2) * 0.05;
+        p.farFlipperAngle = Math.sin(t * 2.4 + 1.1) * 0.08 * enterEase;
+        p.farFlipperBend = Math.cos(t * 2.4) * 0.05 * enterEase;
 
-        p.eyeGazeX = 0.04 + Math.sin(t * 2.1) * 0.04;
-        p.eyeGazeY = -0.02;
-        p.pupilScale = 1.02;
-        p.browRaise = 0.2 + Math.sin(t * 3.2) * 0.05;
+        p.eyeGazeX = (0.04 + Math.sin(t * 2.1) * 0.04) * enterEase;
+        p.eyeGazeY = -0.02 * enterEase;
+        p.pupilScale = 1.0 + 0.02 * enterEase;
+        p.browRaise = 0.14 + (0.08 + Math.sin(t * 2.4) * 0.04) * enterEase;
 
-        p.mouthOpen = 0.68 + Math.sin(t * 3.2) * 0.07;
-        p.mouthSmile = 0.95;
-        p.mouthWidth = 1.0;
-        p.blushAlpha = 0.16;
+        p.mouthOpen = 0.22 + (0.42 + Math.sin(t * 2.4) * 0.05) * enterEase;
+        p.mouthSmile = 0.92 + 0.04 * enterEase;
+        p.mouthWidth = 0.94 + 0.06 * enterEase;
+        p.blushAlpha = 0.18 + 0.06 * enterEase;
 
-        p.waveRaysAlpha = 0.95;
-        p.waveRaysPhase = t * 6.4;
+        p.waveRaysAlpha = 0.95 * enterEase;
+        p.waveRaysPhase = t * 4.8;
         break;
       }
 
       case 'laugh': {
-        // Joyful chuckling bounce
-        const chuckle = Math.abs(Math.sin(t * 9.5));
-        const chuckleSigned = Math.sin(t * 9.5);
+        // Joyful, smooth chuckling belly laugh (C1 harmonic cosine wave - zero sharp cusps)
+        const chuckleBounce = (0.5 - 0.5 * Math.cos(t * 5.2));
+        const chuckleWave = Math.sin(t * 5.2);
 
-        p.bodyY = swimBob * 3.5 - chuckle * 8.5;
-        p.bodyRot = Math.sin(t * 4.75) * 0.04;
-        p.bodyScaleX = 1.02 + chuckle * 0.022;
-        p.bodyScaleY = 0.98 - chuckle * 0.022;
+        p.bodyY = swimBob * 3.5 - chuckleBounce * 6.5 * enterEase;
+        p.bodyRot = chuckleWave * 0.03 * enterEase;
+        p.bodyScaleX = 1.0 + (0.02 + chuckleBounce * 0.02) * enterEase;
+        p.bodyScaleY = 1.0 - (0.02 + chuckleBounce * 0.02) * enterEase;
 
-        p.headX = Math.sin(t * 4.75) * 3.5;
-        p.headY = -chuckle * 10;
-        p.headRot = -0.05 + Math.sin(t * 4.75) * 0.06;
+        p.headX = chuckleWave * 2.5 * enterEase;
+        p.headY = -chuckleBounce * 7.5 * enterEase;
+        p.headRot = (-0.03 + chuckleWave * 0.045) * enterEase;
 
         // Near flipper spread outward-left flapping happily
-        p.nearFlipperDownAmount = 0.45;
-        p.nearFlipperTuckAmount = 0.25;
-        p.nearFlipperAngle = chuckleSigned * 0.16;
-        p.nearFlipperBend = Math.cos(t * 9.5) * 0.1;
+        p.nearFlipperDownAmount = 1 - 0.55 * enterEase;
+        p.nearFlipperTuckAmount = 0.25 * enterEase;
+        p.nearFlipperAngle = chuckleWave * 0.14 * enterEase;
+        p.nearFlipperBend = Math.cos(t * 5.2) * 0.08 * enterEase;
 
         // Far flipper extended down-right flapping in joyful rhythm
         p.farFlipperChinAmount = 0;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = -chuckleSigned * 0.14;
+        p.farFlipperAngle = -chuckleWave * 0.12 * enterEase;
 
         // Happy closed ^ ^ laughing eyes!
-        p.laughEyeAmount = 1.0;
-        p.browRaise = 0.28 + chuckle * 0.08;
-        p.blushAlpha = 0.88;
+        p.laughEyeAmount = 1.0 * enterEase;
+        p.browRaise = 0.14 + (0.16 + chuckleBounce * 0.06) * enterEase;
+        p.blushAlpha = 0.18 + 0.7 * enterEase;
 
-        // Wide open laughing mouth pulsing with each chuckle
-        p.mouthOpen = 0.9 + chuckle * 0.16;
+        // Wide open laughing mouth pulsing harmonically with chuckle
+        p.mouthOpen = 0.22 + (0.65 + chuckleBounce * 0.14) * enterEase;
         p.mouthSmile = 1.0;
-        p.mouthWidth = 1.16 + chuckle * 0.05;
-        p.tongueScale = 1.12;
+        p.mouthWidth = 0.94 + (0.2 + chuckleBounce * 0.05) * enterEase;
+        p.tongueScale = 1.0 + 0.12 * enterEase;
 
         p.waveRaysAlpha = 0;
-        p.laughMarksAlpha = 1.0;
-        p.laughMarksBounce = chuckleSigned;
+        p.laughMarksAlpha = 1.0 * enterEase;
+        p.laughMarksBounce = chuckleWave;
         break;
       }
 
       case 'wondered': {
-        // Curious head tilt + far hand tucked right below face/chin + floating '?'
-        const ponderWave = Math.sin(t * 2.7);
-        const chinTap = Math.sin(t * 5.4);
+        // Curious head tilt + far flipper tucked below chin + floating '?'
+        const ponderWave = Math.sin(t * 2.4);
+        const chinTap = Math.sin(t * 3.6);
 
-        p.headX = 4 + ponderWave * 2.5;
-        p.headY = 2 + Math.cos(t * 2.7) * 2.5;
-        p.headRot = 0.08 + ponderWave * 0.045;
-        p.headLookX = 0.1 + Math.sin(t * 1.8) * 0.06;
-        p.headLookY = -0.14 + Math.cos(t * 2.2) * 0.05;
+        p.headX = (3.5 + ponderWave * 2.0) * enterEase;
+        p.headY = (1.8 + Math.cos(t * 2.4) * 2.0) * enterEase;
+        p.headRot = (0.07 + ponderWave * 0.035) * enterEase;
+        p.headLookX = (0.1 + Math.sin(t * 1.8) * 0.05) * enterEase;
+        p.headLookY = (-0.12 + Math.cos(t * 2.0) * 0.04) * enterEase;
 
         // Near flipper extends down-left
         p.nearFlipperDownAmount = 1.0;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = ponderWave * 0.06;
+        p.nearFlipperAngle = ponderWave * 0.05 * enterEase;
 
-        // Far flipper curls up to rest right below the chin/mouth!
-        p.farFlipperChinAmount = 1.0;
+        // Far flipper curls up smoothly below chin
+        p.farFlipperChinAmount = 1.0 * enterEase;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = chinTap * 0.06;
-        p.farFlipperBend = ponderWave * 0.05;
+        p.farFlipperAngle = chinTap * 0.05 * enterEase;
+        p.farFlipperBend = ponderWave * 0.04 * enterEase;
 
-        p.eyeGazeX = 0.12 + Math.sin(t * 1.9) * 0.07;
-        p.eyeGazeY = -0.16 + Math.cos(t * 2.4) * 0.05;
-        p.pupilScale = 1.06;
-        p.browRaise = 0.24;
-        p.browAsymmetry = 0.2 + ponderWave * 0.05;
+        p.eyeGazeX = (0.11 + Math.sin(t * 1.8) * 0.05) * enterEase;
+        p.eyeGazeY = (-0.14 + Math.cos(t * 2.2) * 0.04) * enterEase;
+        p.pupilScale = 1.0 + 0.06 * enterEase;
+        p.browRaise = 0.14 + 0.12 * enterEase;
+        p.browAsymmetry = (0.18 + ponderWave * 0.04) * enterEase;
 
         // Small cute surprised/curious 'o' mouth
-        p.mouthOShape = 1.0;
-        p.mouthOpen = 0.44 + Math.sin(t * 3.2) * 0.05;
-        p.mouthWidth = 0.36;
-        p.mouthSmile = 0.05;
-        p.blushAlpha = 0.1;
+        p.mouthOShape = 1.0 * enterEase;
+        p.mouthOpen = 0.22 + (0.2 + Math.sin(t * 2.8) * 0.04) * enterEase;
+        p.mouthWidth = 0.94 - 0.55 * enterEase;
+        p.mouthSmile = 0.92 - 0.85 * enterEase;
+        p.blushAlpha = 0.18;
 
         p.waveRaysAlpha = 0;
-        p.questionMarkAlpha = 1.0;
-        p.questionMarkBob = Math.sin(t * 3.4);
+        p.questionMarkAlpha = 1.0 * enterEase;
+        p.questionMarkBob = Math.sin(t * 2.8);
         break;
       }
 
       case 'angry': {
-        // Grumpy crouched posture, deep V-furrowed eyebrows, tight frown, pulsing red vein
-        const huff = Math.sin(t * 4.2);
-        const tremor = Math.sin(t * 22) * (0.35 + 0.65 * Math.max(0, huff));
+        // Grumpy crouched posture, deep V-furrowed brows, tight downturned frown, pulsing red vein
+        // Smooth grumpy huff cadence (no high-frequency 22 rad/s tremor)
+        const huffCycle = Math.sin(t * 3.2);
+        const huffSwell = Math.max(0, huffCycle);
 
-        p.bodyX = tremor * 1.3;
-        p.bodyY = 7 + huff * 3.5;
-        p.bodyRot = 0.04 + huff * 0.018;
-        p.bodyScaleX = 1.025 + Math.max(0, huff) * 0.02;
-        p.bodyScaleY = 0.975;
+        p.bodyX = Math.cos(t * 1.6) * 1.2 * enterEase;
+        p.bodyY = (5 + huffCycle * 2.8) * enterEase;
+        p.bodyRot = (0.03 + huffCycle * 0.015) * enterEase;
+        p.bodyScaleX = 1.0 + (0.02 + huffSwell * 0.02) * enterEase;
+        p.bodyScaleY = 1.0 - 0.02 * enterEase;
 
-        p.headX = 5 + tremor * 1.6;
-        p.headY = 9 + huff * 3.0;
-        p.headRot = 0.06 + tremor * 0.01;
-        p.headLookX = 0.05;
-        p.headLookY = 0.06;
+        p.headX = (4 + Math.sin(t * 1.6) * 1.4) * enterEase;
+        p.headY = (7 + huffCycle * 2.4) * enterEase;
+        p.headRot = (0.05 + huffCycle * 0.012) * enterEase;
+        p.headLookX = 0.05 * enterEase;
+        p.headLookY = 0.06 * enterEase;
 
         // Near flipper angled down-left, far flipper angled down-right
         p.nearFlipperDownAmount = 1.0;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = huff * 0.07;
+        p.nearFlipperAngle = huffCycle * 0.06 * enterEase;
 
         p.farFlipperChinAmount = 0;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = -huff * 0.07;
+        p.farFlipperAngle = -huffCycle * 0.06 * enterEase;
 
-        p.angryLidAmount = 1.0;
-        p.eyeGazeX = 0.04;
-        p.eyeGazeY = -0.04;
-        p.pupilScale = 0.95;
-        p.browRaise = -0.45 - Math.max(0, huff) * 0.08;
-        p.browTilt = -0.85;
+        p.angryLidAmount = 1.0 * enterEase;
+        p.eyeGazeX = 0.04 * enterEase;
+        p.eyeGazeY = -0.04 * enterEase;
+        p.pupilScale = 1.0 - 0.05 * enterEase;
+        p.browRaise = 0.14 - (0.55 + huffSwell * 0.06) * enterEase;
+        p.browTilt = -0.85 * enterEase;
 
         // Tight downturned frown curve
-        p.mouthFrownLine = 1.0;
-        p.mouthOpen = 0.0;
-        p.mouthSmile = -0.9;
-        p.mouthWidth = 0.78;
-        p.blushAlpha = 0.06;
+        p.mouthFrownLine = 1.0 * enterEase;
+        p.mouthOpen = 0.22 - 0.22 * enterEase;
+        p.mouthSmile = 0.92 - 1.82 * enterEase;
+        p.mouthWidth = 0.94 - 0.16 * enterEase;
+        p.blushAlpha = 0.18 - 0.1 * enterEase;
 
         p.waveRaysAlpha = 0;
-        p.angryVeinAlpha = 1.0;
-        p.angryVeinPulse = Math.sin(t * 8.5);
+        p.angryVeinAlpha = 1.0 * enterEase;
+        p.angryVeinPulse = Math.sin(t * 4.8);
         break;
       }
 
       case 'crying': {
-        // Heartbroken sobbing motion, glistening eyes, waterfall tears & droplets, wailing mouth
-        const sobCycle = Math.sin(t * 5.6);
-        const sobShiver = Math.sin(t * 18) * 1.4;
+        // Heartbroken sobbing rhythm, glistening eyes, waterfall tears & droplets, wailing mouth
+        // Smooth gentle sobbing heave (eliminates rapid 18 rad/s shiver)
+        const sobCycle = Math.sin(t * 3.2);
+        const sobHeave = Math.max(0, sobCycle);
 
-        p.bodyX = sobShiver * 0.8;
-        p.bodyY = 9 + sobCycle * 4.5;
-        p.bodyRot = 0.025 + sobCycle * 0.022;
+        p.bodyX = Math.cos(t * 1.6) * 1.2 * enterEase;
+        p.bodyY = (7 + sobCycle * 3.5) * enterEase;
+        p.bodyRot = (0.02 + sobCycle * 0.018) * enterEase;
 
-        p.headX = sobShiver;
-        p.headY = 10 + sobCycle * 5.0;
-        p.headRot = 0.03 + Math.sin(t * 2.8) * 0.035;
+        p.headX = Math.sin(t * 1.6) * 1.4 * enterEase;
+        p.headY = (8 + sobCycle * 4.0) * enterEase;
+        p.headRot = (0.025 + Math.sin(t * 2.0) * 0.025) * enterEase;
 
         // Drooping sad flippers
         p.nearFlipperDownAmount = 1.0;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = sobCycle * 0.07;
+        p.nearFlipperAngle = sobCycle * 0.06 * enterEase;
 
         p.farFlipperChinAmount = 0;
-        p.farFlipperRaiseAmount = 0.28;
-        p.farFlipperAngle = sobCycle * 0.08;
+        p.farFlipperRaiseAmount = 0.25 * enterEase;
+        p.farFlipperAngle = sobCycle * 0.07 * enterEase;
 
-        p.sadLidAmount = 1.0;
-        p.wateryShine = 1.0;
+        p.sadLidAmount = 1.0 * enterEase;
+        p.wateryShine = 1.0 * enterEase;
         p.eyeGazeX = 0;
-        p.eyeGazeY = -0.05 + sobCycle * 0.03;
-        p.pupilScale = 1.06;
-        p.browRaise = 0.12;
-        p.browTilt = 0.84 + sobCycle * 0.06;
+        p.eyeGazeY = (-0.05 + sobCycle * 0.025) * enterEase;
+        p.pupilScale = 1.0 + 0.06 * enterEase;
+        p.browRaise = 0.14 - 0.02 * enterEase;
+        p.browTilt = (0.8 + sobHeave * 0.06) * enterEase;
 
         // Wide open sad wailing mouth
-        p.mouthWailShape = 1.0;
-        p.mouthOpen = 0.86 + sobCycle * 0.12;
-        p.mouthSmile = -0.85;
-        p.mouthWidth = 1.04;
-        p.blushAlpha = 0.22;
+        p.mouthWailShape = 1.0 * enterEase;
+        p.mouthOpen = 0.22 + (0.62 + sobHeave * 0.1) * enterEase;
+        p.mouthSmile = 0.92 - 1.77 * enterEase;
+        p.mouthWidth = 0.94 + 0.1 * enterEase;
+        p.blushAlpha = 0.18 + 0.08 * enterEase;
 
         p.waveRaysAlpha = 0;
-        p.tearsAlpha = 1.0;
-        p.tearStreamPhase = t * 6.0;
+        p.tearsAlpha = 1.0 * enterEase;
+        p.tearStreamPhase = t * 4.8;
         break;
       }
 
       case 'describing': {
-        // Enthusiastic manual explaining/presenting motion
-        const gestureArc = Math.sin(t * 5.2);
-        const gestureSub = Math.cos(t * 10.4);
-        const syllable =
-          0.52 +
-          0.28 * Math.sin(t * 11.5) +
-          0.18 * Math.cos(t * 7.3) +
-          0.1 * Math.sin(t * 16.5);
+        // Enthusiastic manual explaining/presenting motion with rhythmic speech cadence
+        const gestureArc = Math.sin(t * 3.8);
+        const gestureSub = Math.cos(t * 3.8 - 0.4);
+        const syllable = 0.52 + 0.3 * Math.sin(t * 5.2) + 0.12 * Math.cos(t * 2.6);
 
-        p.bodyY = swimBob * 4.5 + Math.sin(t * 5.2) * 3;
-        p.bodyRot = -0.02 + gestureArc * 0.025;
+        p.bodyY = swimBob * 3.5 + Math.sin(t * 3.8) * 2.5 * enterEase;
+        p.bodyRot = (-0.015 + gestureArc * 0.02) * enterEase;
 
-        p.headX = 3 + gestureArc * 3.5;
-        p.headY = -2 + Math.abs(gestureArc) * 3.0;
-        p.headRot = -0.04 + gestureArc * 0.055;
-        p.headLookX = 0.14 + gestureArc * 0.05;
-        p.headLookY = -0.05;
+        p.headX = (2.5 + gestureArc * 2.8) * enterEase;
+        p.headY = (-1.5 + Math.abs(gestureArc) * 2.2) * enterEase;
+        p.headRot = (-0.03 + gestureArc * 0.04) * enterEase;
+        p.headLookX = (0.12 + gestureArc * 0.04) * enterEase;
+        p.headLookY = -0.04 * enterEase;
 
         // Near flipper curled neatly in front of chest
-        p.nearFlipperDownAmount = 0;
-        p.nearFlipperTuckAmount = 1.0;
-        p.nearFlipperAngle = gestureArc * 0.09;
-        p.nearFlipperBend = gestureSub * 0.07;
+        p.nearFlipperDownAmount = 1 - enterEase;
+        p.nearFlipperTuckAmount = 1.0 * enterEase;
+        p.nearFlipperAngle = gestureArc * 0.08 * enterEase;
+        p.nearFlipperBend = gestureSub * 0.06 * enterEase;
 
         // Far flipper raised up-outward to the right gesturing to explain!
         p.farFlipperChinAmount = 0;
-        p.farFlipperRaiseAmount = 1.0;
-        p.farFlipperAngle = gestureArc * 0.25;
-        p.farFlipperBend = gestureSub * 0.16;
+        p.farFlipperRaiseAmount = 1.0 * enterEase;
+        p.farFlipperAngle = gestureArc * 0.22 * enterEase;
+        p.farFlipperBend = gestureSub * 0.14 * enterEase;
 
-        p.eyeGazeX = 0.14 + gestureArc * 0.05;
-        p.eyeGazeY = -0.04;
-        p.pupilScale = 1.03;
-        p.browRaise = 0.26 + Math.max(0, gestureArc) * 0.07;
+        p.eyeGazeX = (0.12 + gestureArc * 0.04) * enterEase;
+        p.eyeGazeY = -0.03 * enterEase;
+        p.pupilScale = 1.0 + 0.03 * enterEase;
+        p.browRaise = 0.14 + (0.12 + Math.max(0, gestureArc) * 0.06) * enterEase;
 
-        // Lively talking mouth that opens and closes on speech syllables
-        p.mouthOpen = clamp(syllable, 0.28, 0.92);
+        // Lively talking mouth opening and closing smoothly on syllables
+        p.mouthOpen = 0.22 + (clamp(syllable, 0.25, 0.88) - 0.22) * enterEase;
         p.mouthSmile = 0.94;
-        p.mouthWidth = 0.95 + clamp(syllable, 0, 1) * 0.1;
-        p.tongueScale = 0.92 + clamp(syllable, 0, 1) * 0.15;
-        p.blushAlpha = 0.24;
+        p.mouthWidth = 0.94 + 0.06 * enterEase;
+        p.tongueScale = 0.92 + 0.12 * enterEase;
+        p.blushAlpha = 0.18 + 0.06 * enterEase;
 
         p.waveRaysAlpha = 0;
-        p.describeRaysAlpha = 0.95;
-        p.describeRaysPhase = t * 5.2;
+        p.describeRaysAlpha = 0.95 * enterEase;
+        p.describeRaysPhase = t * 3.8;
         break;
       }
 
       case 'sleepy': {
-        // Drowsy, sleepy/bored slow breathing, heavy drooping eyelids, nodding head, yawning 'o' mouth + floating Zzz
-        const drowsyBreath = Math.sin(t * 1.6);
-        const yawnCycle = Math.max(0, Math.sin(t * 1.4 - 0.5));
-        const headNod = Math.sin(t * 1.6 + 0.4);
+        // Drowsy, peaceful slow breathing, heavy drooping eyelids, nodding head, yawning 'o' mouth + floating Zzz
+        const drowsyBreath = Math.sin(t * 1.4);
+        const yawnCycle = Math.max(0, Math.sin(t * 1.2 - 0.5));
+        const headNod = Math.sin(t * 1.4 + 0.4);
 
-        p.breath = drowsyBreath * 1.4;
-        p.bodyX = Math.cos(t * 1.1) * 2.5;
-        p.bodyY = 10 + drowsyBreath * 5.0;
-        p.bodyRot = 0.045 + headNod * 0.025;
-        p.bodyScaleX = 1 + drowsyBreath * 0.016;
-        p.bodyScaleY = 1 - drowsyBreath * 0.014;
+        p.breath = drowsyBreath * 1.3;
+        p.bodyX = Math.cos(t * 1.0) * 2.0 * enterEase;
+        p.bodyY = (8 + drowsyBreath * 4.0) * enterEase;
+        p.bodyRot = (0.035 + headNod * 0.02) * enterEase;
+        p.bodyScaleX = 1 + drowsyBreath * 0.014 * enterEase;
+        p.bodyScaleY = 1 - drowsyBreath * 0.012 * enterEase;
 
         // Head heavy and nodding drowsily
-        p.headX = 2 + headNod * 2.0;
-        p.headY = 11 + headNod * 5.5 - yawnCycle * 3.5;
-        p.headRot = 0.07 + headNod * 0.045 - yawnCycle * 0.04;
-        p.headLookX = -0.04;
-        p.headLookY = 0.12 + headNod * 0.05;
+        p.headX = (1.5 + headNod * 1.6) * enterEase;
+        p.headY = (9 + headNod * 4.5 - yawnCycle * 3.0) * enterEase;
+        p.headRot = (0.05 + headNod * 0.035 - yawnCycle * 0.03) * enterEase;
+        p.headLookX = -0.04 * enterEase;
+        p.headLookY = (0.1 + headNod * 0.04) * enterEase;
 
         // Both flippers hanging low and relaxed
         p.nearFlipperDownAmount = 1.0;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = -0.08 + drowsyBreath * 0.04;
+        p.nearFlipperAngle = (-0.06 + drowsyBreath * 0.03) * enterEase;
 
         p.farFlipperChinAmount = 0;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = 0.06 - drowsyBreath * 0.04;
+        p.farFlipperAngle = (0.05 - drowsyBreath * 0.03) * enterEase;
 
-        p.hindNearAngle = Math.sin(t * 1.6 - 0.6) * 0.04;
-        p.hindFarAngle = Math.sin(t * 1.6 - 1.2) * 0.04;
+        p.hindNearAngle = Math.sin(t * 1.4 - 0.6) * 0.03 * enterEase;
+        p.hindFarAngle = Math.sin(t * 1.4 - 1.2) * 0.03 * enterEase;
 
         // Heavy half-closed droopy sleepy eyelids
-        p.sleepyLidAmount = 1.0;
-        p.blinkAmount = Math.max(0, Math.sin(t * 1.6 - 1.1) * 0.35);
-        p.eyeGazeX = -0.02;
-        p.eyeGazeY = 0.14;
-        p.pupilScale = 0.96;
-        p.browRaise = -0.18 + yawnCycle * 0.12;
-        p.browTilt = 0.32;
+        p.sleepyLidAmount = 1.0 * enterEase;
+        p.blinkAmount = Math.max(0, Math.sin(t * 1.4 - 1.1) * 0.3) * enterEase;
+        p.eyeGazeX = -0.02 * enterEase;
+        p.eyeGazeY = 0.12 * enterEase;
+        p.pupilScale = 1.0 - 0.04 * enterEase;
+        p.browRaise = 0.14 - (0.32 - yawnCycle * 0.1) * enterEase;
+        p.browTilt = 0.32 * enterEase;
 
         // Sleepy yawning / sighing round mouth
-        p.mouthOShape = 1.0;
-        p.mouthOpen = 0.32 + yawnCycle * 0.68;
-        p.mouthWidth = 0.42 + yawnCycle * 0.25;
-        p.mouthSmile = -0.15;
-        p.blushAlpha = 0.12;
+        p.mouthOShape = 1.0 * enterEase;
+        p.mouthOpen = 0.22 + (0.15 + yawnCycle * 0.55) * enterEase;
+        p.mouthWidth = 0.94 - (0.45 - yawnCycle * 0.2) * enterEase;
+        p.mouthSmile = 0.92 - 1.05 * enterEase;
+        p.blushAlpha = 0.18 - 0.06 * enterEase;
 
         p.waveRaysAlpha = 0;
-        p.sleepyZzzAlpha = 1.0;
-        p.sleepyZzzPhase = t * 1.8;
+        p.sleepyZzzAlpha = 1.0 * enterEase;
+        p.sleepyZzzPhase = t * 1.6;
         break;
       }
 
       case 'blush': {
-        // Bashful, shyly wiggling turtle with glowing rosy cheeks, hands tucked shyly near face/chest, and floating hearts
-        const shySway = Math.sin(t * 3.6);
-        const shyFlutter = Math.sin(t * 7.2);
+        // Bashful, shyly swaying turtle with glowing rosy cheeks, hands tucked shyly near face/chest, and floating hearts
+        const shySway = Math.sin(t * 2.8);
+        const shyFlutter = Math.sin(t * 2.8 + 0.5);
 
-        p.bodyX = shySway * 4.5;
-        p.bodyY = 4 + Math.abs(shySway) * 3.5;
-        p.bodyRot = -0.025 + shySway * 0.038;
-        p.bodyScaleX = 0.99 + Math.abs(shySway) * 0.015;
-        p.bodyScaleY = 1.01 - Math.abs(shySway) * 0.015;
+        p.bodyX = shySway * 3.5 * enterEase;
+        p.bodyY = (3 + Math.abs(shySway) * 2.5) * enterEase;
+        p.bodyRot = (-0.02 + shySway * 0.028) * enterEase;
+        p.bodyScaleX = 1.0 - (0.01 - Math.abs(shySway) * 0.012) * enterEase;
+        p.bodyScaleY = 1.0 + (0.01 - Math.abs(shySway) * 0.012) * enterEase;
 
         // Head tucked down-inward bashfully with a cute shy tilt
-        p.headX = -3 + shySway * 3.5;
-        p.headY = 6 + Math.abs(shySway) * 3.0;
-        p.headRot = -0.08 + shySway * 0.055;
-        p.headLookX = -0.12 + shySway * 0.08;
-        p.headLookY = -0.1;
+        p.headX = (-2.5 + shySway * 2.8) * enterEase;
+        p.headY = (4.5 + Math.abs(shySway) * 2.4) * enterEase;
+        p.headRot = (-0.06 + shySway * 0.04) * enterEase;
+        p.headLookX = (-0.1 + shySway * 0.06) * enterEase;
+        p.headLookY = -0.08 * enterEase;
 
-        // Near flipper curled shyly across the chest, far flipper tucked up near the cheek!
-        p.nearFlipperDownAmount = 0;
-        p.nearFlipperTuckAmount = 1.0;
-        p.nearFlipperAngle = shySway * 0.11;
-        p.nearFlipperBend = shyFlutter * 0.06;
+        // Near flipper curled shyly across the chest, far flipper tucked up near the cheek
+        p.nearFlipperDownAmount = 1 - enterEase;
+        p.nearFlipperTuckAmount = 1.0 * enterEase;
+        p.nearFlipperAngle = shySway * 0.09 * enterEase;
+        p.nearFlipperBend = shyFlutter * 0.05 * enterEase;
 
-        p.farFlipperChinAmount = 1.0;
+        p.farFlipperChinAmount = 1.0 * enterEase;
         p.farFlipperRaiseAmount = 0;
-        p.farFlipperAngle = -shySway * 0.09;
-        p.farFlipperBend = shyFlutter * 0.05;
+        p.farFlipperAngle = -shySway * 0.08 * enterEase;
+        p.farFlipperBend = shyFlutter * 0.04 * enterEase;
 
         // Big shiny bashful eyes glancing shyly upward/sideways
-        p.eyeGazeX = -0.15 + shySway * 0.08;
-        p.eyeGazeY = -0.12 + Math.cos(t * 3.6) * 0.04;
-        p.pupilScale = 1.09;
-        p.wateryShine = 0.55;
-        p.eyeSparkleAmount = 0.65;
-        p.browRaise = 0.16;
-        p.browTilt = 0.48;
+        p.eyeGazeX = (-0.12 + shySway * 0.06) * enterEase;
+        p.eyeGazeY = (-0.1 + Math.cos(t * 2.8) * 0.03) * enterEase;
+        p.pupilScale = 1.0 + 0.08 * enterEase;
+        p.wateryShine = 0.55 * enterEase;
+        p.eyeSparkleAmount = 0.65 * enterEase;
+        p.browRaise = 0.14 + 0.02 * enterEase;
+        p.browTilt = 0.48 * enterEase;
 
         // Cute bashful wavy smile + deep rosy blush
-        p.mouthShyWave = 1.0;
-        p.mouthOpen = 0.18 + Math.abs(shySway) * 0.08;
+        p.mouthShyWave = 1.0 * enterEase;
+        p.mouthOpen = 0.22 + (Math.abs(shySway) * 0.06) * enterEase;
         p.mouthSmile = 0.88;
-        p.mouthWidth = 0.76;
-        p.blushAlpha = 1.0;
+        p.mouthWidth = 0.94 - 0.18 * enterEase;
+        p.blushAlpha = 0.18 + 0.82 * enterEase;
 
         p.waveRaysAlpha = 0;
-        p.blushHeartsAlpha = 1.0;
-        p.blushHeartsPhase = t * 3.6;
+        p.blushHeartsAlpha = 1.0 * enterEase;
+        p.blushHeartsPhase = t * 2.8;
         break;
       }
 
       case 'congratulate': {
-        // Joyful, proud celebratory cheering bounce with BOTH flippers raised high, starry eyes, and festive confetti/stars!
-        const cheerBeat = Math.abs(Math.sin(t * 7.6));
-        const cheerSwing = Math.sin(t * 7.6);
-        const clapWave = Math.sin(t * 15.2);
+        // Joyful, proud celebratory cheering bounce (C1 harmonic cosine curve - zero sharp cusps)
+        const cheerBounce = (0.5 - 0.5 * Math.cos(t * 4.2));
+        const cheerSwing = Math.sin(t * 4.2);
+        const clapWave = Math.sin(t * 4.2) * 0.12;
 
-        p.bodyX = cheerSwing * 3.0;
-        p.bodyY = -cheerBeat * 11.5;
-        p.bodyRot = cheerSwing * 0.045;
-        p.bodyScaleX = 1.025 - cheerBeat * 0.03;
-        p.bodyScaleY = 0.975 + cheerBeat * 0.035;
+        p.bodyX = cheerSwing * 2.4 * enterEase;
+        p.bodyY = -cheerBounce * 8.5 * enterEase;
+        p.bodyRot = cheerSwing * 0.035 * enterEase;
+        p.bodyScaleX = 1.0 + (0.02 - cheerBounce * 0.025) * enterEase;
+        p.bodyScaleY = 1.0 - (0.02 - cheerBounce * 0.025) * enterEase;
 
-        p.headX = cheerSwing * 3.5;
-        p.headY = -5 - cheerBeat * 7.5;
-        p.headRot = cheerSwing * 0.06;
-        p.headLookX = 0.06;
-        p.headLookY = -0.08;
+        p.headX = cheerSwing * 2.8 * enterEase;
+        p.headY = (-4 - cheerBounce * 5.5) * enterEase;
+        p.headRot = cheerSwing * 0.045 * enterEase;
+        p.headLookX = 0.05 * enterEase;
+        p.headLookY = -0.06 * enterEase;
 
         // BOTH front flippers raised high cheering & applauding happily!
-        p.nearFlipperDownAmount = 0;
+        p.nearFlipperDownAmount = 1 - enterEase;
         p.nearFlipperTuckAmount = 0;
-        p.nearFlipperAngle = 0.12 + cheerSwing * 0.24 + clapWave * 0.06;
-        p.nearFlipperBend = Math.cos(t * 7.6) * 0.16;
+        p.nearFlipperAngle = (0.1 + cheerSwing * 0.2 + clapWave) * enterEase;
+        p.nearFlipperBend = Math.cos(t * 4.2) * 0.12 * enterEase;
 
         p.farFlipperChinAmount = 0;
-        p.farFlipperRaiseAmount = 1.0;
-        p.farFlipperAngle = -0.22 - cheerSwing * 0.24 - clapWave * 0.06;
-        p.farFlipperBend = Math.sin(t * 7.6) * 0.16;
+        p.farFlipperRaiseAmount = 1.0 * enterEase;
+        p.farFlipperAngle = (-0.18 - cheerSwing * 0.2 - clapWave) * enterEase;
+        p.farFlipperBend = Math.sin(t * 4.2) * 0.12 * enterEase;
 
         // Happy kicking hind flippers
-        p.hindNearAngle = cheerSwing * 0.16;
-        p.hindFarAngle = -cheerSwing * 0.16;
+        p.hindNearAngle = cheerSwing * 0.14 * enterEase;
+        p.hindFarAngle = -cheerSwing * 0.14 * enterEase;
 
         // Bright sparkling celebratory eyes
-        p.eyeGazeX = 0.05;
-        p.eyeGazeY = -0.06;
-        p.pupilScale = 1.08;
-        p.eyeSparkleAmount = 1.0;
-        p.browRaise = 0.34 + cheerBeat * 0.08;
-        p.blushAlpha = 0.68;
+        p.eyeGazeX = 0.05 * enterEase;
+        p.eyeGazeY = -0.05 * enterEase;
+        p.pupilScale = 1.0 + 0.08 * enterEase;
+        p.eyeSparkleAmount = 1.0 * enterEase;
+        p.browRaise = 0.14 + (0.2 + cheerBounce * 0.06) * enterEase;
+        p.blushAlpha = 0.18 + 0.5 * enterEase;
 
         // Beaming wide celebratory open smile
-        p.mouthOpen = 0.88 + cheerBeat * 0.16;
+        p.mouthOpen = 0.22 + (0.65 + cheerBounce * 0.12) * enterEase;
         p.mouthSmile = 1.0;
-        p.mouthWidth = 1.14 + cheerBeat * 0.05;
-        p.tongueScale = 1.1;
+        p.mouthWidth = 0.94 + 0.22 * enterEase;
+        p.tongueScale = 1.0 + 0.15 * enterEase;
 
         p.waveRaysAlpha = 0;
-        p.congratsAlpha = 1.0;
-        p.congratsPhase = t * 5.0;
+        p.congratsAlpha = 1.0 * enterEase;
+        p.congratsPhase = t * 4.2;
         break;
       }
-    }
-
-    // Subtle entrance pop when a motion button is freshly clicked
-    if (mt < 0.26) {
-      const pop = Math.sin((mt / 0.26) * Math.PI);
-      p.bodyScaleX += pop * 0.03;
-      p.bodyScaleY -= pop * 0.022;
-      p.headY -= pop * 4.5;
     }
 
     return p;

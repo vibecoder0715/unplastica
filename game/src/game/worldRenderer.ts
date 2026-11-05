@@ -156,7 +156,7 @@ export function drawOverheadEmotionBadge(
   ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
   ctx.translate(x, y);
 
-  const bob = Math.sin(elapsedSec * 4.5) * 2.5;
+  const bob = Math.sin(elapsedSec * 2.2) * 1.5;
   ctx.translate(0, bob);
 
   const r = 18;
@@ -2468,9 +2468,10 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
 
         // Active Emotion Overhead Comic Badge (100% obvious visual reaction)
         if (animal.emotionTimerSec > 0 && animal.eatingStage === 'none') {
-          const pop = Math.min(1, (3.6 - animal.emotionTimerSec) * 4);
+          const elapsedEmote = Math.max(0, 3.8 - animal.emotionTimerSec);
+          const pop = Math.min(1, elapsedEmote * 4);
           const fade = Math.min(1, animal.emotionTimerSec * 3);
-          const alpha = pop * fade;
+          const alpha = Math.max(0, pop * fade);
           if (alpha > 0.05) {
             const bx = animal.x + animal.facing * 36 * Math.max(0.6, bodySize);
             const by = animal.y - 88 * Math.max(0.6, bodySize);

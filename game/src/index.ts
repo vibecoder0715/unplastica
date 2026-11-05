@@ -1206,7 +1206,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     recordAnimalCareInteraction(animal, 10);
     animal.currentEmotion = 'laugh';
     animal.emotionTimerSec = 3.5;
-    animal.locoBlend = 0;
     soundEngine.playEatMunch();
     renderEntityCard();
   }
@@ -1223,7 +1222,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     recordAnimalCareInteraction(animal, 18);
     animal.currentEmotion = 'laugh';
     animal.emotionTimerSec = 3.5;
-    animal.locoBlend = 0;
 
     soundEngine.playEatMunch();
     renderEntityCard();
@@ -1454,8 +1452,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       if (animal.emoteSpamCount >= 2) {
         animal.currentEmotion = 'angry';
         animal.emotionTimerSec = 3.8;
-        animal.locoBlend = 0;
-        animal.vx = 0;
         animal.lastEmoteTriggerMs = nowMs;
         animal.emoteSpamCount = 0;
         soundEngine.playRejectBoing();
@@ -1469,9 +1465,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
 
     animal.emoteSpamCount = 0;
     animal.lastEmoteTriggerMs = nowMs;
-    // Stop walking on site for 3.5 seconds (3-4s)
-    animal.locoBlend = 0;
-    animal.vx = 0;
 
     // Waking a resting animal (by its own schedule: nocturnal species sleep by day)
     if (isAnimalResting(animal.assetId, saveState.timeOfDayHours) && animal.emotionTimerSec <= 0) {

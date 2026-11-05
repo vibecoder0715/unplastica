@@ -76,7 +76,7 @@ export function TurtleCanvas({
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
 
-    const minFrameInterval = 25; // Target up to 40 FPS max for preview canvas, saving 50% GPU load
+    const minFrameInterval = 14; // Smooth 60 FPS playback on all screen refresh rates (60Hz/90Hz/120Hz) without frame-pacing judder
     let lastRenderTime = 0;
 
     const loop = (now: number) => {

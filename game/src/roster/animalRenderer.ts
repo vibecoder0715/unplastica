@@ -1003,10 +1003,9 @@ export interface AnimalRenderOptions {
     ctx.fill();
     ctx.restore();
 
-    // Root body transform: Walking gait for land animals, hydrodynamic swimming for water animals, + 3D parallax
-    const isNearHandGesturing =
-      clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1) >= 0.35;
-    const isFarHandChin = pose.farFlipperChinAmount > 0.3 || pose.farFlipperRaiseAmount > 0.3;
+    // Root body transform: Continuous blend between walking/swimming locomotion and emotion gestures
+    const nearGestureWeight = clamp(1 - pose.nearFlipperDownAmount - pose.nearFlipperTuckAmount, 0, 1);
+    const farGestureWeight = clamp(Math.max(pose.farFlipperChinAmount, pose.farFlipperRaiseAmount), 0, 1);
 
     const groundedPose: TurtlePose = isLandStanding
       ? {
@@ -1021,12 +1020,12 @@ export interface AnimalRenderOptions {
         headY: pose.headY - Math.sin(walkPhase * 2 - 0.65) * 1.8 * activityScale + breathWave * 1.1 * (1 - activityScale) + currentAnimalPitch * 12,
         headLookX: clamp(pose.headLookX + currentAnimalYaw * 0.55, -1.2, 1.2),
         headLookY: clamp(pose.headLookY + currentAnimalPitch * 0.55, -1.2, 1.2),
-        nearFlipperAngle: isNearHandGesturing
-          ? pose.nearFlipperAngle
-          : pose.nearFlipperAngle * (1 - activityScale * 0.65) + walkStrideFrontNear,
-        farFlipperAngle: isFarHandChin
-          ? pose.farFlipperAngle
-          : pose.farFlipperAngle * (1 - activityScale * 0.65) + walkStrideFrontFar,
+        nearFlipperAngle:
+          (1 - nearGestureWeight) * (pose.nearFlipperAngle * (1 - activityScale * 0.65) + walkStrideFrontNear) +
+          nearGestureWeight * pose.nearFlipperAngle,
+        farFlipperAngle:
+          (1 - farGestureWeight) * (pose.farFlipperAngle * (1 - activityScale * 0.65) + walkStrideFrontFar) +
+          farGestureWeight * pose.farFlipperAngle,
         hindNearAngle: walkStrideHindNear,
         hindFarAngle: walkStrideHindFar,
         waveRaysPhase: pose.waveRaysPhase || walkPhase,
@@ -1043,12 +1042,12 @@ export interface AnimalRenderOptions {
         headY: pose.headY + Math.sin(swimPhase + 0.35) * 1.4 * activityScale + currentAnimalPitch * 12,
         headLookX: clamp(pose.headLookX + currentAnimalYaw * 0.55, -1.2, 1.2),
         headLookY: clamp(pose.headLookY + currentAnimalPitch * 0.55, -1.2, 1.2),
-        nearFlipperAngle: isNearHandGesturing
-          ? pose.nearFlipperAngle
-          : pose.nearFlipperAngle * (1 - activityScale * 0.5) + swimFinScull,
-        farFlipperAngle: isFarHandChin
-          ? pose.farFlipperAngle
-          : pose.farFlipperAngle * (1 - activityScale * 0.5) - swimFinScull,
+        nearFlipperAngle:
+          (1 - nearGestureWeight) * (pose.nearFlipperAngle * (1 - activityScale * 0.5) + swimFinScull) +
+          nearGestureWeight * pose.nearFlipperAngle,
+        farFlipperAngle:
+          (1 - farGestureWeight) * (pose.farFlipperAngle * (1 - activityScale * 0.5) - swimFinScull) +
+          farGestureWeight * pose.farFlipperAngle,
         hindNearAngle: pose.hindNearAngle * (1 - activityScale * 0.5) + swimTailKick,
         hindFarAngle: pose.hindFarAngle * (1 - activityScale * 0.5) - swimTailKick,
         waveRaysPhase: pose.waveRaysPhase || swimPhase,

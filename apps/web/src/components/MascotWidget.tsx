@@ -74,7 +74,7 @@ function TurtleFrontHeadCanvas({ emotion, isOpen }: TurtleFrontHeadCanvasProps) 
     let nextBlinkAt = startTime + 2400 + Math.random() * 1800;
     const blinkDur = 170;
     let lastRenderNow = 0;
-    const minFrameInterval = 31; // Throttle mascot widget to smooth 32 FPS, avoiding 60 FPS battery/GPU drain
+    const minFrameInterval = 14; // Smooth 60 FPS playback on all screen refresh rates without frame-pacing judder
 
     const render = (now: number) => {
       rafId = requestAnimationFrame(render);
