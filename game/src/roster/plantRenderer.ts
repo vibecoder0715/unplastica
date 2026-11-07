@@ -463,6 +463,29 @@ function drawDetailedLeaf(
   }
 
   /**
+   * Builds a bough spec for drawWoodyTrunkAndBranches whose tip lands EXACTLY on the
+   * basal hub (cx, cy + ry * 0.64) of a drawCanopyCrown(cx, cy, rx, ry) call, so the
+   * crown's internal limbs grow straight out of the bough (no floating / disconnected crowns).
+   */
+  function hubBranch(
+    trunkH: number,
+    baseW: number,
+    topW: number,
+    xFactor: number,
+    yFactor: number,
+    cx: number,
+    cy: number,
+    ry: number,
+    bw: number,
+  ): readonly [number, number, number, number, number] {
+    const tH = clamp(-yFactor, 0, 1);
+    const trunkHalfW = baseW * (1 - tH) + topW * tH;
+    const bxRest = xFactor * trunkHalfW * 0.35;
+    const by = 148 + yFactor * trunkH;
+    return [xFactor, yFactor, cx - bxRest, cy + ry * 0.64 - by, bw] as const;
+  }
+
+  /**
    * Fix #22: Draws a 3D cylindrical sculpted woody mother trunk with bark striation lines,
    * 3D root flare, and seamlessly merged ("嵌入") primary boughs + sub-branches + attached leaves.
    */
@@ -718,6 +741,23 @@ function drawDetailedLeaf(
         '#152914',
         false,
       );
+      // Paired lateral leaflets around the secondary fork tip so the twig ends in a leafy spray, never a bare stick
+      for (const spread of [-0.55, 0.55]) {
+        drawDetailedLeaf(
+          ctx,
+          subEndX,
+          subEndY,
+          (dir > 0 ? -0.72 : -2.42) + spread + sway * 0.11,
+          20,
+          8,
+          lLight,
+          lMid,
+          lDark,
+          'rgba(240,255,220,0.6)',
+          '#152914',
+          false,
+        );
+      }
       drawDetailedLeaf(
         ctx,
         endX,
@@ -913,8 +953,11 @@ function drawDetailedLeaf(
       [rx * 0.34, -ry * 0.44, rx * 0.44, ry * 0.44],
       [0, -ry * 0.56, rx * 0.48, ry * 0.44],
       [0, -ry * 0.16, rx * 0.56, ry * 0.44],
+      // Lower basal cushion that envelops the woody hub so the bough-to-crown union sits inside foliage
+      [-rx * 0.2, ry * 0.42, rx * 0.34, ry * 0.3],
+      [rx * 0.2, ry * 0.42, rx * 0.34, ry * 0.3],
     ];
-    const backGrad = ctx.createLinearGradient(0, -ry * 1.02, 0, ry * 0.54);
+    const backGrad = ctx.createLinearGradient(0, -ry * 1.02, 0, ry * 0.72);
     backGrad.addColorStop(0, cMid);
     backGrad.addColorStop(0.55, cDark);
     backGrad.addColorStop(1, '#091c0d');
@@ -1012,6 +1055,21 @@ function drawDetailedLeaf(
       ctx.moveTo(px, py);
       ctx.lineTo(lx, ly);
     }
+    ctx.stroke();
+
+    // Tapered woody stem collar running from the hub down into the supporting bough tip,
+    // so the crown scaffold and the trunk bough read as one continuous limb
+    ctx.strokeStyle = branchWoodStroke;
+    ctx.lineWidth = 13.2;
+    ctx.beginPath();
+    ctx.moveTo(hubX, hubY);
+    ctx.lineTo(hubX, hubY + 16);
+    ctx.stroke();
+    ctx.strokeStyle = branchWoodFill;
+    ctx.lineWidth = 10.4;
+    ctx.beginPath();
+    ctx.moveTo(hubX, hubY - 2);
+    ctx.lineTo(hubX, hubY + 17);
     ctx.stroke();
 
     // Sculpted woody fork union collar at (hubX, hubY) welding the supporting bough directly into the 3 primary crown limbs
@@ -1931,7 +1989,11 @@ function drawDetailedLeaf(
        * rose-pink blossom clusters, and deep purple mangosteen fruits with 4-lobed calyces.
        * ====================================================================== */
       case 'plant_04_mangosteen_tree': {
-        drawWoodyTrunkAndBranches(ctx, sway, 195, 28, 14, '#785238', '#4f331f', '#2e1c0f', false);
+        drawWoodyTrunkAndBranches(ctx, sway, 195, 28, 14, '#785238', '#4f331f', '#2e1c0f', false, [
+          hubBranch(195, 28, 14, -0.44, -0.62, -82, -52, 36, 17),
+          hubBranch(195, 28, 14, 0.44, -0.6, 82, -50, 36, 17),
+          hubBranch(195, 28, 14, -0.18, -0.9, 0, -102, 84, 14),
+        ]);
         drawCanopyCrown(ctx, -82, -52, 58, 36, sway, '#4ade80', '#15803d', '#064e3b', '#052e16', ['#fbcfe8', '#f472b6', '#db2777', '#facc15']);
         drawCanopyCrown(ctx, 82, -50, 58, 36, sway, '#4ade80', '#15803d', '#064e3b', '#052e16', ['#fbcfe8', '#f472b6', '#db2777', '#facc15']);
         drawCanopyCrown(ctx, 0, -102, 132, 84, sway, '#4ade80', '#15803d', '#064e3b', '#052e16', ['#fbcfe8', '#f472b6', '#db2777', '#facc15']);
@@ -2792,10 +2854,9 @@ function drawDetailedLeaf(
        * ====================================================================== */
       case 'plant_14_banyan_fig': {
         drawWoodyTrunkAndBranches(ctx, sway, 190, 44, 24, '#a88b73', '#6e5239', '#3d2b1c', true, [
-          [-0.52, -0.68, -88, -54, 20],
-          [0.52, -0.68, 88, -50, 20],
-          [-0.32, -0.88, -68, -52, 16],
-          [0.32, -0.88, 68, -52, 16],
+          hubBranch(190, 44, 24, -0.52, -0.68, -92, -64, 44, 20),
+          hubBranch(190, 44, 24, 0.52, -0.68, 92, -60, 44, 20),
+          hubBranch(190, 44, 24, -0.2, -0.92, 0, -118, 64, 16),
         ]);
         // Sculpted tapering aerial prop roots merging seamlessly from the horizontal boughs to the ground
         for (const rx of [-88, -62, -40, 40, 62, 88]) {
@@ -2864,7 +2925,11 @@ function drawDetailedLeaf(
        * bunches of crimson-scarlet Rambutan fruits covered in golden spintern hairs.
        * ====================================================================== */
       case 'plant_15_rambutan_tree': {
-        drawWoodyTrunkAndBranches(ctx, sway, 195, 28, 14, '#8c6546', '#5e4028', '#382313', false);
+        drawWoodyTrunkAndBranches(ctx, sway, 195, 28, 14, '#8c6546', '#5e4028', '#382313', false, [
+          hubBranch(195, 28, 14, -0.44, -0.62, -82, -52, 36, 17),
+          hubBranch(195, 28, 14, 0.44, -0.6, 82, -50, 36, 17),
+          hubBranch(195, 28, 14, -0.18, -0.9, 0, -104, 82, 14),
+        ]);
         drawCanopyCrown(ctx, -82, -52, 58, 36, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#ecfccb', '#bef264', '#84cc16', '#facc15']);
         drawCanopyCrown(ctx, 82, -50, 58, 36, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#ecfccb', '#bef264', '#84cc16', '#facc15']);
         drawCanopyCrown(ctx, 0, -104, 134, 82, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#ecfccb', '#bef264', '#84cc16', '#facc15']);
@@ -3088,29 +3153,38 @@ function drawDetailedLeaf(
        * glossy opposite leaves, yellow-cream flower clusters, and hanging propagules.
        * ====================================================================== */
       case 'plant_19_red_mangrove': {
-        // Seamlessly merged prop roots arching from lower trunk to mudflat
+        // Seamlessly merged prop roots arching from deep inside the lower trunk to the mudflat
         for (const [sx, ctrlX, endX] of [
-          [-12, -74, -124],
-          [-7, -46, -78],
-          [7, 46, 78],
-          [12, 74, 124],
+          [-10, -74, -124],
+          [-5, -46, -78],
+          [5, 46, 78],
+          [10, 74, 124],
         ] as const) {
+          const rootTopX = sx + sway * 8;
           const rootP = new Path2D();
-          rootP.moveTo(sx + sway * 8 - 5, 42);
-          rootP.quadraticCurveTo(ctrlX - 6, 92, endX - 5, 160);
+          rootP.moveTo(rootTopX - 6, 22);
+          rootP.quadraticCurveTo(ctrlX - 6, 88, endX - 5, 160);
           rootP.lineTo(endX + 5, 160);
-          rootP.quadraticCurveTo(ctrlX + 6, 92, sx + sway * 8 + 5, 48);
+          rootP.quadraticCurveTo(ctrlX + 6, 96, rootTopX + 6, 30);
           rootP.closePath();
-          fillRimAndStroke(ctx, rootP, sx, 42, endX, 160, '#8c583a', '#5e371f', '#381e0e', '#261307', 2.8);
-          // Lenticel bark breathing pores on prop root
+          fillRimAndStroke(ctx, rootP, sx, 22, endX, 160, '#8c583a', '#5e371f', '#381e0e', '#261307', 2.8);
+          // Lenticel bark breathing pores sitting ON the arching prop root curve
           ctx.fillStyle = '#d4b996';
-          for (const ly of [80, 110, 135]) {
+          for (const t of [0.42, 0.62, 0.8]) {
+            const mt = 1 - t;
+            const lx = mt * mt * rootTopX + 2 * mt * t * ctrlX + t * t * endX;
+            const ly = mt * mt * 26 + 2 * mt * t * 92 + t * t * 160;
             ctx.beginPath();
-            ctx.ellipse(ctrlX * 0.7, ly, 2.2, 1.2, 0.4, 0, Math.PI * 2);
+            ctx.ellipse(lx, ly, 2.2, 1.2, 0.4, 0, Math.PI * 2);
             ctx.fill();
           }
         }
-        drawWoodyTrunkAndBranches(ctx, sway, 180, 22, 12, '#8c583a', '#5e371f', '#381e0e', false);
+        drawWoodyTrunkAndBranches(ctx, sway, 180, 22, 12, '#8c583a', '#5e371f', '#381e0e', false, [
+          hubBranch(180, 22, 12, -0.44, -0.66, -78, -46, 34, 15),
+          hubBranch(180, 22, 12, 0.44, -0.64, 78, -44, 34, 15),
+          hubBranch(180, 22, 12, -0.16, -0.9, 0, -98, 72, 13),
+        ]);
+        // (The trunk is painted after the roots, so the root tops are buried inside the bark with no seam.)
         drawCanopyCrown(ctx, -78, -46, 56, 34, sway, '#4ade80', '#15803d', '#052e16', '#052e16', ['#fef9c3', '#fde047', '#eab308', '#ca8a04']);
         drawCanopyCrown(ctx, 78, -44, 56, 34, sway, '#4ade80', '#15803d', '#052e16', '#052e16', ['#fef9c3', '#fde047', '#eab308', '#ca8a04']);
         drawCanopyCrown(ctx, 0, -98, 126, 72, sway, '#4ade80', '#15803d', '#052e16', '#052e16', ['#fef9c3', '#fde047', '#eab308', '#ca8a04']);
@@ -3124,11 +3198,19 @@ function drawDetailedLeaf(
           ] as const
         ).slice(0, activePlantGrowthStage >= 3 && activePlantFruitCount > 0 ? activePlantFruitCount : 0)) {
           const fx = px + sway * 24;
-          ctx.strokeStyle = '#365314';
-          ctx.lineWidth = 3.0;
+          // Pedicel stalk rising up into the canopy foliage so the propagule hangs from a real twig
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = '#1a2e05';
+          ctx.lineWidth = 4.6;
           ctx.beginPath();
-          ctx.moveTo(fx, py - 18);
-          ctx.lineTo(fx, py - 6);
+          ctx.moveTo(fx - 2, py - 34);
+          ctx.quadraticCurveTo(fx + 2, py - 20, fx, py - 6);
+          ctx.stroke();
+          ctx.strokeStyle = '#4d7c0f';
+          ctx.lineWidth = 2.6;
+          ctx.beginPath();
+          ctx.moveTo(fx - 2, py - 34);
+          ctx.quadraticCurveTo(fx + 2, py - 20, fx, py - 6);
           ctx.stroke();
 
           const cap = new Path2D();
@@ -3157,7 +3239,11 @@ function drawDetailedLeaf(
           ctx.lineTo(px + (px > 0 ? 3 : -3), 118);
           ctx.stroke();
         }
-        drawWoodyTrunkAndBranches(ctx, sway, 185, 28, 14, '#8d6e63', '#5d4037', '#3e2723', false);
+        drawWoodyTrunkAndBranches(ctx, sway, 185, 28, 14, '#8d6e63', '#5d4037', '#3e2723', false, [
+          hubBranch(185, 28, 14, -0.44, -0.62, -80, -48, 34, 16),
+          hubBranch(185, 28, 14, 0.44, -0.6, 80, -46, 34, 16),
+          hubBranch(185, 28, 14, -0.18, -0.9, 0, -96, 78, 14),
+        ]);
         drawCanopyCrown(ctx, -80, -48, 56, 34, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#78350f']);
         drawCanopyCrown(ctx, 80, -46, 56, 34, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#78350f']);
         drawCanopyCrown(ctx, 0, -96, 132, 78, sway, '#86efac', '#16a34a', '#14532d', '#142914', ['#fde68a', '#f59e0b', '#d97706', '#78350f']);

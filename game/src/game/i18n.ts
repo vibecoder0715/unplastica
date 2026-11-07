@@ -397,6 +397,13 @@ const ASSET_NAMES_ZH: Record<string, string> = {
   animal_39_cuttlefish: '乌贼 (花枝墨鱼)',
   animal_40_sea_star: '海星',
   animal_41_giant_panda: '大熊猫',
+  animal_42_proboscis_monkey: '长鼻猴',
+  animal_43_sunda_clouded_leopard: '巽他云豹',
+  animal_44_binturong: '马来熊狸 (灵猫)',
+  animal_45_mudskipper: '大弹涂鱼 (跳跳鱼)',
+  animal_46_giant_mud_crab: '红树林青蟹 (膏蟹)',
+  animal_47_reef_manta_ray: '珊瑚礁鬼蝠魟 (魔鬼鱼)',
+  animal_48_chambered_nautilus: '鹦鹉螺',
   plant_01_rafflesia: '大王花 (莱佛士花)',
   plant_02_tualang_tree: '图阿朗巨树 (蜂树)',
   plant_03_durian_tree: '榴莲树',
@@ -471,6 +478,13 @@ const ASSET_NAMES_BM: Record<string, string> = {
   animal_39_cuttlefish: 'Sotong Katak',
   animal_40_sea_star: 'Tapak Sulaiman (Bintang Laut)',
   animal_41_giant_panda: 'Panda Gergasi',
+  animal_42_proboscis_monkey: 'Monyet Belanda (Bekantan)',
+  animal_43_sunda_clouded_leopard: 'Harimau Dahan Sunda',
+  animal_44_binturong: 'Binturong Malaya (Tenturun)',
+  animal_45_mudskipper: 'Ikan Belacak Gergasi',
+  animal_46_giant_mud_crab: 'Ketam Nipah Bakau',
+  animal_47_reef_manta_ray: 'Pari Manta Terumbu',
+  animal_48_chambered_nautilus: 'Nautilus Berbilik',
   plant_01_rafflesia: 'Bunga Pakma (Rafflesia)',
   plant_02_tualang_tree: 'Pokok Tualang',
   plant_03_durian_tree: 'Pokok Durian',
@@ -545,6 +559,13 @@ const ASSET_NAMES_TA: Record<string, string> = {
   animal_39_cuttlefish: 'கணவாய் மீன்',
   animal_40_sea_star: 'கடல் நட்சத்திரம்',
   animal_41_giant_panda: 'பெரிய பாண்டா கரடி',
+  animal_42_proboscis_monkey: 'நீண்ட மூக்குக் குரங்கு',
+  animal_43_sunda_clouded_leopard: 'சுந்தா மேகச் சிறுத்தை',
+  animal_44_binturong: 'மலாயா பிந்துரோங் (கரடிப் பூனை)',
+  animal_45_mudskipper: 'பெரிய சேற்று மீன் (மட்ஸ்கிப்பர்)',
+  animal_46_giant_mud_crab: 'சதுப்புநில சேற்று நண்டு',
+  animal_47_reef_manta_ray: 'பவளப்பாறை மந்தா திருக்கை',
+  animal_48_chambered_nautilus: 'அறைகளுடைய நாட்டிலஸ்',
   plant_01_rafflesia: 'ராஃப்ளேசியா (பெரிய மலர்)',
   plant_02_tualang_tree: 'துவாலாங் மரம்',
   plant_03_durian_tree: 'தூரியான் மரம்',
@@ -656,6 +677,8 @@ const FOOD_NAMES: Record<GameLanguage, Record<string, string>> = {
     food_marine_sponge: 'Reef Sea Sponge',
     food_moon_jellyfish: 'Moon Jellyfish',
     food_starfish_treat: 'Sea Star Treat',
+    food_mangrove_propagules: 'Mangrove Propagules & Shoots',
+    food_sugar_palm_fruit: 'Sugar Palm Fruit (Buah Kabung)',
   },
   'Bahasa Melayu': {
     jellyfish: 'Ubur-ubur Bulan (Snek)',
@@ -688,6 +711,8 @@ const FOOD_NAMES: Record<GameLanguage, Record<string, string>> = {
     food_marine_sponge: 'Span Terumbu Karang',
     food_moon_jellyfish: 'Obor-obor Bulan',
     food_starfish_treat: 'Snek Tapak Sulaiman',
+    food_mangrove_propagules: 'Propagul & Pucuk Bakau',
+    food_sugar_palm_fruit: 'Buah Kabung (Enau)',
   },
   '中文': {
     jellyfish: '海月水母 (美味零食)',
@@ -720,6 +745,8 @@ const FOOD_NAMES: Record<GameLanguage, Record<string, string>> = {
     food_marine_sponge: '珊瑚礁海绵',
     food_moon_jellyfish: '海月水母',
     food_starfish_treat: '海星特餐',
+    food_mangrove_propagules: '红树林胎生苗与嫩叶',
+    food_sugar_palm_fruit: '桄榔糖棕果 (亚答子)',
   },
   'தமிழ்': {
     jellyfish: 'நிலா சொறிமீன் (சிற்றுண்டி)',
@@ -752,6 +779,8 @@ const FOOD_NAMES: Record<GameLanguage, Record<string, string>> = {
     food_marine_sponge: 'பவளப்பாறை கடற்பஞ்சு',
     food_moon_jellyfish: 'நிலா சொறிமீன்',
     food_starfish_treat: 'கடல் நட்சத்திர உணவு',
+    food_mangrove_propagules: 'கண்டல் நாற்று & தளிர்கள்',
+    food_sugar_palm_fruit: 'பனை நுங்குப் பழம்',
   },
 };
 
@@ -888,6 +917,13 @@ const DESCRIPTIONS_EN: Record<string, string> = {
   animal_39_cuttlefish: 'Master of camouflage changing <b>skin textures & colours</b>. Navigates shallow reefs using a <b>rippling fin skirt</b>.',
   animal_40_sea_star: 'Symmetrical reef echinoderm with <b>vibrant textured arms</b>. Crawls calmly over coral boulders using <b>hundreds of tiny tube feet</b>.',
   animal_41_giant_panda: 'Beloved international ambassador with <b>iconic black-and-white fur</b>. Enjoys peaceful sanctuary days munching on <b>crisp bamboo shoots</b>.',
+  animal_42_proboscis_monkey: 'Endemic mangrove primate with a <b>prominent pendulous nose</b> and rufous coat. Leaps across Bakau crowns munching <b>mangrove propagules & shoots</b>.',
+  animal_43_sunda_clouded_leopard: 'Secretive canopy felid patterned with <b>dark-rimmed cloud markings</b>. Descends giant rainforest trunks using <b>flexible rotating ankles</b>.',
+  animal_44_binturong: 'Shaggy charcoal bearcat with a <b>muscular prehensile tail</b> and popcorn scent. Climbs high to feast on <b>sugar palm fruits & figs</b>.',
+  animal_45_mudskipper: 'Amphibious intertidal fish with <b>periscopic turret eyes</b> and sapphire dorsal spots. Skips across Bakau mudflats on <b>muscular pectoral fins</b>.',
+  animal_46_giant_mud_crab: 'Heavily armored mangrove crustacean with <b>nine serrated shell spines</b> and powerful chelae. Shelters beneath <b>arching Bakau stilt roots</b>.',
+  animal_47_reef_manta_ray: 'Graceful pelagic giant with <b>sweeping triangular wings</b> and cephalic lobes. Glides over coral reefs filter-feeding on <b>drifting plankton blooms</b>.',
+  animal_48_chambered_nautilus: 'Ancient deep-reef cephalopod in a <b>pearlescent logarithmic shell</b> with flame stripes. Regulates buoyancy across <b>internal gas chambers</b>.',
 
   // Plants (P01 - P30)
   plant_01_rafflesia: 'World\'s largest solitary bloom with <b>thick speckled petals</b>. Rare rainforest jewel with <b>no roots, stems, or leaves</b>.',
@@ -940,10 +976,12 @@ const DESCRIPTIONS_EN: Record<string, string> = {
   food_bamboo_shoots: 'Tender <b>young bamboo shoots</b>, the main food of the <b>giant panda</b>.',
   food_wild_honeycomb: '<b>Giant honeybee comb</b> from the Tualang tree, the <b>sun bear</b> favourite.',
   food_ants_termites: '<b>Ants and termites</b>, the only food of the <b>Sunda pangolin</b>.',
+  food_mangrove_propagules: 'Fresh <b>viviparous mangrove propagules</b> and desalinated shoots, loved by <b>proboscis monkeys & river terrapins</b>.',
+  food_sugar_palm_fruit: 'Sweet clusters of <b>amber sugar palm fruits</b> with jelly-like seeds, adored by <b>binturongs & canopy wildlife</b>.',
 };
 
 const DESCRIPTIONS_BM: Record<string, string> = {
-  // Animals (A01 - A41)
+  // Animals (A01 - A48)
   animal_01_malayan_tiger: 'Pemangsa puncak hutan dengan <b>belang gelap unik</b>. Dikenali sebagai <b>Harimau Malaya</b>, lambang kebanggaan negara.',
   animal_02_asian_elephant: 'Mamalia darat terbesar dengan <b>belalai tangkas berotot</b>. Membantu <b>menyebarkan benih hutan</b> hujan.',
   animal_03_malayan_tapir: 'Mempunyai corak pelana <b>hitam putih ketara</b> untuk penyamaran. Menggunakan <b>muncung fleksibel</b> untuk meragut daun.',
@@ -985,6 +1023,13 @@ const DESCRIPTIONS_BM: Record<string, string> = {
   animal_39_cuttlefish: 'Pakar penyamaran yang mengubah <b>warna dan tekstur kulit</b> secara pantas di <b>kawasan terumbu cetek</b>.',
   animal_40_sea_star: 'Hidupan terumbu bersimetri dengan <b>lengan bertekstur warna</b>. Merayap perlahan menggunakan <b>ratusan kaki tiub kecil</b>.',
   animal_41_giant_panda: 'Duta persahabatan antarabangsa berbulu <b>hitam dan putih gebu</b>. Menikmati hari santuari dengan mengunyah <b>rebung buluh rangup</b>.',
+  animal_42_proboscis_monkey: 'Primata bakau ikonik dengan <b>hidung mancung unik</b> dan bulu perang kemerahan. Melompat tangkas memakan <b>propagul & pucuk bakau</b>.',
+  animal_43_sunda_clouded_leopard: 'Kucing liar kanopi rahsia bercorak <b>awan gelap menawan</b>. Menuruni batang pokok tinggi dengan <b>buku lali boleh putar</b>.',
+  animal_44_binturong: 'Tenturun berbulu hitam lebat dengan <b>ekor paut berotot</b> dan bau bertih jagung. Memanjat tinggi mencari <b>buah kabung & ara</b>.',
+  animal_45_mudskipper: 'Ikan amfibia lumpur dengan <b>mata periskop tinggi</b> dan sirip berbintik nilam. Melompat di dataran lumpur menggunakan <b>sirip dada kuat</b>.',
+  animal_46_giant_mud_crab: 'Ketam nipah berperisai tebal dengan <b>sembilan duri karapas</b> dan sepit gagah. Berlindung di celah <b>akar jangkang pokok bakau</b>.',
+  animal_47_reef_manta_ray: 'Pari gergasi anggun dengan <b>sayap segi tiga lebar</b> dan cuping kepala. Meluncur di terumbu karang menapis <b>kelompok plankton</b>.',
+  animal_48_chambered_nautilus: 'Fosil hidup laut dalam dengan <b>cangkerang berpilin mutiara</b> berbelang jingga. Mengawal apungan melalui <b>bilik gas dalaman</b>.',
 
   // Plants (P01 - P30)
   plant_01_rafflesia: 'Bunga tunggal terbesar di dunia dengan <b>kelopak berbintik tebal</b>. Keajaiban hutan <b>tanpa akar, batang, atau daun</b>.',
@@ -1037,10 +1082,12 @@ const DESCRIPTIONS_BM: Record<string, string> = {
   food_bamboo_shoots: '<b>Rebung buluh</b> yang lembut, makanan utama <b>panda gergasi</b>.',
   food_wild_honeycomb: '<b>Sarang lebah gergasi</b> dari pokok tualang, kegemaran <b>beruang matahari</b>.',
   food_ants_termites: '<b>Semut dan anai-anai</b>, satu-satunya makanan <b>tenggiling</b>.',
+  food_mangrove_propagules: '<b>Propagul & pucuk bakau</b> segar kaya nutrien, makanan kegemaran <b>monyet belanda & tuntung sungai</b>.',
+  food_sugar_palm_fruit: 'Gugusan <b>buah kabung manis</b> berisi jeli lembut, amat digemari oleh <b>binturong & hidupan kanopi</b>.',
 };
 
 const DESCRIPTIONS_ZH: Record<string, string> = {
-  // Animals (A01 - A41)
+  // Animals (A01 - A48)
   animal_01_malayan_tiger: '雨林顶级捕食者，身披<b>鲜艳深邃斑纹</b>。<b>马来亚虎</b>是象征力量与尊严的国家象征。',
   animal_02_asian_elephant: '马来西亚体型最大的陆生动物，长有<b>强壮灵巧的长鼻</b>。温和巨兽漫步穿行并<b>传播雨林种子</b>。',
   animal_03_malayan_tapir: '拥有醒目的<b>黑白马鞍花纹</b>作为月光天然伪装。用<b>灵巧的长鼻</b>在林溪旁采食嫩叶。',
@@ -1082,6 +1129,13 @@ const DESCRIPTIONS_ZH: Record<string, string> = {
   animal_39_cuttlefish: '海洋伪装大师，能瞬间变幻<b>体表色彩与皮肤质感</b>。在<b>珊瑚浅海间</b>借助鳍裙悬停。',
   animal_40_sea_star: '对称美观的五辐棘皮动物，长着<b>质感鲜明的美丽腕足</b>。用<b>成百上千微小管足</b>在礁石爬行。',
   animal_41_giant_panda: '憨态可掬的黑白国宝，覆有<b>厚实黑白绒毛</b>。在舒适竹林里悠闲啃食<b>甘脆甜嫩竹笋</b>。',
+  animal_42_proboscis_monkey: '红树林特有灵长类，长有<b>标志性宽大长鼻</b>与红褐披毛。在红树林冠飞跃采食<b>红树胎生苗与嫩叶</b>。',
+  animal_43_sunda_clouded_leopard: '神秘的雨林树栖猎手，身披<b>镶黑边的云状斑纹</b>。凭借<b>可旋转的后踝关节</b>在参天巨木间上下自如。',
+  animal_44_binturong: '披着粗密黑毛的树栖熊狸，拥有<b>强健卷尾</b>与爆米花般清香。攀上高冠品尝<b>甜美桄榔果与榕果</b>。',
+  animal_45_mudskipper: '水陆两栖的泥滩奇鱼，长有<b>潜望镜般的凸出双眼</b>与蓝斑背鳍。用<b>强壮胸鳍</b>在红树林泥滩跳跃。',
+  animal_46_giant_mud_crab: '身披厚甲的红树林青蟹，具<b>九枚前侧缘锯齿</b>与巨型重螯。栖息在<b>盘根错节的红树支柱根下</b>。',
+  animal_47_reef_manta_ray: '优雅的远洋巨型蝠鲼，展开<b>宽阔三角胸鳍</b>与成对头鳍。在珊瑚礁海流中回旋滤食<b>浮游生物群</b>。',
+  animal_48_chambered_nautilus: '深海珊瑚礁活化石，栖身于<b>珍珠光泽的橙纹对数螺旋壳</b>。通过<b>多室气腔调节浮力</b>优雅巡游。',
 
   // Plants (P01 - P30)
   plant_01_rafflesia: '世界上最大的单朵花，花瓣<b>肉质且布满斑点</b>。<b>无根无茎无叶</b>的珍罕热带奇观。',
@@ -1134,10 +1188,12 @@ const DESCRIPTIONS_ZH: Record<string, string> = {
   food_bamboo_shoots: '鲜嫩的<b>竹笋</b>，是<b>大熊猫</b>的主要食物。',
   food_wild_honeycomb: '来自大蜜蜂的<b>野生蜂巢</b>，是<b>马来熊</b>的最爱。',
   food_ants_termites: '<b>蚂蚁与白蚁</b>，是<b>马来穿山甲</b>唯一的食物。',
+  food_mangrove_propagules: '鲜嫩的<b>红树林胎生苗与嫩芽</b>，是<b>长鼻猴、潮龟与红树林青蟹</b>的天然美食。',
+  food_sugar_palm_fruit: '成串晶莹清甜的<b>桄榔糖棕果（亚答子）</b>，深受<b>熊狸与树冠动物</b>喜爱。',
 };
 
 const DESCRIPTIONS_TA: Record<string, string> = {
-  // Animals (A01 - A41)
+  // Animals (A01 - A48)
   animal_01_malayan_tiger: '<b>தனித்துவமான இருண்ட கோடுகளைக்</b> கொண்ட வேட்டையாடி. மலேசியாவின் பெருமைமிக்க <b>தேசிய சின்னம்</b>.',
   animal_02_asian_elephant: 'மலேசியாவின் மிகப்பெரிய தரைவாழ் பாலூட்டி, <b>நெகிழ்வான பலமான துதிக்கை</b> கொண்டது. <b>காட்டு விதைகளைப் பரப்பும்</b> தோழன்.',
   animal_03_malayan_tapir: 'இரவு வெளிச்சத்தில் உருமறைக்க <b>கருப்பு வெள்ளை வடிவம்</b> கொண்டது. துளிர்களை உண்ண <b>மென்மையான மூக்கைப்</b> பயன்படுத்துகிறது.',
@@ -1179,6 +1235,13 @@ const DESCRIPTIONS_TA: Record<string, string> = {
   animal_39_cuttlefish: 'தன் <b>தோல் நிறத்தையும் அமைப்பையும்</b> நொடியில் மாற்றும் உருமறைப்பு நிபுணர். <b>பவளப் பாறைகளில்</b> நளினமாக மிதக்கிறது.',
   animal_40_sea_star: '<b>வண்ணமயமான ஐந்து கரங்களைக்</b> கொண்ட சமச்சீர் கடல் நட்சத்திரம். <b>நூற்றுக்கணக்கான சிறிய குழாய் கால்களால்</b> ஊர்ந்து செல்கிறது.',
   animal_41_giant_panda: '<b>கருப்பு வெள்ளை மென் ரோமம்</b> கொண்ட சர்வதேச நட்பின் சின்னம். <b>புதிய மூங்கில் தளிர்களை</b> விரும்பி உண்கிறது.',
+  animal_42_proboscis_monkey: '<b>தனித்துவமான நீண்ட மூக்கு</b> மற்றும் செம்பழுப்பு முடி கொண்ட குரங்கு. சதுப்புநில மரங்களில் தாவி <b>கண்டல் தளிர்களை</b> உண்கிறது.',
+  animal_43_sunda_clouded_leopard: '<b>மேக வடிவப் புள்ளிகள்</b> கொண்ட மரவாழ் சிறுத்தை. வலிமையான <b>வளையும் கணுக்கால்களால்</b> மரங்களில் எளிதாக ஏறுகிறது.',
+  animal_44_binturong: '<b>பற்றும் நீண்ட வால்</b> கொண்ட கருப்பு நிற கரடிப் பூனை. மரங்களின் உச்சியில் <b>பனைப் பழங்களையும் அத்திப்பழங்களையும்</b> உண்கிறது.',
+  animal_45_mudskipper: '<b>உயர்ந்த கண்கள்</b> மற்றும் நீலப் புள்ளி துடுப்பு கொண்ட சேற்று மீன். சதுப்புநிலச் சேற்றில் <b>மார்புத் துடுப்புகளால்</b> தாவிச் செல்கிறது.',
+  animal_46_giant_mud_crab: '<b>வலுவான ஓடும் பெரிய கொடுக்குகளும்</b> கொண்ட சதுப்புநில நண்டு. <b>கண்டல் மரங்களின் ஊன்று வேர்களுக்கு</b> அடியில் வாழ்கிறது.',
+  animal_47_reef_manta_ray: '<b>அகன்ற முக்கோண இறக்கைகள்</b> கொண்ட ராட்சத மந்தா திருக்கை. பவளப்பாறை கடலில் நீந்தி <b>பிளாங்க்டன் நுண்ணுயிரிகளை</b> உண்கிறது.',
+  animal_48_chambered_nautilus: '<b>முத்துப் போன்ற சுருள் ஓடு</b> கொண்ட ஆழ்கடல் உயிர் புதைபடிவம். ஓட்டின் <b>காற்று அறைகளால்</b> நீரில் மிதந்து செல்கிறது.',
 
   // Plants (P01 - P30)
   plant_01_rafflesia: '<b>தடிமனான புள்ளி இதழ்களைக்</b> கொண்ட உலகின் மிகப்பெரிய மலர். <b>வேர், தண்டு, இலைகள் இல்லாத</b> அதிசய தாவர அற்புதம்.',
@@ -1231,6 +1294,8 @@ const DESCRIPTIONS_TA: Record<string, string> = {
   food_bamboo_shoots: 'மென்மையான <b>மூங்கில் தளிர்</b>, <b>பாண்டாவின்</b> முக்கிய உணவு.',
   food_wild_honeycomb: 'துவாலாங் மரத்தின் <b>காட்டுத் தேன்கூடு</b>, <b>சூரியக் கரடியின்</b> விருப்ப உணவு.',
   food_ants_termites: '<b>எறும்பும் கறையானும்</b>, <b>எறும்புண்ணியின்</b> ஒரே உணவு.',
+  food_mangrove_propagules: 'புதிய <b>சதுப்புநில நாற்றுகள் மற்றும் தளிர்கள்</b>, <b>நீண்ட மூக்குக் குரங்கு மற்றும் ஆமைகளின்</b> விருப்ப உணவு.',
+  food_sugar_palm_fruit: 'இனிப்பான <b>பனை நுங்குப் பழக் கொத்து</b>, <b>பிந்துரோங் மற்றும் மரவாழ் விலங்குகளின்</b> பிரியமான உணவு.',
 };
 
 export function getShortDescriptionWithBold(

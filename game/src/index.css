@@ -1298,18 +1298,19 @@
   background: var(--leaf);
 }
 
-/* Teleport Turtle Loading Scene Overlay (Dynamic Bright / Dark Support) */
+/* Teleport Turtle Loading Scene Overlay (Pure White Loading Screen) */
 .teleport-loading-overlay {
   position: fixed;
   inset: 0;
-  background: #f4fbf5;
+  background: #ffffff !important;
+  color-scheme: light !important;
   z-index: 120;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  color: #0c2b18;
+  color: #0c2b18 !important;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 

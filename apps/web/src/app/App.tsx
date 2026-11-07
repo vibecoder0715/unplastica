@@ -50,7 +50,7 @@ const habitImages: Record<HabitCode, string> = {
 };
 
 declare const __APP_BUILD_VERSION__: string | undefined;
-export const APP_BUILD_VERSION = (typeof __APP_BUILD_VERSION__ !== "undefined" && __APP_BUILD_VERSION__) ? __APP_BUILD_VERSION__ : "0.5.1";
+export const APP_BUILD_VERSION = (typeof __APP_BUILD_VERSION__ !== "undefined" && __APP_BUILD_VERSION__) ? __APP_BUILD_VERSION__ : "0.6.0";
 
 export function parseSemVer(v: string): number[] {
   return v.replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
@@ -196,7 +196,7 @@ export async function sendSystemNotification({
   body,
   url = "/",
   tag = "unplastica-alert",
-  icon = "/icons/icon-192.png",
+  icon = "/icons/notification-logo-white.png",
 }: {
   title: string;
   body: string;
@@ -213,7 +213,7 @@ export async function sendSystemNotification({
     const options: any = {
       body,
       icon,
-      badge: "/icons/icon-192.png",
+      badge: "/icons/notification-logo-white.png",
       tag,
       renotify: false, // Never re-alert repeatedly
       data: { url },
@@ -272,7 +272,7 @@ export async function sendCompetitionNotification(lang: Language = "English"): P
     body,
     url: "/events",
     tag: "unplastica-competition-apu",
-    icon: "/assets/events/apu-mark.png",
+    icon: "/icons/notification-logo-white.png",
   });
 }
 
@@ -299,7 +299,7 @@ export async function sendVerificationSuccessNotification(
     body,
     url: "/earn",
     tag: submissionId ? `unplastica-verify-${submissionId}` : "unplastica-verify",
-    icon: "/icons/icon-192.png",
+    icon: "/icons/notification-logo-white.png",
   });
 }
 
@@ -682,7 +682,7 @@ export default function App() {
           void sendSystemNotification({
             title: translate(language, "notification.welcomeTitle"),
             body: translate(language, "notification.welcomeBody"),
-            icon: "/icons/icon-192.png",
+            icon: "/icons/notification-logo-white.png",
             tag: "unplastica-welcome-alert",
             url: "/settings",
           });
@@ -976,8 +976,12 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="loading-shell">
-        <BrandWordmark />
+      <div className="loading-shell" style={{ background: "#ffffff", colorScheme: "light" }}>
+        <img
+          src="/assets/brand/brand-wordmark-light.png?v=0.6.0"
+          alt="Unplastica"
+          style={{ width: "220px", height: "auto", maxWidth: "75vw", objectFit: "contain", background: "transparent", display: "block" }}
+        />
       </div>
     );
   }
@@ -1212,8 +1216,8 @@ function Header({
 function BrandWordmark({ className = "", width = "220px" }: { className?: string; width?: string }) {
   return (
     <div className={"brand-wordmark-wrapper " + className} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <img className="brand-image-light" src="/assets/brand/brand-wordmark-light.png?v=0.2.4" alt="Unplastica" style={{ width, height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
-      <img className="brand-image-dark" src="/assets/brand/brand-wordmark-dark.png?v=0.2.4" alt="Unplastica" style={{ width, height: "auto", maxWidth: "75vw", objectFit: "contain" }} />
+      <img className="brand-image-light" src="/assets/brand/brand-wordmark-light.png?v=0.6.0" alt="Unplastica" style={{ width, height: "auto", maxWidth: "75vw", objectFit: "contain", background: "transparent" }} />
+      <img className="brand-image-dark" src="/assets/brand/brand-wordmark-dark.png?v=0.6.0" alt="Unplastica" style={{ width, height: "auto", maxWidth: "75vw", objectFit: "contain", background: "transparent" }} />
     </div>
   );
 }
@@ -1221,10 +1225,10 @@ function BrandWordmark({ className = "", width = "220px" }: { className?: string
 function BrandLogo({ scrolled = false }: { scrolled?: boolean } = {}) {
   return (
     <span className={"brand-crop " + (scrolled ? "wordmark-visible" : "mark-visible")} aria-hidden="true">
-      <img className="brand-mark brand-image-light" src="/assets/brand/brand-mark-light.png?v=0.2.4" alt="Unplastica" />
-      <img className="brand-mark brand-image-dark" src="/assets/brand/brand-mark-dark.png?v=0.2.4" alt="Unplastica" />
-      <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png?v=0.2.4" alt="Unplastica" />
-      <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png?v=0.2.4" alt="Unplastica" />
+      <img className="brand-mark brand-image-light" src="/assets/brand/brand-mark-light.png?v=0.6.0" alt="Unplastica" />
+      <img className="brand-mark brand-image-dark" src="/assets/brand/brand-mark-dark.png?v=0.6.0" alt="Unplastica" />
+      <img className="brand-wordmark brand-image-light" src="/assets/brand/brand-wordmark-light.png?v=0.6.0" alt="Unplastica" />
+      <img className="brand-wordmark brand-image-dark" src="/assets/brand/brand-wordmark-dark.png?v=0.6.0" alt="Unplastica" />
     </span>
   );
 }
@@ -3821,8 +3825,8 @@ function UpdateNotice() {
         const title = "Unplastica Update Available";
         const options: any = {
           body: `Version ${newVer} is ready! Tap to update and clear cache.`,
-          icon: `/icons/icon-192.png?v=${newVer}`,
-          badge: `/icons/icon-192.png?v=${newVer}`,
+          icon: `/icons/notification-logo-white.png?v=${newVer}`,
+          badge: `/icons/notification-logo-white.png?v=${newVer}`,
           tag: `unplastica-update-${newVer}`,
           renotify: false,
           data: { url: "/settings" }

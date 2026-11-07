@@ -822,6 +822,36 @@ const drawEnhalusSeagrass: PlantRig = (ctx, input) => {
       ctx.quadraticCurveTo(b.w * vx + sway * 24, -b.h * 0.5, b.w * vx + sway * 48, -b.h + 6);
       ctx.stroke();
     }
+    // Transverse lacunae cross-bars (shared signature with the harvested seagrass food icon)
+    ctx.strokeStyle = 'rgba(209, 250, 229, 0.34)';
+    ctx.lineWidth = 1.0;
+    for (let ty = 0.2; ty < 0.9; ty += 0.12) {
+      const cxBar = sway * 48 * ty * ty;
+      const hw = b.w * 0.42 * (1 - ty * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(cxBar - hw, -b.h * ty);
+      ctx.lineTo(cxBar + hw, -b.h * ty);
+      ctx.stroke();
+    }
+    // Glistening photosynthetic oxygen micro-bubbles clinging to the blade
+    for (const [bt, bxo, br] of [
+      [0.38, -0.18, 2.6],
+      [0.62, 0.2, 2.1],
+    ] as const) {
+      const bx = b.w * bxo + sway * 48 * bt * bt;
+      const by = -b.h * bt;
+      ctx.fillStyle = 'rgba(236, 254, 255, 0.62)';
+      ctx.strokeStyle = 'rgba(6, 78, 59, 0.45)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(bx - br * 0.35, by - br * 0.35, br * 0.36, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 

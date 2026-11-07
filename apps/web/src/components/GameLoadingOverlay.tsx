@@ -197,18 +197,11 @@ export function GameLoadingOverlay({ language, onComplete }: GameLoadingOverlayP
     "தமிழ்": "சரணாலயத்திற்குள் நுழைகிறது…",
   }[activeLang] || "Entering Sanctuary…";
 
-  const isDark =
-    typeof document !== "undefined"
-      ? document.documentElement.dataset.theme === "dark"
-      : false;
-
   return (
     <div
-      className={
-        "teleport-loading-overlay game-launch-overlay " +
-        (isDark ? "theme-dark" : "theme-light")
-      }
-      data-theme={isDark ? "dark" : "light"}
+      className="teleport-loading-overlay game-launch-overlay theme-light"
+      data-theme="light"
+      style={{ background: "#ffffff", color: "#0c2b18" }}
       role="status"
       aria-live="polite"
     >

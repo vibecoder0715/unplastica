@@ -170,9 +170,33 @@ export const ROSTER_ASSETS: RosterAsset[] = [
     categoryLabel: 'Land Animals',
     isAnimal: true,
   },
+  {
+    id: 'animal_42_proboscis_monkey',
+    code: 'A42',
+    name: 'Proboscis Monkey',
+    category: 'animals_land',
+    categoryLabel: 'Land Animals',
+    isAnimal: true,
+  },
+  {
+    id: 'animal_43_sunda_clouded_leopard',
+    code: 'A43',
+    name: 'Sunda Clouded Leopard',
+    category: 'animals_land',
+    categoryLabel: 'Land Animals',
+    isAnimal: true,
+  },
+  {
+    id: 'animal_44_binturong',
+    code: 'A44',
+    name: 'Malayan Binturong',
+    category: 'animals_land',
+    categoryLabel: 'Land Animals',
+    isAnimal: true,
+  },
 
   // ======================================
-  // 2. FRESHWATER & RIVER ANIMALS (19 - 26)
+  // 2. FRESHWATER & RIVER ANIMALS (19 - 26, 45 - 46)
   // ======================================
   {
     id: 'animal_19_smooth_coated_otter',
@@ -238,9 +262,25 @@ export const ROSTER_ASSETS: RosterAsset[] = [
     categoryLabel: 'Freshwater Animals',
     isAnimal: true,
   },
+  {
+    id: 'animal_45_mudskipper',
+    code: 'A45',
+    name: 'Giant Mudskipper',
+    category: 'animals_freshwater',
+    categoryLabel: 'Freshwater Animals',
+    isAnimal: true,
+  },
+  {
+    id: 'animal_46_giant_mud_crab',
+    code: 'A46',
+    name: 'Mangrove Mud Crab',
+    category: 'animals_freshwater',
+    categoryLabel: 'Freshwater Animals',
+    isAnimal: true,
+  },
 
   // ====================================
-  // 3. MARINE & COASTAL ANIMALS (27 - 40)
+  // 3. MARINE & COASTAL ANIMALS (27 - 40, 47 - 48)
   // ====================================
   {
     id: 'animal_27_dugong',
@@ -350,6 +390,22 @@ export const ROSTER_ASSETS: RosterAsset[] = [
     id: 'animal_40_sea_star',
     code: 'A40',
     name: 'Sea Star',
+    category: 'animals_marine',
+    categoryLabel: 'Marine Animals',
+    isAnimal: true,
+  },
+  {
+    id: 'animal_47_reef_manta_ray',
+    code: 'A47',
+    name: 'Reef Manta Ray',
+    category: 'animals_marine',
+    categoryLabel: 'Marine Animals',
+    isAnimal: true,
+  },
+  {
+    id: 'animal_48_chambered_nautilus',
+    code: 'A48',
+    name: 'Chambered Nautilus',
     category: 'animals_marine',
     categoryLabel: 'Marine Animals',
     isAnimal: true,

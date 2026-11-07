@@ -677,6 +677,40 @@ export const FOOD_CATALOG: Record<string, FoodItemSpec> = {
     searchQuery: 'Harlequin shrimp Hymenocera picta starfish diet',
     allowedZones: ['sea'],
   },
+  food_mangrove_propagules: {
+    id: 'food_mangrove_propagules',
+    name: 'Mangrove Propagules & Shoots',
+    category: 'foliage',
+    price: 7,
+    hungerRestore: 44,
+    greenbitsBonus: 0,
+    colorPrimary: '#65a30d',
+    colorSecondary: '#365314',
+    description: 'Fresh viviparous Bakau mangrove propagule pods and young mangrove leaf shoots.',
+    infoSentences: [
+      'Red and Api-Api mangroves produce nutrient-dense green propagule pods and tender desalinated leaf shoots above the intertidal mud.',
+      'They are the signature staple diet of the Proboscis Monkey, Southern River Terrapin, and Mangrove Mud Crab.',
+    ],
+    searchQuery: 'Rhizophora mangrove propagules proboscis monkey river terrapin diet',
+    allowedZones: ['mud', 'river', 'forest'],
+  },
+  food_sugar_palm_fruit: {
+    id: 'food_sugar_palm_fruit',
+    name: 'Sugar Palm Fruit (Buah Kabung)',
+    category: 'fruit',
+    price: 8,
+    hungerRestore: 46,
+    greenbitsBonus: 0,
+    colorPrimary: '#d97706',
+    colorSecondary: '#78350f',
+    description: 'Sweet translucent-seeded palm fruit cluster harvested from Sugar Palm and Nipa Palm.',
+    infoSentences: [
+      'Sugar Palms (Pokok Kabung) and Nipa Palms bear dense clusters of glossy amber-brown palm fruits filled with sweet, jelly-like endosperms.',
+      'Malayan Binturongs, civets, macaques, hornbills, and box turtles climb into palm crowns to feast on these energy-rich fruits.',
+    ],
+    searchQuery: 'Arenga pinnata sugar palm fruit binturong diet Malaysia',
+    allowedZones: ['forest', 'mud', 'river'],
+  },
 };
 
 /**
@@ -1280,6 +1314,104 @@ const ANIMAL_ZONE_OVERRIDES: Record<
       'An adept tree climber, it grasps fresh green bamboo shoots with its thumb-like wrist bone and enjoys wild honey treats.',
     ],
   },
+  animal_42_proboscis_monkey: {
+    zones: ['mud', 'forest'],
+    price: 300,
+    passive: 0,
+    diet: ['foliage', 'fruit', 'nuts_seeds'],
+    dietFoods: ['food_mangrove_propagules', 'food_tender_forest_leaves', 'food_wild_figs', 'food_jungle_nuts_seeds'],
+    favFood: 'food_mangrove_propagules',
+    radius: 76,
+    habit: 'canopy',
+    sentences: [
+      'The Proboscis Monkey (Bekantan) is an iconic Bornean and coastal mangrove primate with a large pendulous nose, warm rufous coat, and cream-white tail.',
+      'An agile climber and webbed-footed swimmer, it leaps through Bakau mangrove crowns feeding on young mangrove leaves, propagules, and unripe figs.',
+    ],
+  },
+  animal_43_sunda_clouded_leopard: {
+    zones: ['forest'],
+    price: 300,
+    passive: 0,
+    diet: ['meat', 'river_treat'],
+    dietFoods: ['food_prime_venison_meat', 'food_river_minnow_treat'],
+    favFood: 'food_prime_venison_meat',
+    radius: 84,
+    habit: 'canopy',
+    sentences: [
+      'The Sunda Clouded Leopard (Harimau Dahan) is a secretive rainforest felid adorned with large, dark-rimmed cloud ellipses and the longest canine teeth relative to skull size of any living cat.',
+      'Using rotating rear ankles and a thick balancing tail nearly as long as its body, it descends vertical tree trunks headfirst in the rainforest canopy.',
+    ],
+  },
+  animal_44_binturong: {
+    zones: ['forest'],
+    price: 300,
+    passive: 0,
+    diet: ['fruit', 'insects', 'meat'],
+    dietFoods: ['food_sugar_palm_fruit', 'food_wild_figs', 'food_durian_fruit', 'food_rambutan_fruit', 'food_banana_bunch', 'food_ants_termites'],
+    favFood: 'food_sugar_palm_fruit',
+    radius: 78,
+    habit: 'canopy',
+    sentences: [
+      'The Malayan Binturong, or Bearcat, is a shaggy charcoal-furred canopy viverrid with tufted white-rimmed ears and a muscular prehensile tail.',
+      'Famous for smelling like warm buttered popcorn, it climbs through Banyan and Sugar Palm crowns to feast on ripe figs and sweet palm fruits.',
+    ],
+  },
+  animal_45_mudskipper: {
+    zones: ['mud', 'river'],
+    price: 300,
+    passive: 0,
+    diet: ['insects', 'crustaceans', 'plankton'],
+    dietFoods: ['food_ants_termites', 'food_crabs_clams', 'food_plankton_bloom', 'food_river_minnow_treat'],
+    favFood: 'food_ants_termites',
+    radius: 52,
+    habit: 'ground',
+    sentences: [
+      'The Giant Mudskipper (Ikan Belacak) is an amphibious fish with periscopic turret eyes, iridescent blue speckles, and muscular pectoral fins that act like crutches on land.',
+      'It breathes through wet skin and gill chambers on intertidal Bakau mudflats, flaring its sapphire-spotted dorsal sails as it skips across the mud.',
+    ],
+  },
+  animal_46_giant_mud_crab: {
+    zones: ['mud', 'river'],
+    price: 300,
+    passive: 0,
+    diet: ['crustaceans', 'river_treat', 'foliage'],
+    dietFoods: ['food_crabs_clams', 'food_river_minnow_treat', 'food_mangrove_propagules'],
+    favFood: 'food_crabs_clams',
+    radius: 58,
+    habit: 'benthic',
+    sentences: [
+      'The Mangrove Mud Crab (Ketam Nipah) is a heavily armored olive-bronze swimming crab with nine serrated carapace spines, massive crusher chelae, and marbled paddle hind legs.',
+      'Sheltering among tangled Bakau stilt roots and estuarine channels, it crushes shells and organic detritus to keep the mangrove floor thriving.',
+    ],
+  },
+  animal_47_reef_manta_ray: {
+    zones: ['sea'],
+    price: 300,
+    passive: 0,
+    diet: ['plankton'],
+    dietFoods: ['food_plankton_bloom'],
+    favFood: 'food_plankton_bloom',
+    radius: 108,
+    habit: 'pelagic',
+    sentences: [
+      'The Reef Manta Ray is a graceful pelagic giant with sweeping triangular pectoral wings, distinct white dorsal shoulder chevrons, and unfurling cephalic lobes.',
+      'It glides effortlessly over sunlit coral drop-offs and performs barrel rolls through drifting clouds of marine zooplankton.',
+    ],
+  },
+  animal_48_chambered_nautilus: {
+    zones: ['sea'],
+    price: 300,
+    passive: 0,
+    diet: ['crustaceans', 'river_treat'],
+    dietFoods: ['food_crabs_clams', 'food_river_minnow_treat'],
+    favFood: 'food_crabs_clams',
+    radius: 60,
+    habit: 'pelagic',
+    sentences: [
+      'The Chambered Nautilus is an ancient pelagic cephalopod housed in a logarithmic spiral shell painted with flame-orange tiger stripes over pearlescent nacre.',
+      'Adjusting gas and seawater inside its internal cameral chambers for neutral buoyancy, it jet-propels along deep coral slopes with dozens of tactile cirri.',
+    ],
+  },
 };
 
 /**
@@ -1450,7 +1582,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     zones: ['forest'],
     price: 150,
     passive: 0,
-    // Palm fruit strings are not mangosteens; no harvestable store food yet.
+    producesFruitId: 'food_sugar_palm_fruit',
     sentences: [
       'Known locally as Pokok Kabung, the Sugar Palm has a stout trunk wrapped in dark woven black horsehair fibers.',
       'It features long ascending pinnate fronds with toothed leaflet tips and hanging strings of sweet palm fruits.',
@@ -1479,7 +1611,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     zones: ['mud'],
     price: 150,
     passive: 0,
-    // Mangroves drop propagules, not seagrass.
+    producesFruitId: 'food_mangrove_propagules',
     sentences: [
       'The Red Mangrove stands above intertidal mudflats on a tangled arch of stilt roots and has thick, opposite oval leaves.',
       'Its seeds germinate right on the tree into long, torpedo-shaped green propagules before dropping into the tide.',
@@ -1489,6 +1621,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     zones: ['mud'],
     price: 150,
     passive: 0,
+    producesFruitId: 'food_mangrove_propagules',
     sentences: [
       'The Api-Api Mangrove is surrounded by hundreds of vertical pencil-like breathing roots that poke up through the mud.',
       'Its narrow lance-shaped leaves have a silvery-white underside that excretes excess sea salt.',
@@ -1499,7 +1632,7 @@ const PLANT_ZONE_OVERRIDES: Record<
     zones: ['mud'],
     price: 150,
     passive: 0,
-    // The nipa fruit head is not a mangosteen; no harvestable store food yet.
+    producesFruitId: 'food_sugar_palm_fruit',
     sentences: [
       'The Nipa Palm is the only palm adapted to mangrove waterways, sending tall feather fronds directly up from mud rhizomes.',
       'It blooms with golden catkin spikes and forms a large, round armored brown fruit ball called Buah Nipah.',
@@ -1663,6 +1796,13 @@ const ANIMAL_BEHAVIOUR: Record<string, { size: number; speed: number; activity: 
   animal_39_cuttlefish: { size: 0.72, speed: 0.7, activity: 'cathemeral' },
   animal_40_sea_star: { size: 0.55, speed: 0.08, activity: 'cathemeral' },
   animal_41_giant_panda: { size: 1.2, speed: 0.6, activity: 'cathemeral' },
+  animal_42_proboscis_monkey: { size: 0.88, speed: 1.05, activity: 'diurnal' },
+  animal_43_sunda_clouded_leopard: { size: 1.08, speed: 1.15, activity: 'nocturnal' },
+  animal_44_binturong: { size: 0.92, speed: 0.72, activity: 'nocturnal' },
+  animal_45_mudskipper: { size: 0.56, speed: 0.95, activity: 'diurnal' },
+  animal_46_giant_mud_crab: { size: 0.64, speed: 0.52, activity: 'cathemeral' },
+  animal_47_reef_manta_ray: { size: 1.65, speed: 1.15, activity: 'cathemeral' },
+  animal_48_chambered_nautilus: { size: 0.66, speed: 0.58, activity: 'nocturnal' },
 };
 
 /**
@@ -2116,17 +2256,20 @@ export function rollSleepingTouchReaction(randomZeroToOne: number): 'angry' | 'w
 
 /**
  * Pure tap-awake-animal outcome function:
- * Tap an awake animal: cycles through expressive main-page emotes.
+ * Tap an awake animal: cycles through all 9 expressive main-page emotes.
  */
 export function rollAwakeTapReaction(
   randomZeroToOne: number,
-): 'waving' | 'wondered' | 'laugh' | 'describing' | 'blush' | 'congratulate' {
-  if (randomZeroToOne < 0.25) return 'waving';
-  if (randomZeroToOne < 0.45) return 'wondered';
-  if (randomZeroToOne < 0.62) return 'laugh';
-  if (randomZeroToOne < 0.76) return 'describing';
-  if (randomZeroToOne < 0.88) return 'blush';
-  return 'congratulate';
+): 'waving' | 'wondered' | 'laugh' | 'describing' | 'blush' | 'congratulate' | 'sleepy' | 'crying' | 'angry' {
+  if (randomZeroToOne < 0.18) return 'waving';
+  if (randomZeroToOne < 0.34) return 'laugh';
+  if (randomZeroToOne < 0.48) return 'wondered';
+  if (randomZeroToOne < 0.60) return 'blush';
+  if (randomZeroToOne < 0.72) return 'congratulate';
+  if (randomZeroToOne < 0.82) return 'describing';
+  if (randomZeroToOne < 0.90) return 'sleepy';
+  if (randomZeroToOne < 0.96) return 'crying';
+  return 'angry';
 }
 
 /**

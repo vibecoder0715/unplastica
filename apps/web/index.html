@@ -3,10 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafaed" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1410" />
+    <meta name="theme-color" content="#ffffff" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Unplastica" />
     <meta name="description" content="Reduce single-use plastic in Malaysia with Unplastica. Build reusable habits, earn Greenbits, and support cleaner communities from Kuala Lumpur and Selangor to Penang and Johor." />
     <meta name="keywords" content="reduce plastic Malaysia, avoid single-use plastic Malaysia, plastic reduction Kuala Lumpur, plastic-free habits Selangor, reusable habits Petaling Jaya, zero waste Penang, plastic pollution Johor, APU sustainability" />
@@ -21,10 +20,10 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self';" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="X-Frame-Options" content="DENY" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=0.5.1" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=0.5.1" />
-    <link rel="icon" type="image/png" href="/assets/brand/brand-mark-light.png?v=0.5.1" />
-    <link rel="manifest" href="/manifest.webmanifest?v=0.5.1" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=0.6.0" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=0.6.0" />
+    <link rel="icon" type="image/png" href="/assets/brand/brand-mark-light.png?v=0.6.0" />
+    <link rel="manifest" href="/manifest.webmanifest?v=0.6.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -43,23 +42,19 @@
         margin: 0;
         padding: 0;
         min-height: 100%;
-        background-color: var(--surface, #fafaed);
-      }
-      :root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"] {
-        background-color: #0c1410 !important;
-        color-scheme: dark;
-      }
-      :root[data-theme="light"], html[data-theme="light"], body[data-theme="light"] {
-        background-color: #fafaed !important;
-        color-scheme: light;
+        background-color: #ffffff;
       }
       .pwa-launch-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
         min-height: 100dvh;
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #fafaed;
+        background: #ffffff !important;
+        color-scheme: light !important;
         width: 100%;
         padding: 24px;
         box-sizing: border-box;
@@ -69,7 +64,9 @@
         height: auto;
         max-width: 75vw;
         object-fit: contain;
-        background: transparent;
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
         display: block;
       }
       .pwa-wordmark-light { display: block !important; }
@@ -77,7 +74,7 @@
     </style>
     <script>
       (function() {
-        var APP_VER = "0.3.8";
+        var APP_VER = "0.6.0";
         try {
           var stored = localStorage.getItem("unplastica_app_version");
           if (stored !== APP_VER) {

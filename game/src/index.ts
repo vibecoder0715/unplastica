@@ -1481,11 +1481,33 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     return null;
   }
 
+  /** The 9 emotions of the main-page turtle mascot (MascotWidget), cycled in order on every tap. */
+  const MAIN_PAGE_TURTLE_EMOTIONS: Array<import('./turtle/types').EmotionType> = [
+    'waving',
+    'laugh',
+    'wondered',
+    'blush',
+    'congratulate',
+    'describing',
+    'sleepy',
+    'crying',
+    'angry',
+  ];
+
+  function isTurtleMascotAsset(assetId: string): boolean {
+    return (
+      assetId.startsWith('animal_28_green_sea_turtle') ||
+      assetId === 'animal_29_hawksbill_sea_turtle' ||
+      assetId === 'animal_23_southern_river_terrapin' ||
+      assetId === 'animal_24_southeast_asian_box_turtle'
+    );
+  }
+
   /**
    * Enforces:
-   * 1. Silent 2-second (2000ms) emote cooldown (not shown in UI).
-   * 2. If spammed repeatedly during the 2-second cooldown, the animal becomes Angry!
-   * 3. When doing an emote, the animal stops moving on site for 3.5 seconds (3-4s) before resuming idle walking.
+   * 1. For in-game turtles, cycles through all 9 main-page turtle emotions on every tap (100% parity with main page turtle).
+   * 2. For other animals, silent 2-second (2000ms) emote cooldown; if spammed repeatedly during cooldown, becomes Angry.
+   * 3. When doing an emote, the animal stops moving on site for 3.6 seconds before resuming idle walking.
    */
   function triggerAnimalEmoteWithAntiSpam(animal: PlacedAnimal, mode: 'tap' | 'pet'): void {
     const nowMs = Date.now();
@@ -1496,27 +1518,6 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     animal.lastTapMs = nowMs;
 
     selectedAnimalUid = animal.uid;
-
-    // Silent 2-second cooldown check
-    if (sinceLastEmoteMs < 2000) {
-      animal.emoteSpamCount = (sinceLastTapMs < 1500 ? (animal.emoteSpamCount ?? 0) : 0) + 1;
-      // When spammed too much during cooldown -> animal gets Angry!
-      if (animal.emoteSpamCount >= 2) {
-        animal.currentEmotion = 'angry';
-        animal.emotionTimerSec = 3.8;
-        animal.lastEmoteTriggerMs = nowMs;
-        animal.emoteSpamCount = 0;
-        soundEngine.playRejectBoing();
-        renderEntityCard();
-        showToast(getGameString('isAngry', currentLang).replace('{name}', displayName));
-      } else {
-        renderEntityCard();
-      }
-      return;
-    }
-
-    animal.emoteSpamCount = 0;
-    animal.lastEmoteTriggerMs = nowMs;
 
     function getEmotionToastKey(emotion: import('./turtle/types').EmotionType): string {
       switch (emotion) {
@@ -1541,6 +1542,48 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
           return 'isCurious';
       }
     }
+
+    // In-game turtles share the exact same emotion cycle and responsiveness as the main-page turtle mascot
+    if (isTurtleMascotAsset(animal.assetId) && mode === 'tap') {
+      const currIdx = MAIN_PAGE_TURTLE_EMOTIONS.indexOf(animal.currentEmotion);
+      const nextEmotion = MAIN_PAGE_TURTLE_EMOTIONS[(currIdx + 1) % MAIN_PAGE_TURTLE_EMOTIONS.length];
+      animal.currentEmotion = nextEmotion;
+      animal.emotionTimerSec = 3.6;
+      animal.lastEmoteTriggerMs = nowMs;
+      animal.emoteSpamCount = 0;
+      applyAnimalCareAndAwardLevelUp(animal, 1, 'interact');
+      if (nextEmotion === 'angry') {
+        soundEngine.playRejectBoing();
+      } else if (nextEmotion === 'laugh' || nextEmotion === 'congratulate' || nextEmotion === 'blush') {
+        soundEngine.playLaughGiggle();
+      } else {
+        soundEngine.playWaveChirp();
+      }
+      renderEntityCard();
+      showToast(getGameString(getEmotionToastKey(nextEmotion), currentLang).replace('{name}', displayName));
+      return;
+    }
+
+    // Silent 2-second cooldown check for non-turtle animals
+    if (sinceLastEmoteMs < 2000) {
+      animal.emoteSpamCount = (sinceLastTapMs < 1500 ? (animal.emoteSpamCount ?? 0) : 0) + 1;
+      // When spammed too much during cooldown -> animal gets Angry!
+      if (animal.emoteSpamCount >= 2) {
+        animal.currentEmotion = 'angry';
+        animal.emotionTimerSec = 3.8;
+        animal.lastEmoteTriggerMs = nowMs;
+        animal.emoteSpamCount = 0;
+        soundEngine.playRejectBoing();
+        renderEntityCard();
+        showToast(getGameString('isAngry', currentLang).replace('{name}', displayName));
+      } else {
+        renderEntityCard();
+      }
+      return;
+    }
+
+    animal.emoteSpamCount = 0;
+    animal.lastEmoteTriggerMs = nowMs;
 
     // Waking a resting animal (by its own schedule: nocturnal species sleep by day)
     if (isAnimalResting(animal.assetId, saveState.timeOfDayHours) && animal.emotionTimerSec <= 0) {

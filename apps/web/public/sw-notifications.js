@@ -1,4 +1,25 @@
-// Custom notification click handler for Unplastica PWA service worker
+// Custom notification push & click handler for Unplastica PWA service worker
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Unplastica";
+  const options = {
+    body: data.body || "",
+    icon: data.icon || "/icons/notification-logo-white.png",
+    badge: data.badge || "/icons/notification-logo-white.png",
+    tag: data.tag || "unplastica-notification",
+    renotify: false,
+    data: {
+      url: data.url || "/",
+    },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   let targetUrl = "/";

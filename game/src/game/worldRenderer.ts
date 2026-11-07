@@ -3144,7 +3144,9 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
     const isCanopyHabit = meta?.canopyHabit === 'canopy' && !inWater;
     const isSeaTurtleAsset =
       animal.assetId.startsWith('animal_28_green_sea_turtle') ||
-      animal.assetId === 'animal_29_hawksbill_sea_turtle';
+      animal.assetId === 'animal_29_hawksbill_sea_turtle' ||
+      animal.assetId === 'animal_23_southern_river_terrapin' ||
+      animal.assetId === 'animal_24_southeast_asian_box_turtle';
 
     const restY = getAnimalRestY(animal, state.placedPlants, viewportHeight);
     const prevRest = animalRestYCache.get(animal.uid);

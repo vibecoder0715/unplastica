@@ -330,8 +330,22 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 img { max-width: 100%; }
 
 .app-shell { min-height: 100vh; min-height: 100dvh; background: var(--canvas); }
-.loading-shell { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: transparent; }
-.brand-wordmark-wrapper { display: flex; align-items: center; justify-content: center; width: min(240px, 75vw); }
+.loading-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff !important;
+  color-scheme: light !important;
+}
+.loading-shell .brand-image-light { display: block !important; background: transparent !important; }
+.loading-shell .brand-image-dark { display: none !important; }
+:root[data-theme="dark"] .loading-shell .brand-image-light { display: block !important; background: transparent !important; }
+:root[data-theme="dark"] .loading-shell .brand-image-dark { display: none !important; }
+.brand-wordmark-wrapper { display: flex; align-items: center; justify-content: center; width: min(240px, 75vw); background: transparent !important; }
 .topbar {
   position: fixed;
   inset: 0 0 auto;
@@ -2442,18 +2456,19 @@ img { max-width: 100%; }
   background: #9b2c2c !important;
 }
 
-/* Teleport & Launch Turtle Loading Scene Overlay (Dynamic Bright / Dark Support) */
+/* Teleport & Launch Turtle Loading Scene Overlay (Pure White Loading Screen) */
 .teleport-loading-overlay {
   position: fixed;
   inset: 0;
-  background: #f4fbf5;
+  background: #ffffff !important;
+  color-scheme: light !important;
   z-index: 10000;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  color: #0c2b18;
+  color: #0c2b18 !important;
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
@@ -2468,7 +2483,7 @@ img { max-width: 100%; }
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #0c2b18;
+  color: #0c2b18 !important;
   text-align: center;
   padding: 0 16px;
 }
@@ -2476,42 +2491,42 @@ img { max-width: 100%; }
 .teleport-progress-track {
   width: 220px;
   height: 6px;
-  background: rgba(12, 43, 24, 0.12);
+  background: rgba(12, 43, 24, 0.12) !important;
   border-radius: 999px;
   overflow: hidden;
 }
 
 .teleport-progress-fill {
   height: 100%;
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
   border-radius: 999px;
   transition: width 0.08s linear;
 }
 
-/* Dark Mode Overrides for Teleport Loading Overlay */
+/* Keep Loading Overlay Pure White in Dark Mode as well */
 :root[data-theme="dark"] .teleport-loading-overlay,
 .teleport-loading-overlay.theme-dark,
 .teleport-loading-overlay[data-theme="dark"] {
-  background: #002c17 !important;
-  color: #fafaed !important;
+  background: #ffffff !important;
+  color: #0c2b18 !important;
 }
 
 :root[data-theme="dark"] .teleport-loading-title,
 .teleport-loading-overlay.theme-dark .teleport-loading-title,
 .teleport-loading-overlay[data-theme="dark"] .teleport-loading-title {
-  color: #aef682 !important;
+  color: #0c2b18 !important;
 }
 
 :root[data-theme="dark"] .teleport-progress-track,
 .teleport-loading-overlay.theme-dark .teleport-progress-track,
 .teleport-loading-overlay[data-theme="dark"] .teleport-progress-track {
-  background: rgba(250, 250, 237, 0.18) !important;
+  background: rgba(12, 43, 24, 0.12) !important;
 }
 
 :root[data-theme="dark"] .teleport-progress-fill,
 .teleport-loading-overlay.theme-dark .teleport-progress-fill,
 .teleport-loading-overlay[data-theme="dark"] .teleport-progress-fill {
-  background: #aef682 !important;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
 }
 
 .manual-trigger-card .show-manual-btn {
