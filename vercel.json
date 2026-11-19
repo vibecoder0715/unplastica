@@ -5,8 +5,8 @@
   "functions": {
     "api/**/*.ts": {
       "maxDuration": 30,
-      "includeFiles": "api/_models/**",
-      "excludeFiles": "{node_modules/onnxruntime-web/dist/*.{jsep,jspi,asyncify,webgl,webgpu,all,node,bundle,es5}*,node_modules/onnxruntime-web/dist/*.map,ml/**,apps/**,game/**}"
+      "includeFiles": "{api/_models/**,node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.*,node_modules/onnxruntime-web/dist/ort.wasm.*}",
+      "excludeFiles": "{node_modules/onnxruntime-web/dist/*.map,ml/**,apps/**,game/**}"
     }
   },
   "rewrites": [
