@@ -13,7 +13,16 @@ import type { VercelRequest, VercelResponse } from "./_lib/types.js";
  * - Routes complex tasks (box_cutlery, greenery_furniture, handicraft_projects) to the heavier ONNX model.
  * - Enforces IP-based rate limiting (30 requests/minute per IP).
  */
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "10mb",
+    },
+  },
+};
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
+  console.log("[/api/score] Handler started. Method:", request.method, "Content-Type:", request.headers["content-type"]);
   response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
   if (request.method !== "POST") {
