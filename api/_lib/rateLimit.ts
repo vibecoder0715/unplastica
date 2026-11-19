@@ -132,9 +132,10 @@ export async function checkIpRateLimit(
 }
 
 /**
- * Applies standard rate-limit headers and returns true if request is blocked (HTTP 429 sent).
+ * Applies standard rate-limit headers and returns true if request was rate-limited (HTTP 429 sent).
+ * Returns false if the request is allowed to proceed.
  */
-export async function enforceIpRateLimit(
+export async function isRateLimited(
   request: VercelRequest,
   response: VercelResponse,
   namespace = "infer",
@@ -159,6 +160,8 @@ export async function enforceIpRateLimit(
   }
   return false;
 }
+
+export const enforceIpRateLimit = isRateLimited;
 
 /** Test-only helper to reset the in-memory rate limit map. */
 export function resetInMemoryRateLimits(): void {

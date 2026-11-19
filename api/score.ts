@@ -1,7 +1,7 @@
 import { authorizeInferenceRequest } from "./_lib/auth.js";
 import { runServerInference } from "./_lib/modelRouter.js";
 import { parseImageRequest } from "./_lib/parseImage.js";
-import { enforceIpRateLimit } from "./_lib/rateLimit.js";
+import { isRateLimited } from "./_lib/rateLimit.js";
 import type { VercelRequest, VercelResponse } from "./_lib/types.js";
 
 /**
@@ -22,15 +22,13 @@ export const config = {
 };
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  console.log("[/api/score] Handler started. Method:", request.method, "Content-Type:", request.headers["content-type"]);
   response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
   if (request.method !== "POST") {
     return response.status(405).json({ error: "Method Not Allowed. Use POST." });
   }
 
-  const allowed = await enforceIpRateLimit(request, response, "infer", 30);
-  if (!allowed) {
+  if (await isRateLimited(request, response, "infer", 30)) {
     return;
   }
 
