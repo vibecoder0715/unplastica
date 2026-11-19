@@ -70,12 +70,24 @@ async function getOrtModule(): Promise<any> {
       ort.env.wasm.numThreads = 1;
       ort.env.logLevel = "error";
       try {
-        const req = createRequire(import.meta.url);
-        const ortPkgPath = req.resolve("onnxruntime-web/package.json");
-        const distDir = path.join(path.dirname(ortPkgPath), "dist");
-        if (fs.existsSync(distDir)) {
-          // Ensure trailing separator for onnxruntime-web wasmPaths directory resolution
-          ort.env.wasm.wasmPaths = distDir.endsWith(path.sep) ? distDir : `${distDir}${path.sep}`;
+        const here = path.dirname(fileURLToPath(import.meta.url));
+        const localWasmDir = path.resolve(here, "wasm");
+        const rootWasmDir = path.resolve(process.cwd(), "api/_lib/wasm");
+        let targetDir = "";
+        if (fs.existsSync(localWasmDir)) {
+          targetDir = localWasmDir;
+        } else if (fs.existsSync(rootWasmDir)) {
+          targetDir = rootWasmDir;
+        } else {
+          const req = createRequire(import.meta.url);
+          const ortPkgPath = req.resolve("onnxruntime-web/package.json");
+          const distDir = path.join(path.dirname(ortPkgPath), "dist");
+          if (fs.existsSync(distDir)) {
+            targetDir = distDir;
+          }
+        }
+        if (targetDir) {
+          ort.env.wasm.wasmPaths = targetDir.endsWith(path.sep) ? targetDir : `${targetDir}${path.sep}`;
         }
       } catch {
         // Fallback to default resolution
