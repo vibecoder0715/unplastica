@@ -2,7 +2,7 @@
 
 Live website: [https://unplastica.vercel.app](https://unplastica.vercel.app)
 
-Unplastica turns plastic-free habits into a fun daily game. Snap a photo of your reusable container, bag, or bottle, get verified by AI, and earn Greenbits rewards. Greenbits used for in-game purchases.
+Unplastica turns plastic-free habits into a fun daily game. Snap a photo of your reusable container, bag, or bottle, get verified by AI, and earn Greenbits rewards to care for wildlife in your personal sanctuary.
 
 ---
 
@@ -15,18 +15,24 @@ Unplastica turns plastic-free habits into a fun daily game. Snap a photo of your
 
 ## Features
 
-- **AI Habit Scanner:** Snap a photo of your reusable items. The app checks your habit in seconds.
-- **Daily Quotas & Greenbits:** Earn points for eco-friendly choices with fair daily limits.
-- **Your Eco Sanctuary:** Grow your virtual sanctuary and care for animals as you reduce waste.
-- **PWA & Offline-Ready:** Install directly to your phone's home screen like a normal mobile app.
-- **Campus Challenges:** Compete in local university eco-challenges and win real community prizes.
-- **Multi-Language:** Available in English, Bahasa Melayu, and Chinese.
+- **Server-Side AI Habit Verification:** Reusable habit verification routed through serverless endpoints (`/api/infer` and `/api/score`). Simple habits use a lightweight MobileNetV3 model, while complex habits route to a higher-capacity model.
+- **Adaptive Performance:** Dynamic hardware profiling automatically tunes game graphics (particle density, render scale, shadow quality, cloud caching, and frustum culling) for capable and lower-spec devices.
+- **Fast & Responsive PWA:** Code-split route bundles, content-hashed caching, animated status spinners, and offline support.
+- **Eco Sanctuary Simulation:** Care for native Malaysian wildlife and flora in an interactive vector-rendered sanctuary.
+- **Fair Play & Rate Limiting:** IP-based rate limiting (30 requests/minute) and anti-spoofing verification checks.
+- **Multi-Language:** Available in English, Bahasa Melayu, Chinese, and Tamil.
 
 ---
 
 ## Tech Stack
 
-- **Web App:** React with Vite, styled with responsive CSS and running as a Progressive Web App (PWA).
-- **AI Model:** MobileNetV3 image model running directly in your browser and on the cloud.
-- **Backend & Cloud:** Supabase for secure accounts, database storage, and points ledger.
-- **Hosting:** Vercel for fast global delivery.
+- **Frontend:** React, TypeScript, Vite, Tailwind CSS, Canvas2D vector graphics.
+- **Inference Engine:** ONNX Runtime (server-side serverless execution with model routing).
+- **Backend & Persistence:** Vercel Serverless Functions, Supabase (auth, database, storage).
+- **Hosting:** Vercel Edge Network.
+
+---
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE.md](LICENSE.md) for details.

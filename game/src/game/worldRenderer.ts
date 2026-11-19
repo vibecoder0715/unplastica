@@ -1,20 +1,21 @@
 import {
-  getSpeciesFramingScale,
   isLandStandingAnimal,
   renderAnimalAsset,
 } from '../roster/animalRenderer';
 import { drawRealisticGrassBlade, renderPlantAsset } from '../roster/plantRenderer';
-import { REFINED_FOOD_ICONS } from '../roster/flora/foodIcons';
 import { TurtleRigController } from '../turtle/rig';
 import type { EmotionType, TearDrop, TurtlePose } from '../turtle/types';
+import { globalQualityController } from '../engine/deviceProfile';
+import {
+  framePerfTracker,
+  getOrRenderCachedCloud,
+  isEntityVisibleInFrustum,
+} from '../engine/renderCache';
 import type {
   FloatingGreenbit,
-  HabitatZoneId,
-  PlacedAnimal,
   PlacedPlant,
   RejectedDropAnimation,
   SaveState,
-  WeatherType,
 } from './types';
 import {
   ASSET_ECO_CONFIG,
@@ -25,10 +26,53 @@ import {
   HABITAT_ZONES,
   isAnimalResting,
   isFloatingPlantAsset,
-  SHALLOW_SUNLIT_DEPTH_NORM,
   WORLD_WIDTH,
 } from './worldConfig';
 import { computeAnimalLoveLevel } from './persistence';
+import {
+  drawOverheadEmotionBadge,
+  drawRoundedRect,
+  drawVectorGreenbitsCoin,
+  getGreenbitsCoinImage,
+} from './renderers/coinAndEmotionRenderer';
+import { drawFoodIcon, getFoodThumbnailDataUrl } from './renderers/foodRenderer';
+import {
+  renderChunkedNaturalScenery,
+  renderDynamicReefAndMangroveLife,
+  renderIntertidalMangroveTide,
+  seededHash,
+} from './renderers/habitatSceneryRenderer';
+import { renderWeatherScreenOverlay } from './renderers/weatherOverlayRenderer';
+import {
+  animalRestYCache,
+  clearAnimalRestCache,
+  findPerchTree,
+  getAnimalGroundContactOffset,
+  getAnimalRestY,
+  getAnimalVisualSize,
+  getAnimalWorldScale,
+  getDefaultPlacementY,
+  getPlantDrawSize,
+} from './renderers/entityPlacement';
+
+export {
+  clearAnimalRestCache,
+  drawFoodIcon,
+  drawOverheadEmotionBadge,
+  drawVectorGreenbitsCoin,
+  findPerchTree,
+  getAnimalGroundContactOffset,
+  getAnimalRestY,
+  getAnimalVisualSize,
+  getAnimalWorldScale,
+  getDefaultPlacementY,
+  getFoodThumbnailDataUrl,
+  getGreenbitsCoinImage,
+  getPlantDrawSize,
+};
+
+let lastWorldElapsedSec = -1;
+let worldFrameDt = 1 / 60;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -38,321 +82,6 @@ const thumbnailCache = new Map<string, string>();
 const rigCache = new Map<string, TurtleRigController>();
 /** Static immutable base pose for flora - saves 30+ full skeletal matrix kinematics per frame */
 const STATIC_PLANT_BASE_POSE: TurtlePose = new TurtleRigController('idle', 'right').pose;
-/** Eased vertical rest position per animal (smooth climbing into and out of trees). */
-const animalRestYCache = new Map<string, number>();
-/**
- * Real time between world frames. Rigs used to advance a fixed 0.016 s per frame, so on a
- * phone running at 20-30 fps every animation, including the left/right turn that narrows the
- * turtle's body, ran 2-3x slower in real time and the turtle looked squeezed for long stretches.
- */
-let lastWorldElapsedSec = -1;
-let worldFrameDt = 0.016;
-
-let cachedGreenbitsLogoImg: HTMLImageElement | null = null;
-let greenbitsLogoLoading = false;
-
-export function getGreenbitsCoinImage(): HTMLImageElement | null {
-  if (typeof Image === 'undefined') return null;
-  if (!cachedGreenbitsLogoImg && !greenbitsLogoLoading) {
-    greenbitsLogoLoading = true;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.referrerPolicy = 'no-referrer';
-    img.onload = () => {
-      cachedGreenbitsLogoImg = img;
-    };
-    img.src = '/assets/aistudio/image_3961e3ca.png';
-  }
-  return cachedGreenbitsLogoImg;
-}
-
-/**
- * Renders the exact official Greenbit logo (`/assets/aistudio/image_3961e3ca.png`):
- * - Uses the loaded `/assets/aistudio/image_3961e3ca.png` asset directly when ready.
- * - Falls back while loading to a 1:1 vector rendition of the official Greenbit logo
- *   (tilted 3D chartreuse-lime coin with dark forest-green border `#043e21`, 3D green side wall,
- *   top-left white pill highlight, twin white sprout leaves with dark green outline, and 3 green sparkle pills at top-right).
- */
-export function drawVectorGreenbitsCoin(ctx: CanvasRenderingContext2D, radius = 16): void {
-  ctx.save();
-
-  const logoImg = getGreenbitsCoinImage();
-  if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
-    const size = radius * 2.35;
-    ctx.drawImage(logoImg, -size * 0.5, -size * 0.5, size, size);
-    ctx.restore();
-    return;
-  }
-
-  const s = radius / 16;
-  ctx.scale(s, s);
-
-  // 1. 3D Coin Outer Dark Forest-Green Border & Left-Bottom Extruded Edge
-  ctx.fillStyle = '#15803d';
-  ctx.strokeStyle = '#043e21';
-  ctx.lineWidth = 2.2;
-  ctx.beginPath();
-  ctx.arc(-1.2, 1.0, 14.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Diagonal 3D edge shading stripes on lower-left rim
-  ctx.strokeStyle = '#22c55e';
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.moveTo(-13.2, -3.5);
-  ctx.lineTo(-9.5, -6.5);
-  ctx.moveTo(-13.8, 1.5);
-  ctx.lineTo(-9.8, -1.5);
-  ctx.moveTo(-12.2, 6.2);
-  ctx.lineTo(-8.2, 3.2);
-  ctx.stroke();
-
-  // 2. Front Tilted Chartreuse-Lime Coin Face
-  const rimGrad = ctx.createLinearGradient(-11, -12, 12, 12);
-  rimGrad.addColorStop(0, '#fef08a');
-  rimGrad.addColorStop(0.35, '#d9f938');
-  rimGrad.addColorStop(1, '#84cc16');
-  ctx.fillStyle = rimGrad;
-  ctx.strokeStyle = '#043e21';
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.arc(0.6, -0.4, 12.6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // 3. Recessed Inner Lime Dish
-  const dishGrad = ctx.createRadialGradient(-2, -4, 1, 0.8, 0, 10.2);
-  dishGrad.addColorStop(0, '#ecfccb');
-  dishGrad.addColorStop(0.35, '#bef264');
-  dishGrad.addColorStop(1, '#65a30d');
-  ctx.fillStyle = dishGrad;
-  ctx.strokeStyle = '#4d7c0f';
-  ctx.lineWidth = 1.1;
-  ctx.beginPath();
-  ctx.arc(0.8, -0.3, 9.8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // 4. Top-Left White Specular Pill Highlight
-  ctx.save();
-  ctx.translate(-4.6, -5.2);
-  ctx.rotate(-0.68);
-  ctx.fillStyle = '#f8fafc';
-  ctx.beginPath();
-  ctx.roundRect(-1.3, -3.2, 2.6, 6.4, 1.3);
-  ctx.fill();
-  ctx.restore();
-
-  // 5. Twin White Sprout Leaves with Thick Dark-Green (`#043e21`) Outline & Open Stem Base
-  ctx.fillStyle = '#f8fafc';
-  ctx.strokeStyle = '#043e21';
-  ctx.lineWidth = 2.1;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  // Left stem base up to left leaf
-  ctx.moveTo(0.8, 7.6);
-  ctx.lineTo(-0.2, 4.8);
-  ctx.bezierCurveTo(-4.8, 5.2, -7.2, 2.2, -7.2, -1.0);
-  ctx.bezierCurveTo(-3.4, -1.8, -0.2, -0.2, 1.0, 2.5);
-  // Right larger leaf
-  ctx.bezierCurveTo(1.2, -1.8, 4.2, -4.6, 7.8, -4.4);
-  ctx.bezierCurveTo(9.2, -0.5, 7.2, 3.6, 2.8, 4.4);
-  ctx.lineTo(3.6, 7.2);
-  ctx.fill();
-  ctx.stroke();
-
-  // 6. Three Floating Green Sparkle Pills at Top-Right
-  const sparkles = [
-    { x: 9.8, y: -13.6, rot: 0.32, w: 2.4, h: 5.4 },
-    { x: 13.6, y: -10.4, rot: 0.78, w: 2.4, h: 5.4 },
-    { x: 15.4, y: -5.8, rot: 1.28, w: 2.2, h: 4.8 },
-  ];
-  for (const sp of sparkles) {
-    ctx.save();
-    ctx.translate(sp.x, sp.y);
-    ctx.rotate(sp.rot);
-    ctx.fillStyle = '#22c55e';
-    ctx.strokeStyle = '#043e21';
-    ctx.lineWidth = 1.1;
-    ctx.beginPath();
-    ctx.roundRect(-sp.w * 0.5, -sp.h * 0.5, sp.w, sp.h, sp.w * 0.5);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  ctx.restore();
-}
-
-/**
- * Renders an unmistakable, floating comic overhead emotion badge above an animal in sanctuary.
- */
-export function drawOverheadEmotionBadge(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  emotion: string,
-  alpha: number,
-  elapsedSec: number,
-): void {
-  if (alpha <= 0.01 || emotion === 'normal' || emotion === 'idle') return;
-  ctx.save();
-  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-  ctx.translate(x, y);
-
-  const bob = Math.sin(elapsedSec * 2.2) * 1.5;
-  ctx.translate(0, bob);
-
-  const r = 18;
-  // Speech bubble pointer tail pointing down (clean closed comic bubble)
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#002c17';
-  ctx.lineWidth = 2.4;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  ctx.beginPath();
-  // Seamless counter-clockwise arc across top of bubble from bottom-right to bottom-left
-  ctx.arc(0, -3, r, 0.22 * Math.PI, 0.78 * Math.PI, true);
-  // Symmetrical downward comic pointer tail
-  ctx.lineTo(0, r + 6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // Vector icon based on emotion (aligned directly to the center of the bubble sphere)
-  ctx.save();
-  ctx.translate(0, -3);
-
-  if (emotion === 'laugh') {
-    // Laughing hearts / sparkles
-    ctx.fillStyle = '#f43f5e';
-    ctx.strokeStyle = '#881337';
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.moveTo(0, 4);
-    ctx.bezierCurveTo(-8, -2, -7, -7, 0, -3);
-    ctx.bezierCurveTo(7, -7, 8, -2, 0, 4);
-    ctx.fill();
-    ctx.stroke();
-  } else if (emotion === 'waving') {
-    // Golden radio/broadcast wave signal (concentric upward radiating arcs + solid base dot, perfectly centered)
-    const dotY = 4.2;
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath();
-    ctx.arc(0, dotY, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 2.3;
-    ctx.lineCap = 'round';
-
-    // 3 concentric wave arcs radiating upwards symmetrically
-    const radii = [6.2, 10.2, 14.2];
-    for (const rad of radii) {
-      ctx.beginPath();
-      ctx.arc(0, dotY, rad, -Math.PI * 0.74, -Math.PI * 0.26);
-      ctx.stroke();
-    }
-  } else if (emotion === 'wondered') {
-    // Bright cyan question mark
-    ctx.fillStyle = '#0284c7';
-    ctx.font = '800 20px "Outfit", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('?', 0, 0);
-  } else if (emotion === 'angry') {
-    // Red 💢 anger cross mark
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 2.8;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-6, -6);
-    ctx.quadraticCurveTo(0, -2, 6, -6);
-    ctx.moveTo(-6, 6);
-    ctx.quadraticCurveTo(0, 2, 6, 6);
-    ctx.moveTo(-6, -6);
-    ctx.quadraticCurveTo(-2, 0, -6, 6);
-    ctx.moveTo(6, -6);
-    ctx.quadraticCurveTo(2, 0, 6, 6);
-    ctx.stroke();
-  } else if (emotion === 'crying') {
-    // Blue teardrop
-    ctx.fillStyle = '#0284c7';
-    ctx.strokeStyle = '#0369a1';
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.moveTo(0, -7);
-    ctx.quadraticCurveTo(6, 0, 0, 6);
-    ctx.quadraticCurveTo(-6, 0, 0, -7);
-    ctx.fill();
-    ctx.stroke();
-  } else if (emotion === 'sleepy') {
-    // Purple Zzz
-    ctx.fillStyle = '#7c3aed';
-    ctx.font = '800 13px "Outfit", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Zzz', 0, 0);
-  } else if (emotion === 'blush') {
-    // Pink twin hearts
-    ctx.fillStyle = '#ec4899';
-    ctx.beginPath();
-    ctx.moveTo(-3, 3);
-    ctx.bezierCurveTo(-7, 0, -6, -4, -3, -1);
-    ctx.bezierCurveTo(0, -4, 1, 0, -3, 3);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(3, -1);
-    ctx.bezierCurveTo(0, -4, 1, -7, 3, -5);
-    ctx.bezierCurveTo(6, -7, 7, -4, 3, -1);
-    ctx.fill();
-  } else if (emotion === 'congratulate') {
-    // Golden star
-    ctx.fillStyle = '#eab308';
-    ctx.strokeStyle = '#854d0e';
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    for (let s = 0; s < 5; s++) {
-      const a1 = (s * Math.PI * 2) / 5 - Math.PI / 2;
-      const a2 = a1 + Math.PI / 5;
-      if (s === 0) ctx.moveTo(Math.cos(a1) * 8, Math.sin(a1) * 8);
-      else ctx.lineTo(Math.cos(a1) * 8, Math.sin(a1) * 8);
-      ctx.lineTo(Math.cos(a2) * 4, Math.sin(a2) * 4);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  ctx.restore();
-  ctx.restore();
-}
-
-
-function drawRoundedRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-): void {
-  const radius = Math.max(0, Math.min(r, Math.min(w, h) * 0.5));
-  ctx.beginPath();
-  if (typeof ctx.roundRect === 'function') {
-    ctx.roundRect(x, y, w, h, radius);
-  } else {
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + w, y, x + w, y + h, radius);
-    ctx.arcTo(x + w, y + h, x, y + h, radius);
-    ctx.arcTo(x, y + h, x, y, radius);
-    ctx.arcTo(x, y, x + w, y, radius);
-    ctx.closePath();
-  }
-}
 
 const PLACEHOLDER_THUMB_URL =
   'data:image/svg+xml;utf8,' +
@@ -461,9 +190,7 @@ export function getAssetThumbnailDataUrl(assetId: string): string {
   }
 }
 
-const foodThumbCache = new Map<string, string>();
 const plantSpriteCache = new Map<string, HTMLCanvasElement>();
-
 function getPlantInstanceVariant(plant: Pick<PlacedPlant, 'uid' | 'x' | 'assetId'>): number {
   let h = Math.round(plant.x * 0.13);
   const s = `${plant.uid || ''}_${plant.assetId}`;
@@ -513,32 +240,7 @@ function getCachedPlantSprite(
   }
 }
 
-export function getFoodThumbnailDataUrl(foodId: string): string {
-  const existing = foodThumbCache.get(foodId);
-  if (existing) return existing;
-  if (typeof document === 'undefined') return '';
 
-  try {
-    const c = document.createElement('canvas');
-    const dpr = 1.5; // Balanced crispness & fast lag-free food icon generation
-    c.width = Math.round(120 * dpr);
-    c.height = Math.round(104 * dpr);
-    const cCtx = c.getContext('2d');
-    if (!cCtx) return PLACEHOLDER_THUMB_URL;
-    cCtx.scale(dpr, dpr);
-    cCtx.imageSmoothingEnabled = true;
-    cCtx.imageSmoothingQuality = 'high';
-
-    drawFoodIcon(cCtx, foodId, 60, 54, 30, false);
-    const url = c.toDataURL('image/png');
-    foodThumbCache.set(foodId, url);
-    return url;
-  } catch {
-    return PLACEHOLDER_THUMB_URL;
-  }
-}
-
-/** Lunar phase in [0, 1): 0 new moon, 0.5 full moon (synodic month from a known new moon). */
 export function getMoonPhase(nowMs: number): number {
   const synodicDays = 29.530588853;
   const knownNewMoonMs = Date.UTC(2000, 0, 6, 18, 14, 0);
@@ -612,552 +314,6 @@ export function lerpColor(colorA: string, colorB: string, t: number): string {
  * Renders hyper-detailed botanical & ecological food icons that are 100% consistent
  * between the Store cards, the Bag, dropped foods, and ripe fruits grown on trees.
  */
-export function drawFoodIcon(
-  ctx: CanvasRenderingContext2D,
-  foodId: string,
-  x: number,
-  y: number,
-  radius: number,
-  isGolden = false,
-): void {
-  ctx.save();
-  ctx.translate(x, y);
-
-  if (isGolden) {
-    const glow = ctx.createRadialGradient(0, 0, radius * 0.2, 0, 0, radius * 1.9);
-    glow.addColorStop(0, 'rgba(250, 204, 21, 0.88)');
-    glow.addColorStop(1, 'rgba(250, 204, 21, 0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 1.9, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  const sc = radius / 22;
-  ctx.scale(sc, sc);
-
-  // Refined vector food icons (game/src/roster/flora/foodIcons.ts) in a 22-unit radius frame.
-  const refinedFood = REFINED_FOOD_ICONS[foodId];
-  if (refinedFood) {
-    refinedFood(ctx);
-    ctx.restore();
-    return;
-  }
-
-  if (foodId === 'food_durian_fruit') {
-    // Detailed 3D thorny Durian matching plant_03_durian_tree
-    ctx.strokeStyle = '#4d3319';
-    ctx.lineWidth = 3.8;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(0, -26);
-    ctx.lineTo(0, -17);
-    ctx.stroke();
-
-    ctx.fillStyle = '#78522b';
-    ctx.strokeStyle = '#26170a';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.ellipse(0, -20, 4.2, 2.4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    const rx = 18;
-    const ry = 21;
-    const numSpikes = 20;
-    const rim = new Path2D();
-    for (let i = 0; i < numSpikes; i++) {
-      const a0 = (i / numSpikes) * Math.PI * 2;
-      const aMid = ((i + 0.5) / numSpikes) * Math.PI * 2;
-      const a1 = ((i + 1) / numSpikes) * Math.PI * 2;
-      const bx0 = Math.cos(a0) * rx * 0.9;
-      const by0 = Math.sin(a0) * ry * 0.9 + 2;
-      const tx = Math.cos(aMid) * (rx + 5.2);
-      const ty = Math.sin(aMid) * (ry + 5.2) + 2;
-      const bx1 = Math.cos(a1) * rx * 0.9;
-      const by1 = Math.sin(a1) * ry * 0.9 + 2;
-      if (i === 0) rim.moveTo(bx0, by0);
-      rim.lineTo(tx, ty);
-      rim.lineTo(bx1, by1);
-    }
-    rim.closePath();
-    const dGrad = ctx.createRadialGradient(-6, -6, 2, 0, 2, 24);
-    dGrad.addColorStop(0, isGolden ? '#fef08a' : '#d9f99d');
-    dGrad.addColorStop(0.55, isGolden ? '#eab308' : '#65a30d');
-    dGrad.addColorStop(1, '#365314');
-    ctx.fillStyle = dGrad;
-    ctx.fill(rim);
-    ctx.strokeStyle = '#1a2e05';
-    ctx.lineWidth = 2.0;
-    ctx.stroke(rim);
-
-    // Interior 3D pyramidal thorns
-    for (let row = -2; row <= 2; row++) {
-      const ty = 2 + row * 5.2;
-      const halfW = Math.sqrt(Math.max(0, 1 - (row / 2.6) ** 2)) * 12;
-      for (let ox = -halfW; ox <= halfW + 0.1; ox += 5.5) {
-        ctx.fillStyle = '#ecfccb';
-        ctx.strokeStyle = '#1a2e05';
-        ctx.lineWidth = 1.0;
-        ctx.beginPath();
-        ctx.moveTo(ox - 2.6, ty + 2);
-        ctx.lineTo(ox, ty - 3.6);
-        ctx.lineTo(ox + 2.6, ty + 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-  } else if (foodId === 'food_mangosteen_fruit') {
-    // Deep purple Mangosteen with 4-sepal green crown & bottom stigma rosette matching plant_04_mangosteen_tree
-    ctx.strokeStyle = '#365314';
-    ctx.lineWidth = 3.2;
-    ctx.beginPath();
-    ctx.moveTo(0, -23);
-    ctx.lineTo(0, -14);
-    ctx.stroke();
-
-    const mGrad = ctx.createRadialGradient(-6, -4, 2, 0, 2, 20);
-    mGrad.addColorStop(0, isGolden ? '#fef08a' : '#c084fc');
-    mGrad.addColorStop(0.45, isGolden ? '#ca8a04' : '#581c87');
-    mGrad.addColorStop(1, '#1e0936');
-    ctx.fillStyle = mGrad;
-    ctx.strokeStyle = '#140524';
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.arc(0, 2, 17.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Gloss highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.38)';
-    ctx.beginPath();
-    ctx.ellipse(-6, -3, 5.5, 3.2, -0.45, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4-sepal green calyx cap
-    for (const [cxOff, cyOff, rot] of [
-      [-8.5, -12, -0.45],
-      [8.5, -12, 0.45],
-      [-3.5, -14, -0.15],
-      [3.5, -14, 0.15],
-    ] as const) {
-      ctx.fillStyle = '#84cc16';
-      ctx.strokeStyle = '#1a2e05';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.ellipse(cxOff, cyOff, 6.2, 4.0, rot, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    // Bottom 6-petal Tampuk Manggis rosette star
-    ctx.fillStyle = '#d8b4fe';
-    for (let st = 0; st < 6; st++) {
-      const sa = (st * Math.PI) / 3;
-      ctx.beginPath();
-      ctx.ellipse(Math.cos(sa) * 3.0, 13 + Math.sin(sa) * 2.0, 2.0, 1.2, sa, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (foodId === 'food_banana_bunch') {
-    // Detailed hand of curved golden-yellow Pisang Emas bananas with green crown cushion matching plant_05_banana_plant
-    for (let c = -2; c <= 2; c++) {
-      const fx = c * 5.2;
-      const curve = c * 3.0;
-      ctx.fillStyle = isGolden ? '#fef08a' : '#facc15';
-      ctx.strokeStyle = '#713f12';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(fx - 3.4, -10);
-      ctx.quadraticCurveTo(fx + curve - 4.5, 4, fx + curve * 0.9, 16);
-      ctx.quadraticCurveTo(fx + curve + 4.5, 4, fx + 3.4, -10);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Floral remnant tip dot
-      ctx.fillStyle = '#291504';
-      ctx.beginPath();
-      ctx.arc(fx + curve * 0.9, 15.5, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Green pedicel cushion collar at top
-    ctx.fillStyle = '#65a30d';
-    ctx.strokeStyle = '#1a2e05';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.ellipse(0, -11, 14, 4.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  } else if (foodId === 'food_wild_figs') {
-    // Cluster of small red-purple figs (syconia) with stalks, matching P14 Banyan
-    ctx.strokeStyle = '#3f2a14';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -20);
-    ctx.quadraticCurveTo(-2, -12, -9, -6);
-    ctx.moveTo(0, -20);
-    ctx.quadraticCurveTo(3, -12, 9, -7);
-    ctx.moveTo(0, -20);
-    ctx.lineTo(0, -2);
-    ctx.stroke();
-    for (const [fx, fy, fr] of [
-      [-9, 2, 8.5],
-      [9, 1, 8.5],
-      [0, 9, 9.5],
-    ] as const) {
-      const fg = ctx.createRadialGradient(fx - 3, fy - 3, 1, fx, fy, fr + 2);
-      fg.addColorStop(0, isGolden ? '#fef08a' : '#f87171');
-      fg.addColorStop(0.55, isGolden ? '#eab308' : '#b91c1c');
-      fg.addColorStop(1, '#450a0a');
-      ctx.fillStyle = fg;
-      ctx.strokeStyle = '#2b0606';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.ellipse(fx, fy, fr * 0.92, fr, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      // Pale lenticel speckles and the ostiole at the fig's tip
-      ctx.fillStyle = 'rgba(254, 243, 199, 0.75)';
-      for (const [sx, sy] of [
-        [-2.5, -2],
-        [2, 1.5],
-        [-1, 3.5],
-      ] as const) {
-        ctx.beginPath();
-        ctx.arc(fx + sx, fy + sy, 0.9, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.fillStyle = '#2b0606';
-      ctx.beginPath();
-      ctx.arc(fx, fy + fr * 0.82, 1.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (foodId === 'food_coconut') {
-    // Green husked coconut with three-sided ridges and calyx cap, matching P13
-    const cg = ctx.createRadialGradient(-6, -6, 2, 0, 2, 22);
-    cg.addColorStop(0, isGolden ? '#fef08a' : '#bef264');
-    cg.addColorStop(0.55, isGolden ? '#ca8a04' : '#4d7c0f');
-    cg.addColorStop(1, '#1a2e05');
-    ctx.fillStyle = cg;
-    ctx.strokeStyle = '#14240a';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -18);
-    ctx.bezierCurveTo(16, -16, 19, 6, 12, 15);
-    ctx.bezierCurveTo(6, 21, -6, 21, -12, 15);
-    ctx.bezierCurveTo(-19, 6, -16, -16, 0, -18);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(217, 249, 157, 0.45)';
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.moveTo(0, -16);
-    ctx.quadraticCurveTo(3, 2, 0, 18);
-    ctx.stroke();
-    ctx.fillStyle = '#78350f';
-    ctx.strokeStyle = '#3b1a06';
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.ellipse(0, -17, 6, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  } else if (foodId === 'food_rambutan_fruit') {
-    // Cluster of three hairy red rambutans on a branched stalk, matching P15
-    ctx.strokeStyle = '#4d3319';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -22);
-    ctx.lineTo(-7, -9);
-    ctx.moveTo(0, -22);
-    ctx.lineTo(8, -10);
-    ctx.moveTo(0, -22);
-    ctx.lineTo(0, -2);
-    ctx.stroke();
-    for (const [rx, ry, rs] of [
-      [-8, -1, 0.62],
-      [8, -2, 0.6],
-      [0, 8, 0.7],
-    ] as const) {
-      ctx.save();
-      ctx.translate(rx, ry);
-      ctx.scale(rs, rs);
-      const rg = ctx.createRadialGradient(-3, -3, 2, 0, 0, 13);
-      rg.addColorStop(0, isGolden ? '#fef08a' : '#fb7185');
-      rg.addColorStop(0.5, isGolden ? '#eab308' : '#e11d48');
-      rg.addColorStop(1, '#881337');
-      ctx.fillStyle = rg;
-      ctx.strokeStyle = '#4c0519';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 10.5, 12.5, 0.15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.strokeStyle = '#bef264';
-      ctx.lineWidth = 1.7;
-      ctx.lineCap = 'round';
-      for (let a = 0; a < 14; a++) {
-        const ang = (a / 14) * Math.PI * 2;
-        const curl = a % 2 === 0 ? 0.3 : -0.3;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(ang) * 9.5, Math.sin(ang) * 11);
-        ctx.quadraticCurveTo(
-          Math.cos(ang + curl) * 15,
-          Math.sin(ang + curl) * 17,
-          Math.cos(ang + curl * 1.5) * 16.5,
-          Math.sin(ang + curl * 1.5) * 18.5,
-        );
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-  } else if (foodId === 'food_bamboo_shoots') {
-    // Young bamboo shoot (rebung): conical, wrapped in overlapping brown culm sheaths
-    for (const [ox, sc, rot] of [
-      [-7, 0.8, -0.18],
-      [6, 1, 0.1],
-    ] as const) {
-      ctx.save();
-      ctx.translate(ox, 4);
-      ctx.rotate(rot);
-      ctx.scale(sc, sc);
-      for (let s = 0; s < 4; s++) {
-        const y0 = 14 - s * 8;
-        const half = 10 - s * 2.2;
-        ctx.fillStyle = s % 2 === 0 ? (isGolden ? '#facc15' : '#a16207') : isGolden ? '#fde047' : '#ca8a04';
-        ctx.strokeStyle = '#422006';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(-half, y0);
-        ctx.quadraticCurveTo(-half * 0.8, y0 - 10, 0, y0 - 14);
-        ctx.quadraticCurveTo(half * 0.8, y0 - 10, half, y0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.fillStyle = '#84cc16';
-      ctx.beginPath();
-      ctx.moveTo(-2, -16);
-      ctx.lineTo(0, -24);
-      ctx.lineTo(2, -16);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-  } else if (foodId === 'food_wild_honeycomb') {
-    // Slab of giant honeybee comb with hexagonal cells and a honey drip, matching P02
-    ctx.fillStyle = isGolden ? '#fde047' : '#f59e0b';
-    ctx.strokeStyle = '#78350f';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-17, -12);
-    ctx.quadraticCurveTo(0, -18, 17, -12);
-    ctx.quadraticCurveTo(19, 4, 10, 15);
-    ctx.quadraticCurveTo(0, 20, -10, 15);
-    ctx.quadraticCurveTo(-19, 4, -17, -12);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(120, 53, 15, 0.75)';
-    ctx.lineWidth = 1.1;
-    const hexR = 3.6;
-    for (let row = -2; row <= 2; row++) {
-      for (let col = -2; col <= 2; col++) {
-        const hx = col * hexR * 1.75 + (row % 2 === 0 ? 0 : hexR * 0.87);
-        const hy = row * hexR * 1.5 + 1;
-        if (Math.hypot(hx / 15, hy / 13) > 1) continue;
-        ctx.beginPath();
-        for (let k = 0; k < 6; k++) {
-          const a = Math.PI / 6 + (k * Math.PI) / 3;
-          const px = hx + Math.cos(a) * hexR;
-          const py = hy + Math.sin(a) * hexR;
-          if (k === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.stroke();
-      }
-    }
-    ctx.fillStyle = '#d97706';
-    ctx.beginPath();
-    ctx.moveTo(4, 16);
-    ctx.quadraticCurveTo(6, 22, 5, 25);
-    ctx.arc(5, 24, 2.4, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (foodId === 'food_ants_termites') {
-    // Chunk of termite mound (clay with tunnels) and a few termites and ants
-    ctx.fillStyle = '#a16207';
-    ctx.strokeStyle = '#422006';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-18, 14);
-    ctx.quadraticCurveTo(-16, -6, -6, -16);
-    ctx.quadraticCurveTo(0, -20, 6, -15);
-    ctx.quadraticCurveTo(16, -4, 18, 14);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#422006';
-    for (const [tx, ty, tr] of [
-      [-6, -4, 2.4],
-      [5, -8, 2],
-      [2, 4, 2.6],
-      [-9, 8, 1.8],
-      [10, 6, 2],
-    ] as const) {
-      ctx.beginPath();
-      ctx.ellipse(tx, ty, tr, tr * 1.3, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Pale termites
-    for (const [bx, by, rot] of [
-      [-12, 18, 0.3],
-      [12, 19, -0.4],
-    ] as const) {
-      ctx.save();
-      ctx.translate(bx, by);
-      ctx.rotate(rot);
-      ctx.fillStyle = '#fef3c7';
-      ctx.strokeStyle = '#78350f';
-      ctx.lineWidth = 0.9;
-      for (const sx of [-3.2, 0, 3.4]) {
-        ctx.beginPath();
-        ctx.ellipse(sx, 0, 2.2, 1.7, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-    // A dark ant on top
-    ctx.fillStyle = '#1c1917';
-    for (const sx of [-3, 0, 3]) {
-      ctx.beginPath();
-      ctx.arc(sx, -19, 1.6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (foodId === 'food_papaya_fruit') {
-    // Ripe pyriform papaya with stalk scar, matching P06
-    ctx.save();
-    ctx.translate(0, 2);
-    ctx.scale(1.35, 1.35);
-    ctx.rotate(-0.12);
-    const pGrad = ctx.createRadialGradient(-3, -4, 1, 0, 0, 15);
-    pGrad.addColorStop(0, '#fde047');
-    pGrad.addColorStop(0.55, '#f97316');
-    pGrad.addColorStop(1, '#c2410c');
-    ctx.fillStyle = pGrad;
-    ctx.strokeStyle = '#431407';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(0, -14);
-    ctx.bezierCurveTo(8, -12, 11, 0, 9, 10);
-    ctx.bezierCurveTo(6, 15, -6, 15, -9, 10);
-    ctx.bezierCurveTo(-11, 0, -8, -12, 0, -14);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Subtle papaya longitudinal groove highlights
-    ctx.strokeStyle = 'rgba(254, 240, 138, 0.45)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(0, -12);
-    ctx.quadraticCurveTo(5, 0, 3, 11);
-    ctx.stroke();
-    ctx.restore();
-
-    // Short green stalk scar at the top where it grew from the trunk
-    ctx.save();
-    ctx.translate(0, 2);
-    ctx.scale(1.35, 1.35);
-    ctx.fillStyle = isGolden ? '#facc15' : '#4d7c0f';
-    ctx.strokeStyle = '#1a2e05';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.ellipse(0, -14, 3, 1.8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  } else if (foodId === 'food_seaweed_kelp') {
-    // Ribbon Seagrass & Turtle Grass blades with creeping rhizome matching P22-P24
-    ctx.fillStyle = '#92400e';
-    ctx.strokeStyle = '#271001';
-    ctx.lineWidth = 1.6;
-    drawRoundedRect(ctx, -15, 12, 30, 5, 2.5);
-    ctx.fill();
-    ctx.stroke();
-
-    for (const [ox, h, bend, col] of [
-      [-9, 26, -4, '#10b981'],
-      [0, 30, 3, '#34d399'],
-      [9, 25, 5, '#059669'],
-    ] as const) {
-      ctx.fillStyle = col;
-      ctx.strokeStyle = '#064e3b';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.moveTo(ox - 3.5, 13);
-      ctx.quadraticCurveTo(ox + bend * 0.5 - 3, 13 - h * 0.5, ox + bend, 13 - h);
-      ctx.quadraticCurveTo(ox + bend * 0.5 + 3, 13 - h * 0.5, ox + 3.5, 13);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-  } else if (foodId === 'food_plankton_bloom') {
-    // Bioluminescent Copepod & Diatom Plankton Bloom
-    const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
-    g.addColorStop(0, 'rgba(125, 211, 252, 0.95)');
-    g.addColorStop(0.55, 'rgba(56, 189, 248, 0.55)');
-    g.addColorStop(1, 'rgba(56, 189, 248, 0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, 22, 0, Math.PI * 2);
-    ctx.fill();
-
-    for (const [px, py, pr] of [
-      [-7, -5, 4.2],
-      [7, -6, 3.6],
-      [0, 5, 4.5],
-      [-5, 9, 3.0],
-      [9, 4, 3.2],
-    ] as const) {
-      ctx.fillStyle = '#e0f2fe';
-      ctx.strokeStyle = '#0284c7';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(px, py, pr, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-  } else {
-    // food_freshwater_crustacean: Detailed River Prawn / Minnow with segmented carapace & feelers
-    ctx.fillStyle = isGolden ? '#fde047' : '#fb923c';
-    ctx.strokeStyle = '#7c2d12';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.arc(0, 2, 13, Math.PI * 0.85, Math.PI * 2.15);
-    ctx.quadraticCurveTo(6, 12, -8, 12);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Prawn antennae & tail fan
-    ctx.beginPath();
-    ctx.moveTo(11, -2);
-    ctx.quadraticCurveTo(19, -10, 22, -4);
-    ctx.moveTo(11, 1);
-    ctx.quadraticCurveTo(18, -3, 21, 3);
-    ctx.stroke();
-
-    ctx.fillStyle = '#1e293b';
-    ctx.beginPath();
-    ctx.arc(7, -3, 2.0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.restore();
-}
 
 export interface WorldRenderParams {
   ctx: CanvasRenderingContext2D;
@@ -1180,1059 +336,6 @@ export interface WorldRenderParams {
   shoreShells: Array<{ id: string; x: number; y: number }>;
 }
 
-/**
- * Deterministic pseudo-random helper in [0, 1) for chunked natural scenery
- */
-function seededHash(seed: number): number {
-  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-/**
- * Renders deterministic natural scenery (25–35% density) for visible 1200px chunks only:
- * - Rainforest: Mossy granite boulders, fallen nurse logs with bracket fungi, fern clumps, canopy vines
- * - River Pond: Submerged river pebbles, cattail reeds, floating duckweed & driftwood
- * - Mudflats: Tidal mud mounds, breathing pneumatophore roots, fiddler crab burrows
- * - Coral Sea: Staghorn & brain coral bommies, sea fans, tube sponges, kelp ribbons
- */
-function renderChunkedNaturalScenery(
-  ctx: CanvasRenderingContext2D,
-  cameraX: number,
-  viewportWidth: number,
-  viewportHeight: number,
-  elapsedSec: number,
-  nightFactor: number,
-): void {
-  const chunkSize = 1100;
-  const firstChunk = Math.max(0, Math.floor((cameraX - 300) / chunkSize));
-  const lastChunk = Math.min(
-    Math.floor(WORLD_WIDTH / chunkSize),
-    Math.ceil((cameraX + viewportWidth + 300) / chunkSize),
-  );
-
-  for (let c = firstChunk; c <= lastChunk; c++) {
-    const chunkStart = c * chunkSize;
-    // Place 3 natural props per 1100px chunk (~28% visual coverage, never overcrowded)
-    for (let slot = 0; slot < 3; slot++) {
-      const h1 = seededHash(c * 31 + slot * 7 + 1);
-      const h2 = seededHash(c * 31 + slot * 7 + 2);
-      const wx = chunkStart + 140 + slot * 340 + (h1 - 0.5) * 140;
-      if (wx < 80 || wx > WORLD_WIDTH - 80) continue;
-
-      const floorY = getTerrainFloorY(wx, viewportHeight);
-      const zone =
-        HABITAT_ZONES.find((z) => wx >= z.xStart && wx <= z.xEnd) ?? HABITAT_ZONES[0];
-
-      ctx.save();
-      ctx.translate(wx, floorY);
-
-      const styleIdx = Math.abs(c * 5 + slot * 3) % 5;
-
-      if (zone.id === 'forest') {
-        if (styleIdx === 0) {
-          // 1. Mossy Rainforest Granite Boulder & Lichen Patch
-          const rw = 34 + h2 * 18;
-          const rh = 20 + h1 * 12;
-          ctx.fillStyle = nightFactor > 0.5 ? '#3b3f44' : '#7b7d78';
-          ctx.strokeStyle = '#2a2c2a';
-          ctx.lineWidth = 2.4;
-          ctx.beginPath();
-          ctx.ellipse(0, -rh * 0.35, rw, rh, 0, Math.PI, Math.PI * 2);
-          ctx.lineTo(rw, 4);
-          ctx.lineTo(-rw, 4);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = nightFactor > 0.5 ? '#34482a' : '#6f8f44';
-          ctx.beginPath();
-          ctx.ellipse(0, -rh * 0.85, rw * 0.78, rh * 0.42, 0, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (styleIdx === 1) {
-          // 2. Fallen Rainforest Nurse Log with Bracket Shelf Fungi
-          ctx.fillStyle = '#5c3a21';
-          ctx.strokeStyle = '#2b180b';
-          ctx.lineWidth = 2.4;
-          drawRoundedRect(ctx, -42, -14, 84, 18, 8);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#f59e0b';
-          ctx.beginPath();
-          ctx.arc(-14, -14, 7, Math.PI, 0);
-          ctx.arc(16, -12, 6, Math.PI, 0);
-          ctx.fill();
-        } else if (styleIdx === 2) {
-          // 3. Wild Rainforest Undergrowth Fern Rosette
-          const sway = Math.sin(elapsedSec * 1.8 + wx * 0.01) * 0.08;
-          for (const ang of [-2.4, -1.9, -1.2, -0.7]) {
-            ctx.save();
-            ctx.rotate(ang + sway);
-            ctx.fillStyle = nightFactor > 0.5 ? '#2c4a2a' : '#4f8a3a';
-            ctx.strokeStyle = '#1d3318';
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ctx.ellipse(22, 0, 22, 6, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-          }
-        } else if (styleIdx === 3) {
-          // 4. Broad-Leaf Alocasia / Elephant-Ear Forest Floor Clump
-          const sway = Math.sin(elapsedSec * 1.5 + wx * 0.015) * 3.5;
-          for (const [lx, ly, rot, sc] of [
-            [-14, -22, -0.45, 0.85],
-            [14, -24, 0.42, 0.9],
-            [0, -30, 0.04, 1.05],
-          ] as const) {
-            ctx.strokeStyle = '#2f5222';
-            ctx.lineWidth = 2.4;
-            ctx.beginPath();
-            ctx.moveTo(0, 2);
-            ctx.quadraticCurveTo(lx * 0.5, ly * 0.5, lx + sway * 0.5, ly);
-            ctx.stroke();
-            ctx.save();
-            ctx.translate(lx + sway * 0.5, ly);
-            ctx.rotate(rot);
-            ctx.scale(sc, sc);
-            ctx.fillStyle = nightFactor > 0.5 ? '#2e5930' : '#4d8c40';
-            ctx.strokeStyle = '#1b3618';
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ctx.moveTo(0, 6);
-            ctx.bezierCurveTo(-12, 12, -14, -8, 0, -16);
-            ctx.bezierCurveTo(14, -8, 12, 12, 0, 6);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-          }
-        } else {
-          // 5. Weathered Buttress Root Stump with Wild Ginger Shoot
-          ctx.fillStyle = '#4a2e18';
-          ctx.strokeStyle = '#241408';
-          ctx.lineWidth = 2.2;
-          ctx.beginPath();
-          ctx.moveTo(-28, 4);
-          ctx.quadraticCurveTo(-14, -6, -10, -26);
-          ctx.lineTo(10, -24);
-          ctx.quadraticCurveTo(15, -6, 30, 4);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#dc2626';
-          ctx.beginPath();
-          ctx.ellipse(18, -8, 5, 8, 0.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (zone.id === 'river') {
-        const sway = Math.sin(elapsedSec * 2.1 + wx * 0.02) * 7;
-        if (styleIdx === 0) {
-          // 1. Submerged smooth river cobbles & swaying Vallisneria tape-grass
-          ctx.fillStyle = '#78716c';
-          ctx.strokeStyle = '#292524';
-          ctx.lineWidth = 1.8;
-          ctx.beginPath();
-          ctx.ellipse(-14, -4, 16, 8, -0.1, 0, Math.PI * 2);
-          ctx.ellipse(12, -3, 13, 7, 0.15, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.strokeStyle = '#10b981';
-          ctx.lineWidth = 3.0;
-          ctx.lineCap = 'round';
-          for (const ox of [-8, 0, 8]) {
-            ctx.beginPath();
-            ctx.moveTo(ox, -4);
-            ctx.quadraticCurveTo(ox + sway * 0.5, -24, ox + sway, -44 - h2 * 18);
-            ctx.stroke();
-          }
-        } else if (styleIdx === 1) {
-          // 2. Submerged Sunken Driftwood Branch & Cryptocoryne Water Trumpet Rosette
-          ctx.fillStyle = '#473323';
-          ctx.strokeStyle = '#1f140c';
-          ctx.lineWidth = 2.0;
-          ctx.beginPath();
-          ctx.moveTo(-34, 2);
-          ctx.quadraticCurveTo(-4, -14, 28, -22);
-          ctx.lineTo(30, -16);
-          ctx.quadraticCurveTo(0, -6, -28, 4);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-          for (const [lx, rot] of [
-            [-12, -0.35],
-            [-2, 0.05],
-            [8, 0.38],
-          ] as const) {
-            ctx.save();
-            ctx.translate(lx, -4);
-            ctx.rotate(rot + sway * 0.02);
-            ctx.fillStyle = '#15803d';
-            ctx.strokeStyle = '#052e16';
-            ctx.lineWidth = 1.4;
-            ctx.beginPath();
-            ctx.ellipse(0, -14, 4.5, 14, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-          }
-        } else if (styleIdx === 2) {
-          // 3. Layered Slate River Ledge & Java Moss Cushion
-          ctx.fillStyle = '#57534e';
-          ctx.strokeStyle = '#1c1917';
-          ctx.lineWidth = 2.0;
-          drawRoundedRect(ctx, -32, -8, 64, 10, 4);
-          ctx.fill();
-          ctx.stroke();
-          drawRoundedRect(ctx, -22, -16, 44, 9, 4);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#166534';
-          ctx.beginPath();
-          ctx.ellipse(0, -17, 18, 4.5, 0, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (styleIdx === 3) {
-          // 4. Emergent Horsetail Rush / Scirpus Reed Cluster
-          ctx.strokeStyle = '#15803d';
-          ctx.lineWidth = 2.4;
-          for (const [rx, rh] of [
-            [-14, 48],
-            [-6, 62],
-            [3, 56],
-            [11, 44],
-          ] as const) {
-            ctx.beginPath();
-            ctx.moveTo(rx, 0);
-            ctx.quadraticCurveTo(rx + sway * 0.3, -rh * 0.5, rx + sway * 0.7, -rh);
-            ctx.stroke();
-            ctx.fillStyle = '#78350f';
-            ctx.beginPath();
-            ctx.ellipse(rx + sway * 0.7, -rh, 2.2, 5.0, 0, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        } else {
-          // 5. Smooth Quartz River Boulders & Freshwater Mussel Shells
-          ctx.fillStyle = '#a8a29e';
-          ctx.strokeStyle = '#44403c';
-          ctx.lineWidth = 1.8;
-          ctx.beginPath();
-          ctx.ellipse(-8, -5, 18, 10, -0.08, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#312e81';
-          ctx.beginPath();
-          ctx.ellipse(16, -2, 7, 4, 0.25, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (zone.id === 'mud') {
-        if (styleIdx === 0) {
-          // 1. Sonneratia / Avicennia Breathing Pneumatophore Root Spikes
-          ctx.fillStyle = '#57361c';
-          ctx.beginPath();
-          ctx.ellipse(0, 0, 28, 9, 0, Math.PI, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#3e2723';
-          ctx.lineWidth = 3.0;
-          for (const rx of [-18, -9, 2, 11, 20]) {
-            const rh = 12 + ((Math.abs(rx * 3) + c) % 14);
-            ctx.beginPath();
-            ctx.moveTo(rx, 0);
-            ctx.lineTo(rx, -rh);
-            ctx.stroke();
-          }
-        } else if (styleIdx === 1) {
-          // 2. Mud Lobster (Thalassina) Volcano Mound & Fiddler Crab Pellets
-          ctx.fillStyle = '#4a3222';
-          ctx.strokeStyle = '#26170e';
-          ctx.lineWidth = 2.0;
-          ctx.beginPath();
-          ctx.moveTo(-26, 2);
-          ctx.quadraticCurveTo(-14, -22, -6, -24);
-          ctx.lineTo(6, -24);
-          ctx.quadraticCurveTo(14, -22, 26, 2);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#1c1008';
-          ctx.beginPath();
-          ctx.ellipse(0, -24, 5.5, 2.2, 0, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (styleIdx === 2) {
-          // 3. Bruguiera Knee-Root Arch Loops on Estuarine Silt
-          ctx.strokeStyle = '#4e342e';
-          ctx.lineWidth = 4.2;
-          ctx.lineCap = 'round';
-          for (const [kx, kw, kh] of [
-            [-18, 12, 18],
-            [2, 14, 22],
-            [18, 10, 15],
-          ] as const) {
-            ctx.beginPath();
-            ctx.moveTo(kx - kw * 0.5, 2);
-            ctx.quadraticCurveTo(kx, -kh, kx + kw * 0.5, 2);
-            ctx.stroke();
-          }
-        } else if (styleIdx === 3) {
-          // 4. Driftwood Mangrove Log Encrusted with Estuarine Barnacles
-          ctx.fillStyle = '#3e2723';
-          ctx.strokeStyle = '#1b0f0a';
-          ctx.lineWidth = 2.0;
-          drawRoundedRect(ctx, -34, -10, 68, 12, 5);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#e7e5e4';
-          for (const bx of [-18, -6, 8, 20]) {
-            ctx.beginPath();
-            ctx.arc(bx, -10, 2.8, Math.PI, 0);
-            ctx.fill();
-          }
-        } else {
-          // 5. Brackish Tidal Puddle with Fallen Mangrove Propagule Spears
-          ctx.fillStyle = 'rgba(56, 120, 112, 0.48)';
-          ctx.strokeStyle = '#3e2723';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.ellipse(0, 0, 30, 6.5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          ctx.strokeStyle = '#4d7c0f';
-          ctx.lineWidth = 2.4;
-          ctx.beginPath();
-          ctx.moveTo(-8, 1);
-          ctx.lineTo(-12, -19);
-          ctx.stroke();
-        }
-      } else if (getWaterDepthNorm(wx) > SHALLOW_SUNLIT_DEPTH_NORM + 0.1) {
-        // Deep sea floor: varied volcanic basalt pillows, glass sponge chimneys & abyssal crinoids
-        ctx.fillStyle = '#2b3442';
-        ctx.strokeStyle = '#151b24';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 26 + h1 * 22, 10 + h2 * 8, 0, Math.PI, Math.PI * 2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        if (styleIdx === 1 || styleIdx === 3) {
-          // Venus flower-basket glass sponge (Euplectella) chimney
-          ctx.fillStyle = 'rgba(203, 213, 225, 0.38)';
-          ctx.strokeStyle = 'rgba(226, 232, 240, 0.55)';
-          ctx.lineWidth = 1.4;
-          for (const [gx, gh] of styleIdx === 1 ? [[0, 52]] : [[-8, 44], [7, 56]]) {
-            ctx.beginPath();
-            ctx.moveTo(gx - 6, -6);
-            ctx.quadraticCurveTo(gx - 9, -gh * 0.65, gx - 4, -gh);
-            ctx.lineTo(gx + 5, -gh);
-            ctx.quadraticCurveTo(gx + 10, -gh * 0.65, gx + 6, -6);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-          }
-        } else if (styleIdx === 2) {
-          // Deep-sea stalked crinoid (sea lily)
-          const sway = Math.sin(elapsedSec * 1.3 + wx * 0.01) * 4;
-          ctx.strokeStyle = 'rgba(244, 114, 182, 0.55)';
-          ctx.lineWidth = 2.0;
-          ctx.beginPath();
-          ctx.moveTo(0, -6);
-          ctx.quadraticCurveTo(sway * 0.5, -26, sway, -44);
-          for (let a = -2; a <= 2; a++) {
-            ctx.moveTo(sway, -44);
-            ctx.quadraticCurveTo(sway + a * 6, -54, sway + a * 10, -60);
-          }
-          ctx.stroke();
-        }
-      } else {
-        // Shallow sunlit coral reef: 5 distinct reef structures
-        const sway = Math.sin(elapsedSec * 1.6 + wx * 0.01) * 4;
-        if (styleIdx === 0) {
-          // 1. Grooved Diploria Brain Coral Dome
-          ctx.fillStyle = '#c49a6c';
-          ctx.strokeStyle = '#6e5236';
-          ctx.lineWidth = 2.2;
-          ctx.beginPath();
-          ctx.arc(0, 0, 22 + h1 * 10, Math.PI, 0);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-          ctx.strokeStyle = 'rgba(110, 82, 54, 0.55)';
-          ctx.lineWidth = 1.4;
-          for (const r of [8, 15]) {
-            ctx.beginPath();
-            ctx.arc(0, 0, r, Math.PI * 1.15, Math.PI * 1.85);
-            ctx.stroke();
-          }
-        } else if (styleIdx === 1) {
-          // 2. Branching Acropora Staghorn Coral Colony
-          ctx.lineCap = 'round';
-          ctx.lineWidth = 5.2;
-          ctx.strokeStyle = '#a0789f';
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.quadraticCurveTo(sway * 0.5, -22, sway, -42);
-          ctx.moveTo(sway * 0.3, -14);
-          ctx.lineTo(-16 + sway, -34);
-          ctx.moveTo(sway * 0.4, -18);
-          ctx.lineTo(18 + sway, -36);
-          ctx.stroke();
-        } else if (styleIdx === 2) {
-          // 3. Tiered Acropora Table Coral Plate
-          ctx.fillStyle = '#8b9d77';
-          ctx.strokeStyle = '#3f4d32';
-          ctx.lineWidth = 2.0;
-          ctx.beginPath();
-          ctx.moveTo(-6, 0);
-          ctx.lineTo(-3, -18);
-          ctx.lineTo(4, -18);
-          ctx.lineTo(6, 0);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.ellipse(0, -18, 28, 6.5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.ellipse(6, -26, 20, 5.0, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        } else if (styleIdx === 3) {
-          // 4. Clustered Barrel Sponge (Xestospongia) Chimneys
-          for (const [bx, bw, bh, col] of [
-            [-9, 7, 26, '#c98b7c'],
-            [7, 6, 20, '#b56e5e'],
-          ] as const) {
-            ctx.fillStyle = col;
-            ctx.strokeStyle = '#5c2d24';
-            ctx.lineWidth = 1.8;
-            ctx.beginPath();
-            ctx.moveTo(bx - bw, 0);
-            ctx.quadraticCurveTo(bx - bw * 1.15, -bh * 0.5, bx - bw * 0.9, -bh);
-            ctx.lineTo(bx + bw * 0.9, -bh);
-            ctx.quadraticCurveTo(bx + bw * 1.15, -bh * 0.5, bx + bw, 0);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#2d1510';
-            ctx.beginPath();
-            ctx.ellipse(bx, -bh, bw * 0.85, 2.4, 0, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        } else {
-          // 5. Lacy Gorgonian Sea Fan & Coralline Limestone Outcrop
-          ctx.fillStyle = '#78716c';
-          ctx.beginPath();
-          ctx.ellipse(0, 0, 18, 6, 0, Math.PI, 0);
-          ctx.fill();
-          ctx.strokeStyle = '#d97757';
-          ctx.lineWidth = 2.2;
-          ctx.beginPath();
-          for (const ang of [-0.5, -0.25, 0, 0.25, 0.5]) {
-            ctx.moveTo(0, -4);
-            ctx.quadraticCurveTo(Math.sin(ang) * 18 + sway * 0.5, -22, Math.sin(ang) * 28 + sway, -38 + Math.abs(ang) * 10);
-          }
-          ctx.stroke();
-        }
-      }
-
-      ctx.restore();
-    }
-  }
-}
-
-/**
- * Intertidal Mangrove Tide Dynamics (Resolving Open Item O10):
- * Simulates the real semi-diurnal / lunar ebb and flow of brackish estuarine tides across
- * the Matang / coastal mudflats (Zone 3).
- * - High tide: Rising brackish estuarine water laps over the lower mud bank and between stilt roots.
- * - Ebb tide: Receding water exposes glistening wet organic mudflats, shallow tidal pools, and wet specular ribbons.
- */
-function renderIntertidalMangroveTide(
-  ctx: CanvasRenderingContext2D,
-  zStart: number,
-  zEnd: number,
-  viewportHeight: number,
-  elapsedSec: number,
-  nightFactor: number,
-): void {
-  // Tide oscillation: smooth sine curve 0 (low tide) to 1 (high tide)
-  const tideCycle = (Math.sin(elapsedSec * 0.045) + 1) * 0.5;
-  const mudFloorY = viewportHeight * 0.545;
-  const tideWaterY = mudFloorY - 2 + (1 - tideCycle) * 12;
-
-  const step = 28;
-  const startX = Math.floor(zStart / step) * step;
-  const endX = Math.ceil(zEnd / step) * step;
-
-  // 1. Glistening wet mud gloss & tidal ribbons on the exposed mud flat
-  const wetSheenAlpha = (0.16 + (1 - tideCycle) * 0.22) * (1 - nightFactor * 0.4);
-  ctx.save();
-  ctx.strokeStyle = nightFactor > 0.5 ? `rgba(148, 163, 184, ${wetSheenAlpha * 0.6})` : `rgba(254, 240, 138, ${wetSheenAlpha})`;
-  ctx.lineWidth = 2.4;
-  for (let wx = startX; wx < endX; wx += 64) {
-    const fy = getTerrainFloorY(wx, viewportHeight);
-    const waveSheen = Math.sin(wx * 0.015 + elapsedSec * 0.8) * 18;
-    ctx.beginPath();
-    ctx.moveTo(wx - 16 + waveSheen, fy - 1);
-    ctx.lineTo(wx + 22 + waveSheen, fy - 1);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  // 2. Rising / ebbing brackish estuarine tidal water sheet
-  if (tideCycle > 0.18) {
-    const waterAlpha = (tideCycle - 0.18) / 0.82;
-    ctx.save();
-    const tideGrad = ctx.createLinearGradient(0, tideWaterY, 0, mudFloorY + 28);
-    const topCol = nightFactor > 0.5
-      ? `rgba(22, 45, 36, ${0.45 * waterAlpha})`
-      : `rgba(88, 122, 92, ${0.48 * waterAlpha})`;
-    const botCol = nightFactor > 0.5
-      ? `rgba(14, 28, 22, ${0.72 * waterAlpha})`
-      : `rgba(54, 76, 50, ${0.68 * waterAlpha})`;
-    tideGrad.addColorStop(0, topCol);
-    tideGrad.addColorStop(1, botCol);
-    ctx.fillStyle = tideGrad;
-
-    // Build flooded polygon between tide water line and terrain floor
-    ctx.beginPath();
-    let hasFlooded = false;
-    for (let wx = startX; wx <= endX; wx += step) {
-      const fy = getTerrainFloorY(wx, viewportHeight);
-      if (fy > tideWaterY) {
-        if (!hasFlooded) {
-          ctx.moveTo(wx, tideWaterY);
-          hasFlooded = true;
-        }
-        ctx.lineTo(wx, fy);
-      } else if (hasFlooded) {
-        ctx.lineTo(wx, tideWaterY);
-      }
-    }
-    if (hasFlooded) {
-      ctx.lineTo(endX, tideWaterY);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Gentle lapping estuarine wavelets and froth line along the water's edge
-    ctx.strokeStyle = nightFactor > 0.5 ? 'rgba(186, 230, 253, 0.32)' : 'rgba(255, 255, 255, 0.42)';
-    ctx.lineWidth = 1.6;
-    for (let wx = startX; wx < endX; wx += 80) {
-      const fy = getTerrainFloorY(wx, viewportHeight);
-      if (fy > tideWaterY - 4) {
-        const lapX = Math.sin(elapsedSec * 2.2 + wx * 0.03) * 6;
-        ctx.beginPath();
-        ctx.moveTo(wx + lapX, tideWaterY + 1);
-        ctx.lineTo(wx + 34 + lapX, tideWaterY + 1);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-  }
-
-  // 3. At low tide (tideCycle <= 0.65), shallow glistening tide pools trapped in mud hollows
-  if (tideCycle < 0.65) {
-    const poolAlpha = ((0.65 - tideCycle) / 0.65) * 0.55;
-    ctx.save();
-    for (let wx = startX + 32; wx < endX - 32; wx += 140) {
-      const fy = getTerrainFloorY(wx, viewportHeight);
-      const h = seededHash(wx * 0.07);
-      if (h > 0.45) {
-        const pw = 24 + h * 20;
-        const ph = 5 + h * 3;
-        ctx.fillStyle = nightFactor > 0.5
-          ? `rgba(30, 58, 62, ${poolAlpha})`
-          : `rgba(125, 175, 160, ${poolAlpha * 0.8})`;
-        ctx.strokeStyle = `rgba(38, 26, 15, ${poolAlpha * 0.9})`;
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.ellipse(wx, fy + 1, pw, ph, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        // Tiny sky specular glint in pool center
-        ctx.fillStyle = nightFactor > 0.5
-          ? `rgba(226, 232, 240, ${poolAlpha * 0.7})`
-          : `rgba(255, 255, 255, ${poolAlpha * 0.85})`;
-        ctx.beginPath();
-        ctx.ellipse(wx - 4, fy + 0.5, pw * 0.28, ph * 0.3, -0.15, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-  }
-}
-
-/**
- * Dynamic reef life and mangrove regeneration.
- * - Sunlit sea floor: large branching staghorn / elkhorn colonies, giant brain & plate corals,
- *   tall gorgonian sea fans, soft leather corals, giant clams and colourful sea stars, all gently
- *   swaying with the current (polyps breathe, fans flex).
- * - Mudflats: Rhizophora propagule seedlings at different growth stages, Avicennia saplings,
- *   Nipa / fern sprouts and drifting fallen mangrove leaves that rustle with the tide.
- * Deterministic per world-x so the scene is stable but every patch looks different.
- */
-function renderDynamicReefAndMangroveLife(
-  ctx: CanvasRenderingContext2D,
-  visStartX: number,
-  visEndX: number,
-  viewportHeight: number,
-  elapsedSec: number,
-  nightFactor: number,
-): void {
-  const seaZone = HABITAT_ZONES.find((z) => z.id === 'sea');
-  const mudZone = HABITAT_ZONES.find((z) => z.id === 'mud');
-  const dim = (c: string) => lerpColor(c, '#0b1726', nightFactor * 0.45);
-
-  // ---------------- SEA: big corals & sea stars ----------------
-  if (seaZone) {
-    const spacing = 230;
-    const start = Math.max(seaZone.xStart + 160, Math.floor(visStartX / spacing) * spacing);
-    const end = Math.min(seaZone.xEnd - 60, visEndX);
-    for (let base = start; base <= end; base += spacing) {
-      const h1 = seededHash(base * 0.0137 + 3.1);
-      const h2 = seededHash(base * 0.0291 + 7.7);
-      const h3 = seededHash(base * 0.0419 + 1.9);
-      const wx = base + (h1 - 0.5) * 120;
-      if (wx < seaZone.xStart + 140 || wx > seaZone.xEnd - 40) continue;
-      const depth = getWaterDepthNorm(wx);
-      const isDeep = depth > SHALLOW_SUNLIT_DEPTH_NORM + 0.25;
-      const fy = getTerrainFloorY(wx, viewportHeight);
-      const current = Math.sin(elapsedSec * 0.9 + wx * 0.006);
-      const kind = Math.floor(h2 * 6);
-      const size = (isDeep ? 0.75 : 1.0) * (1.05 + h3 * 0.75);
-
-      ctx.save();
-      ctx.translate(wx, fy + 2);
-      ctx.scale(size, size);
-      ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
-
-      if (isDeep) {
-        // Deep cold-water: tall pale sea whip + bamboo coral (no zooxanthellae colour)
-        ctx.strokeStyle = dim('#e2e8f0');
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.bezierCurveTo(current * 4, -40, current * 10, -80, current * 16, -118);
-        ctx.stroke();
-        ctx.fillStyle = dim('#fda4af');
-        for (let k = 1; k < 9; k++) {
-          const t = k / 9;
-          ctx.beginPath();
-          ctx.arc(current * 16 * t * t, -118 * t, 2.4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (kind === 0) {
-        // Large branching staghorn (Acropora) colony – every branch grows from a parent branch
-        const col = dim(['#c084fc', '#f0abfc', '#93c5fd'][Math.floor(h1 * 3)]);
-        const tip = dim('#fdf4ff');
-        const drawBranch = (x: number, y: number, ang: number, len: number, w: number, depthLv: number): void => {
-          const bend = current * 0.05 * (4 - depthLv);
-          const ex = x + Math.cos(ang + bend) * len;
-          const ey = y + Math.sin(ang + bend) * len;
-          ctx.strokeStyle = col;
-          ctx.lineWidth = w;
-          ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.quadraticCurveTo((x + ex) / 2 + bend * 10, (y + ey) / 2, ex, ey);
-          ctx.stroke();
-          if (depthLv >= 3 || len < 10) {
-            ctx.fillStyle = tip;
-            ctx.beginPath();
-            ctx.arc(ex, ey, w * 0.55, 0, Math.PI * 2);
-            ctx.fill();
-            return;
-          }
-          drawBranch(ex, ey, ang - 0.45, len * 0.72, w * 0.72, depthLv + 1);
-          drawBranch(ex, ey, ang + 0.42, len * 0.68, w * 0.72, depthLv + 1);
-        };
-        drawBranch(0, 0, -Math.PI / 2, 34, 9, 0);
-        drawBranch(-6, 0, -Math.PI / 2 - 0.6, 26, 7, 1);
-        drawBranch(6, 0, -Math.PI / 2 + 0.6, 26, 7, 1);
-      } else if (kind === 1) {
-        // Giant brain coral boulder with meandering grooves
-        const r = 44;
-        const g = ctx.createRadialGradient(-12, -r * 0.7, 6, 0, -r * 0.3, r * 1.1);
-        g.addColorStop(0, dim('#fde68a'));
-        g.addColorStop(0.6, dim('#d9a35f'));
-        g.addColorStop(1, dim('#8a5a2b'));
-        ctx.fillStyle = g;
-        ctx.strokeStyle = dim('#5b3a1a');
-        ctx.lineWidth = 2.4;
-        ctx.beginPath();
-        ctx.ellipse(0, -r * 0.55, r * 1.15, r * 0.75, 0, Math.PI, Math.PI * 2);
-        ctx.lineTo(r * 1.15, 0);
-        ctx.lineTo(-r * 1.15, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.save();
-        ctx.clip();
-        ctx.strokeStyle = 'rgba(91, 58, 26, 0.55)';
-        ctx.lineWidth = 2;
-        for (let row = 0; row < 6; row++) {
-          ctx.beginPath();
-          const yy = -r * 1.2 + row * 11;
-          for (let xx = -r * 1.2; xx <= r * 1.2; xx += 6) {
-            const wob = Math.sin(xx * 0.18 + row * 1.7) * 4;
-            if (xx === -r * 1.2) ctx.moveTo(xx, yy + wob);
-            else ctx.lineTo(xx, yy + wob);
-          }
-          ctx.stroke();
-        }
-        ctx.restore();
-      } else if (kind === 2) {
-        // Tall gorgonian sea fan: a mesh of branches all joined to one holdfast stalk
-        const fanCol = dim(['#f97316', '#ef4444', '#facc15'][Math.floor(h3 * 3)]);
-        ctx.strokeStyle = fanCol;
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(current * 2, -14);
-        ctx.stroke();
-        ctx.lineWidth = 1.6;
-        const rays = 9;
-        const tips: Array<[number, number]> = [];
-        for (let i = 0; i < rays; i++) {
-          const a = -Math.PI / 2 + (i / (rays - 1) - 0.5) * 1.5;
-          const tx = Math.cos(a) * 80 + current * 9;
-          const ty = -14 + Math.sin(a) * 80;
-          tips.push([tx, ty]);
-          ctx.beginPath();
-          ctx.moveTo(current * 2, -14);
-          ctx.quadraticCurveTo(tx * 0.5, (ty - 14) * 0.5 - 6, tx, ty);
-          ctx.stroke();
-        }
-        // Cross-linking mesh (anastomosing branches)
-        ctx.globalAlpha = 0.7;
-        for (const t of [0.4, 0.6, 0.8]) {
-          ctx.beginPath();
-          tips.forEach(([tx, ty], i) => {
-            const px = current * 2 + (tx - current * 2) * t;
-            const py = -14 + (ty + 14) * t;
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          });
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-      } else if (kind === 3) {
-        // Tiered table / plate corals stacked on a short trunk
-        ctx.fillStyle = dim('#86a873');
-        ctx.strokeStyle = dim('#3f5a32');
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-7, 0);
-        ctx.lineTo(-5, -26);
-        ctx.lineTo(5, -26);
-        ctx.lineTo(7, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        for (const [py, rx, off] of [
-          [-26, 58, 0],
-          [-42, 42, 8],
-          [-55, 26, -4],
-        ] as const) {
-          ctx.fillStyle = dim('#a3c48f');
-          ctx.beginPath();
-          ctx.ellipse(off + current * 1.5, py, rx, 8, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          ctx.strokeStyle = 'rgba(63, 90, 50, 0.4)';
-          ctx.beginPath();
-          ctx.ellipse(off + current * 1.5, py - 1, rx * 0.6, 4, 0, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.strokeStyle = dim('#3f5a32');
-          if (py !== -55) {
-            ctx.beginPath();
-            ctx.moveTo(off - 3, py);
-            ctx.lineTo(off - 3, py - 16);
-            ctx.moveTo(off + 3, py);
-            ctx.lineTo(off + 3, py - 16);
-            ctx.stroke();
-          }
-        }
-      } else if (kind === 4) {
-        // Soft leather coral with breathing polyps + giant clam at its foot
-        const breathe = 1 + Math.sin(elapsedSec * 1.4 + wx) * 0.06;
-        ctx.fillStyle = dim('#d6c7a1');
-        ctx.strokeStyle = dim('#7a6a43');
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-10, 0);
-        ctx.quadraticCurveTo(-12, -26, -36 * breathe, -46);
-        ctx.quadraticCurveTo(0, -64 * breathe, 36 * breathe, -46);
-        ctx.quadraticCurveTo(12, -26, 10, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = dim('#fef9c3');
-        for (let p = 0; p < 14; p++) {
-          const px = -30 + p * 4.6;
-          const py = -48 - Math.sin((p / 13) * Math.PI) * 10 * breathe;
-          ctx.beginPath();
-          ctx.arc(px, py, 1.6, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        // Giant clam (Tridacna) with wavy blue mantle
-        ctx.save();
-        ctx.translate(30, 0);
-        ctx.fillStyle = dim('#e7e5e4');
-        ctx.strokeStyle = dim('#78716c');
-        ctx.beginPath();
-        ctx.ellipse(0, -6, 20, 9, 0, Math.PI, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = dim('#2563eb');
-        ctx.beginPath();
-        for (let x = -16; x <= 16; x += 4) {
-          ctx.lineTo(x, -8 - (x % 8 === 0 ? 3 : 0));
-        }
-        ctx.lineTo(16, -4);
-        ctx.lineTo(-16, -4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      } else {
-        // Elkhorn coral: broad flattened antler-like branches
-        ctx.fillStyle = dim('#d4a373');
-        ctx.strokeStyle = dim('#7c5530');
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-8, 0);
-        ctx.quadraticCurveTo(-10, -20, -34 + current * 3, -40);
-        ctx.lineTo(-44 + current * 3, -58);
-        ctx.lineTo(-30 + current * 3, -50);
-        ctx.lineTo(-20 + current * 3, -66);
-        ctx.lineTo(-14 + current * 2, -44);
-        ctx.quadraticCurveTo(0, -36, 14 + current * 2, -48);
-        ctx.lineTo(22 + current * 3, -70);
-        ctx.lineTo(30 + current * 3, -52);
-        ctx.lineTo(46 + current * 3, -60);
-        ctx.lineTo(34 + current * 3, -38);
-        ctx.quadraticCurveTo(12, -18, 8, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      // Sea stars & a cushion star scattered on the sand around each coral
-      if (!isDeep) {
-        const starCount = 1 + Math.floor(h3 * 3);
-        for (let s = 0; s < starCount; s++) {
-          const sx = (s - (starCount - 1) / 2) * 34 + (h1 - 0.5) * 20 + 50;
-          const starCol = dim(['#f97316', '#dc2626', '#2563eb', '#a855f7', '#facc15'][Math.floor(seededHash(wx + s * 9.1) * 5)]);
-          const rot = seededHash(wx * 0.3 + s) * Math.PI + Math.sin(elapsedSec * 0.15 + s) * 0.05;
-          ctx.save();
-          ctx.translate(sx, -3);
-          ctx.scale(1, 0.55);
-          ctx.rotate(rot);
-          ctx.fillStyle = starCol;
-          ctx.strokeStyle = 'rgba(30, 20, 10, 0.55)';
-          ctx.lineWidth = 1.4;
-          ctx.beginPath();
-          for (let k = 0; k < 10; k++) {
-            const a = (k / 10) * Math.PI * 2 - Math.PI / 2;
-            const rr = k % 2 === 0 ? 13 : 5;
-            if (k === 0) ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
-            else ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
-          }
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-          for (let k = 0; k < 5; k++) {
-            const a = (k / 5) * Math.PI * 2 - Math.PI / 2;
-            ctx.beginPath();
-            ctx.arc(Math.cos(a) * 7, Math.sin(a) * 7, 1.2, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.restore();
-        }
-      }
-      ctx.restore();
-    }
-  }
-
-  // ---------------- MUD: mangrove shoots, saplings & fallen leaves ----------------
-  if (mudZone) {
-    const spacing = 120;
-    const start = Math.max(mudZone.xStart + 50, Math.floor(visStartX / spacing) * spacing);
-    const end = Math.min(mudZone.xEnd - 50, visEndX);
-    const breeze = Math.sin(elapsedSec * 1.3);
-    for (let base = start; base <= end; base += spacing) {
-      const h1 = seededHash(base * 0.0173 + 5.3);
-      const h2 = seededHash(base * 0.0377 + 2.2);
-      const wx = base + (h1 - 0.5) * 70;
-      if (wx < mudZone.xStart + 40 || wx > mudZone.xEnd - 40) continue;
-      const fy = getTerrainFloorY(wx, viewportHeight);
-      const sway = Math.sin(elapsedSec * 1.6 + wx * 0.03) * 0.06;
-      const kind = Math.floor(h2 * 4);
-      ctx.save();
-      ctx.translate(wx, fy + 1);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      if (kind === 0) {
-        // Rhizophora propagule: green spear stuck in the mud, first leaf pair sprouting from its top
-        const hgt = 30 + h1 * 22;
-        ctx.rotate(sway);
-        ctx.strokeStyle = dim('#4d7c0f');
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(0, 2);
-        ctx.lineTo(0, -hgt);
-        ctx.stroke();
-        ctx.strokeStyle = dim('#7c2d12');
-        ctx.lineWidth = 4.6;
-        ctx.beginPath();
-        ctx.moveTo(0, -hgt);
-        ctx.lineTo(0, -hgt - 4);
-        ctx.stroke();
-        for (const side of [-1, 1]) {
-          ctx.save();
-          ctx.translate(0, -hgt - 4);
-          ctx.rotate(side * (0.75 + breeze * 0.06));
-          ctx.fillStyle = dim('#65a30d');
-          ctx.strokeStyle = dim('#365314');
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.quadraticCurveTo(side * 4, -7, 0, -15);
-          ctx.quadraticCurveTo(-side * 4, -7, 0, 0);
-          ctx.fill();
-          ctx.stroke();
-          ctx.restore();
-        }
-        // tiny anchoring roots
-        ctx.strokeStyle = dim('#3f2a17');
-        ctx.lineWidth = 1.2;
-        for (const rx of [-5, -2, 3, 6]) {
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.quadraticCurveTo(rx, 2, rx * 1.4, 5);
-          ctx.stroke();
-        }
-      } else if (kind === 1) {
-        // Young Rhizophora sapling with arching prop roots and opposite leaf pairs
-        const hgt = 56 + h1 * 26;
-        ctx.strokeStyle = dim('#5b3a1e');
-        ctx.lineWidth = 2;
-        for (const rx of [-16, -8, 9, 17]) {
-          ctx.beginPath();
-          ctx.moveTo(0, -18);
-          ctx.quadraticCurveTo(rx * 0.6, -16, rx, 2);
-          ctx.stroke();
-        }
-        ctx.save();
-        ctx.rotate(sway);
-        ctx.lineWidth = 3.6;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(0, -hgt);
-        ctx.stroke();
-        for (let n = 0; n < 4; n++) {
-          const ny = -hgt * (0.45 + n * 0.17);
-          for (const side of [-1, 1]) {
-            ctx.strokeStyle = dim('#5b3a1e');
-            ctx.lineWidth = 1.3;
-            const lx = side * 7;
-            ctx.beginPath();
-            ctx.moveTo(0, ny);
-            ctx.lineTo(lx, ny - 3);
-            ctx.stroke();
-            ctx.save();
-            ctx.translate(lx, ny - 3);
-            ctx.rotate(side * (1.0 + breeze * 0.08) - Math.PI / 2 * 0);
-            ctx.fillStyle = dim(n % 2 ? '#3f7d20' : '#4d8f2a');
-            ctx.strokeStyle = dim('#1f3d10');
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.ellipse(side * 7, -2, 9, 4, side * -0.3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-          }
-        }
-        ctx.restore();
-      } else if (kind === 2) {
-        // Avicennia seedlings + pencil pneumatophores around them
-        ctx.strokeStyle = dim('#6b4a2b');
-        ctx.lineWidth = 2.4;
-        for (const px of [-22, -14, 15, 24, 31]) {
-          ctx.beginPath();
-          ctx.moveTo(px, 1);
-          ctx.lineTo(px + 0.5, -8 - seededHash(px + wx) * 8);
-          ctx.stroke();
-        }
-        for (const ox of [-4, 6]) {
-          ctx.save();
-          ctx.translate(ox, 0);
-          ctx.rotate(sway * 1.4);
-          ctx.strokeStyle = dim('#78a045');
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.lineTo(0, -20);
-          ctx.stroke();
-          for (const side of [-1, 1]) {
-            ctx.fillStyle = dim('#8fb35a');
-            ctx.beginPath();
-            ctx.ellipse(side * 5, -20, 6, 2.6, side * -0.5, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.restore();
-        }
-      } else {
-        // Mangrove fern (Acrostichum) sprout – pinnate fronds rising from one crown
-        for (const ang of [-1.05, -0.55, -0.1, 0.4, 0.9]) {
-          ctx.save();
-          ctx.rotate(ang * 0.6 + sway + breeze * 0.03);
-          ctx.strokeStyle = dim('#4d7c0f');
-          ctx.lineWidth = 1.8;
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.quadraticCurveTo(4, -18, 2, -34);
-          ctx.stroke();
-          ctx.fillStyle = dim('#65a30d');
-          for (let k = 1; k < 6; k++) {
-            const py = -k * 6;
-            ctx.beginPath();
-            ctx.ellipse(-3.5, py, 4, 1.8, 0.4, 0, Math.PI * 2);
-            ctx.ellipse(5.5, py, 4, 1.8, -0.4, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.restore();
-        }
-      }
-
-      // Fallen mangrove leaves (green, yellow, brown) that drift slightly with the tide
-      const leafCount = 2 + Math.floor(h1 * 3);
-      for (let l = 0; l < leafCount; l++) {
-        const lh = seededHash(wx * 0.11 + l * 3.7);
-        const lx = (lh - 0.5) * 80 + Math.sin(elapsedSec * 0.7 + l + wx) * 2.5;
-        ctx.save();
-        ctx.translate(lx, 0);
-        ctx.scale(1, 0.45);
-        ctx.rotate(lh * Math.PI * 2);
-        ctx.fillStyle = dim(['#a3a832', '#d4a017', '#8b5a2b', '#5f8a2a'][Math.floor(lh * 4)]);
-        ctx.strokeStyle = 'rgba(40, 25, 10, 0.5)';
-        ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 7, 3.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(-7, 0);
-        ctx.lineTo(7, 0);
-        ctx.stroke();
-        ctx.restore();
-      }
-      ctx.restore();
-    }
-  }
-}
 
 export function renderEcosystemWorld(params: WorldRenderParams): void {
   const {
@@ -2483,19 +586,8 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
           ? '#94a3b8'
           : '#94a3b8';
 
-    const drawVolumetricCloud = (
-      cx: number,
-      cy: number,
-      scaleX: number,
-      scaleY: number,
-      variant: number,
-      alpha: number,
-    ) => {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.scale(scaleX, scaleY);
-      ctx.globalAlpha = alpha;
-
+    const qualityCfg = globalQualityController.getConfig();
+    const renderCloudGeometry = (targetCtx: CanvasRenderingContext2D, variant: number) => {
       const hexToRgba = (hex: string, a: number): string => {
         const clean = hex.replace('#', '');
         const num = parseInt(clean, 16);
@@ -2505,34 +597,30 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
         return `rgba(${r}, ${g}, ${b}, ${a})`;
       };
 
-      // 0. Distant virga rain shafts beneath storm clouds (strictly in sky above horizon)
       if (isStorm) {
-        const virgaGrad = ctx.createLinearGradient(0, 12, -16, 86);
+        const virgaGrad = targetCtx.createLinearGradient(0, 12, -16, 86);
         virgaGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.28));
         virgaGrad.addColorStop(0.55, hexToRgba(cloudMidCol, 0.12));
         virgaGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
-        ctx.fillStyle = virgaGrad;
-        ctx.beginPath();
-        ctx.moveTo(-66, 12);
-        ctx.lineTo(74, 12);
-        ctx.lineTo(54, 86);
-        ctx.lineTo(-86, 86);
-        ctx.closePath();
-        ctx.fill();
+        targetCtx.fillStyle = virgaGrad;
+        targetCtx.beginPath();
+        targetCtx.moveTo(-66, 12);
+        targetCtx.lineTo(74, 12);
+        targetCtx.lineTo(54, 86);
+        targetCtx.lineTo(-86, 86);
+        targetCtx.closePath();
+        targetCtx.fill();
       }
 
-      // 1. Soft atmospheric vapor halo & diffused anvil mist around cloud base
-      const mistGrad = ctx.createRadialGradient(4, 8, 12, 4, 12, 118);
+      const mistGrad = targetCtx.createRadialGradient(4, 8, 12, 4, 12, 118);
       mistGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.42));
       mistGrad.addColorStop(0.55, hexToRgba(cloudMidCol, 0.18));
       mistGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
-      ctx.fillStyle = mistGrad;
-      ctx.beginPath();
-      ctx.ellipse(4, 12, 114, 22, 0, 0, Math.PI * 2);
-      ctx.fill();
+      targetCtx.fillStyle = mistGrad;
+      targetCtx.beginPath();
+      targetCtx.ellipse(4, 12, 114, 22, 0, 0, Math.PI * 2);
+      targetCtx.fill();
 
-      // 2. Multi-tiered realistic tropical cumulus / cumulonimbus silhouette
-      // (billowing cauliflower turrets on top + flat lifted-condensation-level base)
       const sil = new Path2D();
       if (variant === 0) {
         sil.moveTo(-92, 15);
@@ -2562,19 +650,17 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
       }
       sil.closePath();
 
-      const bodyGrad = ctx.createLinearGradient(0, -50, 0, 18);
+      const bodyGrad = targetCtx.createLinearGradient(0, -50, 0, 18);
       bodyGrad.addColorStop(0, cloudTopCol);
       bodyGrad.addColorStop(0.46, cloudMidCol);
       bodyGrad.addColorStop(0.82, cloudBaseCol);
       bodyGrad.addColorStop(1, hexToRgba(cloudBaseCol, 0.92));
-      ctx.fillStyle = bodyGrad;
-      ctx.fill(sil);
+      targetCtx.fillStyle = bodyGrad;
+      targetCtx.fill(sil);
 
-      // 3. Internal 3D volumetric cauliflower lobes & sunlit crests (clipped cleanly inside `sil`)
-      ctx.save();
-      ctx.clip(sil);
+      targetCtx.save();
+      targetCtx.clip(sil);
 
-      // Deeper internal shadow pockets at the lower joints of the cumulus towers
       const shadowLobes: ReadonlyArray<readonly [number, number, number]> = [
         [-54, 8, 28],
         [-14, 6, 34],
@@ -2582,17 +668,16 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
         [64, 9, 26],
       ];
       for (const [sx, sy, sr] of shadowLobes) {
-        const sGrad = ctx.createRadialGradient(sx, sy + sr * 0.2, sr * 0.1, sx, sy, sr);
+        const sGrad = targetCtx.createRadialGradient(sx, sy + sr * 0.2, sr * 0.1, sx, sy, sr);
         sGrad.addColorStop(0, hexToRgba(cloudBaseCol, 0.52));
         sGrad.addColorStop(0.6, hexToRgba(cloudBaseCol, 0.22));
         sGrad.addColorStop(1, hexToRgba(cloudBaseCol, 0));
-        ctx.fillStyle = sGrad;
-        ctx.beginPath();
-        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
-        ctx.fill();
+        targetCtx.fillStyle = sGrad;
+        targetCtx.beginPath();
+        targetCtx.arc(sx, sy, sr, 0, Math.PI * 2);
+        targetCtx.fill();
       }
 
-      // Sunlit upper volumetric puffs (top-left solar illumination)
       const puffs: ReadonlyArray<readonly [number, number, number]> =
         variant === 0
           ? [
@@ -2623,7 +708,7 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
               ];
 
       for (const [px, py, pr] of puffs) {
-        const pGrad = ctx.createRadialGradient(
+        const pGrad = targetCtx.createRadialGradient(
           px - pr * 0.3,
           py - pr * 0.34,
           pr * 0.06,
@@ -2635,32 +720,69 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
         pGrad.addColorStop(0.52, hexToRgba(cloudTopCol, 0.48));
         pGrad.addColorStop(0.82, hexToRgba(cloudMidCol, 0.15));
         pGrad.addColorStop(1, hexToRgba(cloudMidCol, 0));
-        ctx.fillStyle = pGrad;
-        ctx.beginPath();
-        ctx.arc(px, py, pr, 0, Math.PI * 2);
-        ctx.fill();
+        targetCtx.fillStyle = pGrad;
+        targetCtx.beginPath();
+        targetCtx.arc(px, py, pr, 0, Math.PI * 2);
+        targetCtx.fill();
       }
 
-      // 4. Flat atmospheric condensation base shadow band + subtle sky-bounce rim
-      const baseShadow = ctx.createLinearGradient(0, 1, 0, 19);
+      const baseShadow = targetCtx.createLinearGradient(0, 1, 0, 19);
       baseShadow.addColorStop(0, hexToRgba(cloudBaseCol, 0));
       baseShadow.addColorStop(0.62, hexToRgba(cloudBaseCol, 0.48));
       baseShadow.addColorStop(0.9, hexToRgba(cloudBaseCol, 0.76));
       baseShadow.addColorStop(1, hexToRgba(cloudMidCol, 0.55));
-      ctx.fillStyle = baseShadow;
-      ctx.fillRect(-110, 1, 220, 19);
+      targetCtx.fillStyle = baseShadow;
+      targetCtx.fillRect(-110, 1, 220, 19);
 
-      // 5. Crisp sunlit silver-lining rim highlight along the top cumulus domes
-      ctx.strokeStyle = hexToRgba('#ffffff', isStorm ? 0.38 : nightFactor > 0.5 ? 0.25 : 0.72);
-      ctx.lineWidth = 1.8;
-      ctx.stroke(sil);
+      targetCtx.strokeStyle = hexToRgba('#ffffff', isStorm ? 0.38 : nightFactor > 0.5 ? 0.25 : 0.72);
+      targetCtx.lineWidth = 1.8;
+      targetCtx.stroke(sil);
 
-      ctx.restore();
+      targetCtx.restore();
+    };
+
+    const drawVolumetricCloud = (
+      cx: number,
+      cy: number,
+      scaleX: number,
+      scaleY: number,
+      variant: number,
+      alpha: number,
+    ) => {
+      const cacheKey = `cloud_${variant}_${cloudTopCol}_${cloudMidCol}_${cloudBaseCol}_${isStorm ? 1 : 0}_${nightFactor > 0.5 ? 1 : 0}`;
+      const cached = qualityCfg.enableOffscreenCloudCache
+        ? getOrRenderCachedCloud(
+            cacheKey,
+            260,
+            160,
+            (offCtx, ox, oy) => {
+              offCtx.save();
+              offCtx.translate(ox, oy);
+              renderCloudGeometry(offCtx, variant);
+              offCtx.restore();
+            },
+            130,
+            64,
+          )
+        : null;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(scaleX, scaleY);
+      ctx.globalAlpha = alpha;
+      if (cached) {
+        ctx.drawImage(cached, -130, -64, 260, 160);
+        framePerfTracker.addDrawCalls(1);
+      } else {
+        renderCloudGeometry(ctx, variant);
+        framePerfTracker.addDrawCalls(14);
+      }
       ctx.restore();
     };
 
-    // Distant high-altitude altocumulus layer + closer main cumulus bank
-    const cloudCount = isCloudy ? 14 : 9;
+    // Distant high-altitude altocumulus layer + closer main cumulus bank (scaled by device quality tier)
+    const rawCloudCount = isCloudy ? 14 : 9;
+    const cloudCount = Math.max(4, Math.round(rawCloudCount * qualityCfg.cloudCountScale));
     for (let c = 0; c < cloudCount; c++) {
       const depthLayer = c % 2; // 0 = far, 1 = near
       const par = depthLayer === 0 ? 0.14 : 0.24;
@@ -2669,7 +791,10 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
       const screenCx =
         (((c * 255 + elapsedSec * spd - cameraX * par) % wrapW) + wrapW) % wrapW - 230;
       const cy = (depthLayer === 0 ? 44 : 78) + (c % 4) * 28 - cameraY * (depthLayer === 0 ? 0.18 : 0.28);
-      if (cy < -110 || cy > seaLevelScreenY - 18) continue;
+      if (cy < -110 || cy > seaLevelScreenY - 18) {
+        framePerfTracker.addCulled(1);
+        continue;
+      }
 
       const scX = (depthLayer === 0 ? 0.78 : 1.12) * (0.9 + (c % 3) * 0.14);
       const scY = (depthLayer === 0 ? 0.72 : 1.04) * (0.9 + ((c + 1) % 3) * 0.1);
@@ -2837,7 +962,9 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
     // 70% Realistic / 30% Cute Rainforest Ground Grass Blades along the Forest Floor (Frustum-Culled & Dynamic)
     if (zone.id === 'forest') {
       const gQuality = state.graphicQuality || 'dynamic';
-      const grassStep = gQuality === 'performance' ? 64 : gQuality === 'quality' ? 34 : 46;
+      const activeTier = globalQualityController.getConfig();
+      const baseGrassStep = gQuality === 'performance' ? 64 : gQuality === 'quality' ? 34 : 42;
+      const grassStep = gQuality === 'dynamic' ? baseGrassStep * activeTier.grassStepMultiplier : baseGrassStep;
       const gStart = Math.max(zone.xStart + 24, Math.floor(zStart / grassStep) * grassStep);
       const gEnd = Math.min(zone.xEnd - 24, Math.ceil(zEnd / grassStep) * grassStep);
       for (let gx = gStart; gx <= gEnd; gx += grassStep) {
@@ -2964,8 +1091,12 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
         : 0.75;
 
   for (const plant of state.placedPlants) {
-    if (plant.x < visStartX - 280 || plant.x > visEndX + 280) continue;
     plant.y = getDefaultPlacementY(plant.assetId, plant.zoneId, plant.x, viewportHeight);
+    if (!isEntityVisibleInFrustum(plant.x, plant.y, cameraX, cameraY, viewportWidth, viewportHeight, 280, 320)) {
+      framePerfTracker.addCulled(1);
+      continue;
+    }
+    framePerfTracker.addDrawCalls(1);
 
     const windWave =
       Math.sin(elapsedSec * (state.currentWeather === 'windy' ? 3.4 : 1.6) + plant.x * 0.01) *
@@ -3114,7 +1245,11 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
 
   // 11. Queue Dropped Foods / Plucked Fruits
   for (const food of state.droppedFoods) {
-    if (food.x < visStartX - 80 || food.x > visEndX + 80) continue;
+    if (!isEntityVisibleInFrustum(food.x, food.y, cameraX, cameraY, viewportWidth, viewportHeight, 80, 120)) {
+      framePerfTracker.addCulled(1);
+      continue;
+    }
+    framePerfTracker.addDrawCalls(1);
     const bob =
       food.zoneId === 'sea' || food.zoneId === 'river'
         ? Math.sin(elapsedSec * 2.5 + food.x) * 4
@@ -3129,7 +1264,11 @@ export function renderEcosystemWorld(params: WorldRenderParams): void {
 
   // 12. Queue Placed Animals (`A01`–`A41`)
   for (const animal of state.placedAnimals) {
-    if (animal.x < visStartX - 240 || animal.x > visEndX + 240) continue;
+    if (!isEntityVisibleInFrustum(animal.x, animal.y, cameraX, cameraY, viewportWidth, viewportHeight, 240, 280)) {
+      framePerfTracker.addCulled(1);
+      continue;
+    }
+    framePerfTracker.addDrawCalls(2);
     const meta = ASSET_ECO_CONFIG[animal.assetId];
     const isEmotingNow = animal.emotionTimerSec > 0;
     const locoBlend = animal.locoBlend ?? (isEmotingNow ? 0 : 1);
@@ -3608,435 +1747,3 @@ function renderParallaxRidges(
   }
 }
 
-function renderWeatherScreenOverlay(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  weather: WeatherType,
-  elapsedSec: number,
-  cameraX: number,
-  cameraY: number,
-  zoom: number,
-): void {
-  if (weather === 'sunny' || weather === 'cloudy' || weather === 'rainbow') return;
-
-  const waterDatumWorldY = 0.56 * h;
-  const seaLevelScreenY = (waterDatumWorldY - h * 0.5 - cameraY) * zoom + h * 0.5;
-
-  // Helper: exact screen-space Y of the water surface or ground contour at screen X.
-  // Crucially, surfaceWorldY is clamped to Math.min(waterDatumWorldY, floorWorldY) so rain
-  // NEVER crosses below the hydrostatic water surface plane (0.56 * h) anywhere in the world!
-  const getSurfaceInfoAtScreenX = (sx: number): { screenY: number; isWater: boolean } => {
-    const worldX = cameraX + w * 0.5 + (sx - w * 0.5) / zoom;
-    const waterWorldY = getWaterSurfaceY(worldX, h);
-    const inRiverOrSeaBasin =
-      (worldX >= HABITAT_ZONES[1].xStart && worldX <= HABITAT_ZONES[1].xEnd) ||
-      worldX >= HABITAT_ZONES[3].xStart;
-    const floorWorldY = getTerrainFloorY(worldX, h);
-    const isWater = waterWorldY !== null || inRiverOrSeaBasin || floorWorldY > waterDatumWorldY;
-    const surfaceWorldY = Math.min(waterDatumWorldY, floorWorldY);
-    const screenY = (surfaceWorldY - h * 0.5 - cameraY) * zoom + h * 0.5;
-    return { screenY, isWater };
-  };
-
-  // Sample across screen columns to build the exact Air-Above-Surface clipping polygon
-  let maxAirBottomY = -9999;
-  const stepX = 24;
-  const samples: Array<{ sx: number; screenY: number; isWater: boolean }> = [];
-  for (let sx = 0; sx <= w + stepX; sx += stepX) {
-    const clampedSx = Math.min(w, sx);
-    const info = getSurfaceInfoAtScreenX(clampedSx);
-    samples.push({ sx: clampedSx, ...info });
-    if (info.screenY > maxAirBottomY) maxAirBottomY = info.screenY;
-    if (clampedSx === w) break;
-  }
-
-  // If the camera is deep underwater (water surface is above top of screen), zero weather is visible!
-  if (maxAirBottomY <= 2) {
-    return;
-  }
-
-  // When diving into the sea/river (cameraY > 8), airborne rain streaks fade out immediately
-  // so underwater you ONLY see raindrop ripples and meniscus splashes on the water surface!
-  const airStreakVisibility = clamp(1 - (cameraY - 8) / 28, 0, 1);
-
-  if (airStreakVisibility > 0.01) {
-    ctx.save();
-    // Clip strictly to the air column above the water surface / ground contour (never 1px below!)
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(w, 0);
-    for (let i = samples.length - 1; i >= 0; i--) {
-      ctx.lineTo(samples[i].sx, Math.max(0, Math.min(h, samples[i].screenY - 0.5)));
-    }
-    ctx.closePath();
-    ctx.clip();
-
-    if (weather === 'windy') {
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 18; i++) {
-        const depth = (i % 3) / 2;
-        const spd = 340 + depth * 220;
-        const wx = ((elapsedSec * spd + i * 197) % (w + 320)) - 160;
-        const wy = ((i * 67) % Math.max(80, Math.min(h * 0.72, maxAirBottomY - 28))) + 20;
-        if (wy >= getSurfaceInfoAtScreenX(wx).screenY - 12) continue;
-        const len = 85 + depth * 65;
-        const wGrad = ctx.createLinearGradient(wx, wy, wx + len, wy);
-        wGrad.addColorStop(0, 'rgba(248, 250, 252, 0)');
-        wGrad.addColorStop(0.35, `rgba(241, 245, 249, ${(0.14 + depth * 0.14) * airStreakVisibility})`);
-        wGrad.addColorStop(0.7, `rgba(255, 255, 255, ${(0.22 + depth * 0.16) * airStreakVisibility})`);
-        wGrad.addColorStop(1, 'rgba(248, 250, 252, 0)');
-        ctx.strokeStyle = wGrad;
-        ctx.lineWidth = 1.0 + depth * 0.85;
-        ctx.beginPath();
-        ctx.moveTo(wx, wy);
-        ctx.bezierCurveTo(
-          wx + len * 0.35,
-          wy - 7 - (i % 2) * 4,
-          wx + len * 0.7,
-          wy + 6 + (i % 2) * 4,
-          wx + len,
-          wy - 2,
-        );
-        ctx.stroke();
-      }
-    } else if (weather === 'rain') {
-      const clipBottomY = Math.max(1, Math.min(h, maxAirBottomY));
-
-      // 1. Atmospheric rain-curtain mist & slanting precipitation shafts strictly in the sky above water
-      const curtainGrad = ctx.createLinearGradient(0, 0, 0, clipBottomY);
-      curtainGrad.addColorStop(0, `rgba(148, 163, 184, ${0.14 * airStreakVisibility})`);
-      curtainGrad.addColorStop(0.6, `rgba(186, 230, 253, ${0.06 * airStreakVisibility})`);
-      curtainGrad.addColorStop(1, `rgba(224, 242, 254, ${0.11 * airStreakVisibility})`);
-      ctx.fillStyle = curtainGrad;
-      ctx.fillRect(0, 0, w, clipBottomY);
-
-      ctx.lineCap = 'round';
-      // Realistic tropical downpour angle (~5 degrees wind shear, not artificial steep laser diagonals)
-      const windTilt = -0.088 + Math.sin(elapsedSec * 0.65) * 0.015;
-
-      // 2. 4 Depth Planes of 100% Realistic Optical Raindrop Streaks
-      // Every single raindrop is individually clamped at the water surface (`surfY`) so no raindrop
-      // ever crosses into the sea or river!
-      const layers = [
-        { id: 1, count: 64, speedY: 780, speedX: -68, len: 22, width: 0.55, alpha: 0.22 },
-        { id: 2, count: 52, speedY: 1020, speedX: -88, len: 32, width: 0.75, alpha: 0.34 },
-        { id: 3, count: 38, speedY: 1260, speedX: -110, len: 42, width: 0.95, alpha: 0.46 },
-        { id: 4, count: 22, speedY: 1520, speedX: -134, len: 52, width: 1.15, alpha: 0.58 },
-      ];
-
-      const spanW = w + 160;
-      const spanH = Math.max(140, clipBottomY + 40);
-
-      for (const layer of layers) {
-        const effAlpha = layer.alpha * airStreakVisibility;
-
-        // Pass A: Feathered upper motion wake (0% -> 100% of clipped drop)
-        ctx.strokeStyle = `rgba(203, 232, 252, ${effAlpha * 0.32})`;
-        ctx.lineWidth = layer.width * 0.58;
-        ctx.beginPath();
-        for (let i = 0; i < layer.count; i++) {
-          const h1 = seededHash(i * 19.37 + layer.id * 71.3);
-          const h2 = seededHash(i * 43.11 + layer.id * 113.7);
-          const h3 = seededHash(i * 79.23 + layer.id * 37.9);
-          const dLen = layer.len * (0.78 + h3 * 0.44);
-          const spdMul = 0.9 + h3 * 0.2;
-          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 80;
-          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 50;
-          const surfY = getSurfaceInfoAtScreenX(clamp(rx, 0, w)).screenY - 1;
-          if (ry >= surfY - 2) continue;
-          const maxT = clamp((surfY - ry) / Math.max(1, dLen), 0, 1);
-          const dx = dLen * windTilt * maxT;
-          const dy = dLen * maxT;
-          ctx.moveTo(rx, ry);
-          ctx.lineTo(rx + dx, ry + dy);
-        }
-        ctx.stroke();
-
-        // Pass B: Translucent mid-body optical refraction (45% -> 100% of clipped drop)
-        ctx.strokeStyle = `rgba(226, 242, 254, ${effAlpha * 0.62})`;
-        ctx.lineWidth = layer.width * 0.82;
-        ctx.beginPath();
-        for (let i = 0; i < layer.count; i++) {
-          const h1 = seededHash(i * 19.37 + layer.id * 71.3);
-          const h2 = seededHash(i * 43.11 + layer.id * 113.7);
-          const h3 = seededHash(i * 79.23 + layer.id * 37.9);
-          const dLen = layer.len * (0.78 + h3 * 0.44);
-          const spdMul = 0.9 + h3 * 0.2;
-          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 80;
-          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 50;
-          const surfY = getSurfaceInfoAtScreenX(clamp(rx, 0, w)).screenY - 1;
-          if (ry + dLen * 0.45 >= surfY - 1) continue;
-          const maxT = clamp((surfY - ry) / Math.max(1, dLen), 0.45, 1);
-          const dx = dLen * windTilt;
-          ctx.moveTo(rx + dx * 0.45, ry + dLen * 0.45);
-          ctx.lineTo(rx + dx * maxT, ry + dLen * maxT);
-        }
-        ctx.stroke();
-
-        // Pass C: Glistening lower raindrop meniscus tip (80% -> 100% of clipped drop)
-        ctx.strokeStyle = `rgba(248, 250, 252, ${Math.min(0.88, effAlpha * 0.98)})`;
-        ctx.lineWidth = layer.width;
-        ctx.beginPath();
-        for (let i = 0; i < layer.count; i++) {
-          const h1 = seededHash(i * 19.37 + layer.id * 71.3);
-          const h2 = seededHash(i * 43.11 + layer.id * 113.7);
-          const h3 = seededHash(i * 79.23 + layer.id * 37.9);
-          const dLen = layer.len * (0.78 + h3 * 0.44);
-          const spdMul = 0.9 + h3 * 0.2;
-          const rx = (((h1 * spanW + elapsedSec * layer.speedX * spdMul) % spanW) + spanW) % spanW - 80;
-          const ry = (((h2 * spanH + elapsedSec * layer.speedY * spdMul) % spanH) + spanH) % spanH - 50;
-          const surfY = getSurfaceInfoAtScreenX(clamp(rx, 0, w)).screenY - 1;
-          if (ry + dLen * 0.8 >= surfY - 1) continue;
-          const maxT = clamp((surfY - ry) / Math.max(1, dLen), 0.8, 1);
-          const dx = dLen * windTilt;
-          ctx.moveTo(rx + dx * 0.8, ry + dLen * 0.8);
-          ctx.lineTo(rx + dx * maxT, ry + dLen * maxT);
-        }
-        ctx.stroke();
-      }
-    } else if (weather === 'fog') {
-      for (let band = 0; band < 4; band++) {
-        const by = Math.min(maxAirBottomY - 25, h * (0.24 + band * 0.16));
-        if (by < -40) continue;
-        const driftX = Math.sin(elapsedSec * 0.35 + band * 1.4) * 45;
-        const mistGrad = ctx.createLinearGradient(0, by - 65, 0, by + 65);
-        mistGrad.addColorStop(0, 'rgba(241, 245, 249, 0)');
-        mistGrad.addColorStop(0.5, `rgba(241, 245, 249, ${0.32 * airStreakVisibility})`);
-        mistGrad.addColorStop(1, 'rgba(241, 245, 249, 0)');
-        ctx.fillStyle = mistGrad;
-        ctx.fillRect(-60 + driftX, by - 65, w + 120, 130);
-      }
-    }
-
-    ctx.restore();
-  }
-
-  // 3. Water-Surface Meniscus & Ground Rain Impacts (drawn strictly along the water surface / ground contour!)
-  // When diving in the sea, rain is ONLY visible right on the water surface meniscus (`seaLevelScreenY`)!
-  if (weather === 'rain' && seaLevelScreenY > 2 && seaLevelScreenY < h - 2) {
-    ctx.save();
-    // Subtle shimmering rain-pattered surface meniscus sheen when viewing the water surface
-    const underwaterViewFactor = clamp((cameraY - 8) / 35, 0, 1);
-    if (underwaterViewFactor > 0.02) {
-      const menGrad = ctx.createLinearGradient(0, seaLevelScreenY - 6, 0, seaLevelScreenY + 14);
-      menGrad.addColorStop(0, `rgba(224, 242, 254, ${0.22 * underwaterViewFactor})`);
-      menGrad.addColorStop(0.45, `rgba(186, 230, 253, ${0.34 * underwaterViewFactor})`);
-      menGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
-      ctx.fillStyle = menGrad;
-      ctx.fillRect(0, seaLevelScreenY - 6, w, 20);
-    }
-
-    for (let s = 0; s < 32; s++) {
-      const cycle = elapsedSec * 2.5 + s * 0.31;
-      const phase = cycle % 1;
-      const pulseIdx = Math.floor(cycle);
-      const sx = 14 + seededHash(s * 97.3 + pulseIdx * 31.7) * Math.max(60, w - 28);
-      const surf = getSurfaceInfoAtScreenX(sx);
-      const sy = surf.screenY + (surf.isWater ? (seededHash(s * 13.1) - 0.5) * 2 : (seededHash(s * 17.9) - 0.5) * 4);
-      if (sy < 3 || sy > h - 3) continue;
-
-      const fade = (1 - phase) * (1 - phase * 0.35);
-      const rx = (surf.isWater ? 4.0 : 2.8) + phase * (surf.isWater ? 19 : 10);
-      const ry = rx * (surf.isWater ? 0.19 : 0.24);
-
-      // Outer expanding capillary wave ring on the surface plane
-      ctx.strokeStyle = `rgba(226, 242, 254, ${(surf.isWater ? 0.68 : 0.44) * fade})`;
-      ctx.lineWidth = surf.isWater ? 1.25 : 1.0;
-      ctx.beginPath();
-      ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Secondary inner concentric ripple on water surface
-      if (surf.isWater && phase > 0.14) {
-        const innerRx = rx * 0.5;
-        const innerRy = ry * 0.5;
-        ctx.strokeStyle = `rgba(248, 250, 252, ${0.48 * fade})`;
-        ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        ctx.ellipse(sx, sy, innerRx, innerRy, 0, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // Upward rebounding Worthington crown splash above surface + tiny entrained air bubble just 2-5px under the meniscus
-      if (phase < 0.36) {
-        const crownT = phase / 0.36;
-        const lift = Math.sin(crownT * Math.PI) * (surf.isWater ? 7.5 : 4.5);
-        const spread = crownT * (surf.isWater ? 6.0 : 4.0);
-        if (airStreakVisibility > 0.05) {
-          ctx.fillStyle = `rgba(248, 250, 252, ${0.8 * (1 - crownT) * airStreakVisibility})`;
-          ctx.beginPath();
-          ctx.arc(sx - spread, sy - lift * 0.85, 1.05, 0, Math.PI * 2);
-          ctx.arc(sx, sy - lift * 1.2, 1.25, 0, Math.PI * 2);
-          ctx.arc(sx + spread, sy - lift * 0.85, 1.05, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        if (surf.isWater) {
-          // Tiny silver dimple / micro-bubble right under the surface meniscus (2..5px below sy)
-          const bubbleDepth = 2 + Math.sin(crownT * Math.PI) * 3.5;
-          ctx.fillStyle = `rgba(224, 242, 254, ${0.72 * (1 - crownT)})`;
-          ctx.beginPath();
-          ctx.arc(sx, sy + bubbleDepth, 1.2 * (1 - crownT * 0.4), 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-    ctx.restore();
-  }
-}
-
-export function getDefaultPlacementY(
-  assetId: string,
-  zoneId: HabitatZoneId,
-  worldX: number,
-  canvasHeight: number,
-): number {
-  const floorY = getTerrainFloorY(worldX, canvasHeight);
-  const waterY = getWaterSurfaceY(worldX, canvasHeight);
-  const meta = ASSET_ECO_CONFIG[assetId];
-
-  if (!meta) return floorY - 24;
-
-  if (meta.kind === 'plant') {
-    // Floating plants (lotus, lilies, hyacinth, duckweed, kangkung) sit at the water surface
-    if (isFloatingPlantAsset(assetId) && waterY !== null) return waterY + 12;
-    return floorY + 8;
-  }
-
-  const w = getAnimalWorldScale(assetId);
-  const inWater = (zoneId === 'sea' || zoneId === 'river') && waterY !== null;
-
-  if (inWater) {
-    if (meta.canopyHabit === 'benthic') {
-      // Bottom dwellers rest on the seabed / riverbed
-      return floorY + 4 - getAnimalGroundContactOffset(assetId, true);
-    }
-    if (isLandStandingAnimal(assetId)) {
-      // Semi-aquatic walkers (otter, terrapin, monitor, tapir) swim at the surface to breathe
-      return waterY + 30 * w;
-    }
-    // Swimmers stay inside the water column: never poking out of the surface or into the seabed
-    const top = waterY + 62 * w;
-    const bottom = floorY - 58 * w;
-    const mid = waterY + (floorY - waterY) * 0.48;
-    return bottom > top ? clamp(mid, top, bottom) : (waterY + floorY) * 0.5;
-  }
-
-  // Land: put the feet (contact shadow) on the same ground line for every species and size
-  return floorY + 22 - getAnimalGroundContactOffset(assetId, false);
-}
-
-/** Internal framing multiplier of the Green Sea Turtle reference inside its box. */
-const TURTLE_REFERENCE_FRAMING = 1.12;
-
-/**
- * Multiplier for the 220 x 200 world drawing box of an animal, so that its body appears at
- * `visualSize` relative to the Green Sea Turtle. Thumbnails and store cards are not affected.
- */
-export function getAnimalWorldScale(assetId: string): number {
-  const size = ASSET_ECO_CONFIG[assetId]?.visualSize ?? 1;
-  if (
-    assetId.startsWith('animal_28_green_sea_turtle') ||
-    assetId === 'animal_29_hawksbill_sea_turtle'
-  ) {
-    return size;
-  }
-  return (size * TURTLE_REFERENCE_FRAMING) / getSpeciesFramingScale(assetId);
-}
-
-/** Body size relative to the Green Sea Turtle, for hit areas, labels and bubbles. */
-export function getAnimalVisualSize(assetId: string): number {
-  return ASSET_ECO_CONFIG[assetId]?.visualSize ?? 1;
-}
-
-/**
- * Distance from an animal's anchor (animal.y) down to where its feet or belly touch the
- * ground, for its world scale. Derived from the drawing box: the box centre sits 0.06 box
- * heights above the anchor and the contact shadow sits 186 (walkers) units below the
- * centre in the 650-unit rig frame.
- */
-export function getAnimalGroundContactOffset(assetId: string, benthic: boolean): number {
-  const w = getAnimalWorldScale(assetId);
-  const rigScale = (Math.min(220 * w, 200 * w * 1.08) / 650) * getSpeciesFramingScale(assetId);
-  const contactLocal = benthic ? 205 : 186;
-  return -0.06 * 200 * w + contactLocal * rigScale;
-}
-
-/** World drawing box of a plant (growth stage and species height applied). */
-export function getPlantDrawSize(plant: Pick<PlacedPlant, 'assetId' | 'growthStage'>): { w: number; h: number } {
-  const stageScale = plant.growthStage === 1 ? 0.68 : plant.growthStage === 2 ? 0.88 : 1.04;
-  const size = ASSET_ECO_CONFIG[plant.assetId]?.visualSize ?? 1;
-  return { w: 210 * stageScale * size, h: 195 * stageScale * size };
-}
-
-/**
- * The tree a canopy animal (orangutan, sun bear, pangolin, macaque, langur, python, monitor, squirrel, panda, hornbill...)
- * is currently climbing or perched in, or null when there is no tree nearby.
- */
-export function findPerchTree(
-  animal: Pick<PlacedAnimal, 'x' | 'zoneId'>,
-  plants: PlacedPlant[],
-  extraReach = 0,
-): PlacedPlant | null {
-  let best: PlacedPlant | null = null;
-  let bestDx = Infinity;
-  for (const p of plants) {
-    if (p.zoneId !== animal.zoneId) continue;
-    if (!ASSET_ECO_CONFIG[p.assetId]?.isPerchTree || p.growthStage < 1) continue;
-    const reach = getPlantDrawSize(p).w * 0.36 + extraReach;
-    const dx = Math.abs(p.x - animal.x);
-    if (dx <= reach && dx < bestDx) {
-      best = p;
-      bestDx = dx;
-    }
-  }
-  return best;
-}
-
-/** Clears cached vertical position for placed or moved animals so they never float. */
-export function clearAnimalRestCache(uid?: string): void {
-  if (uid) {
-    animalRestYCache.delete(uid);
-  } else {
-    animalRestYCache.clear();
-  }
-}
-
-/**
- * Where an animal rests vertically: firmly on the ground terrain, in the water column,
- * or climbing up and down a host tree's trunk and canopy boughs when a canopy/arboreal species is near a perch tree.
- */
-export function getAnimalRestY(
-  animal: Pick<PlacedAnimal, 'assetId' | 'zoneId' | 'x'>,
-  plants: PlacedPlant[],
-  canvasHeight: number,
-): number {
-  const groundY = getDefaultPlacementY(animal.assetId, animal.zoneId, animal.x, canvasHeight);
-  const meta = ASSET_ECO_CONFIG[animal.assetId];
-  if (meta?.canopyHabit === 'canopy') {
-    const tree = findPerchTree(animal, plants, 36);
-    if (tree) {
-      const { w: treeW, h: treeH } = getPlantDrawSize(tree);
-      const maxReach = treeW * 0.36 + 36;
-      const dx = Math.abs(animal.x - tree.x);
-      const trunkZone = Math.max(18, treeW * 0.14);
-      const crownPerchY = tree.y - treeH * 0.50 + (dx / Math.max(1, maxReach)) * (treeH * 0.14);
-      // When right on the main trunk (`dx <= trunkZone`), climb vertically along the trunk between lower trunk and upper crown
-      if (dx <= trunkZone) {
-        const trunkProgress = clamp(Math.sin((animal.x - tree.x) * 0.12) * 0.5 + 0.5, 0, 1);
-        const lowerTrunkY = groundY - treeH * 0.16;
-        const upperCrownY = tree.y - treeH * 0.54;
-        return Math.min(groundY, lowerTrunkY + (upperCrownY - lowerTrunkY) * trunkProgress);
-      }
-      // Across the main boughs (`trunkZone < dx <= treeW * 0.28`), perch and clamber along the bough arc
-      const boughSpan = treeW * 0.28;
-      if (dx <= boughSpan) {
-        return Math.min(groundY, crownPerchY);
-      }
-      // Outer approach: climb smoothly between ground and lower boughs
-      const climbT = clamp(1 - (dx - boughSpan) / Math.max(1, maxReach - boughSpan), 0, 1);
-      return groundY + (Math.min(groundY, crownPerchY) - groundY) * climbT;
-    }
-  }
-  return groundY;
-}

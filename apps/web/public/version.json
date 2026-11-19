@@ -1,5 +1,4 @@
 {
-  "version": "0.6.0",
-  "buildTime": 1794063710876,
-  "forceUpdate": true
+    "version": "0.7.0",
+    "forceReset": true
 }

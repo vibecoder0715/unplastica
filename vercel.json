@@ -2,6 +2,13 @@
   "buildCommand": "pnpm build",
   "outputDirectory": "apps/web/dist",
   "framework": "vite",
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 30,
+      "includeFiles": "api/_models/**",
+      "excludeFiles": "{node_modules/onnxruntime-web/dist/*.{jsep,jspi,asyncify,webgl,webgpu,all,node,bundle,es5}*,node_modules/onnxruntime-web/dist/*.map,ml/**,apps/**,game/**}"
+    }
+  },
   "rewrites": [
     {
       "source": "/(\\.env.*|\\.git.*|config\\.json.*|\\.aws.*)",
@@ -18,7 +25,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self';"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self';"
         },
         {
           "key": "X-Content-Type-Options",
@@ -39,6 +46,19 @@
         {
           "key": "Permissions-Policy",
           "value": "camera=(self), geolocation=(), microphone=()"
+        }
+      ]
+    },
+    {
+      "source": "/api/clear-cache",
+      "headers": [
+        {
+          "key": "Clear-Site-Data",
+          "value": "\"cache\""
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
         }
       ]
     },

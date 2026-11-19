@@ -8,7 +8,79 @@ import { VitePWA } from "vite-plugin-pwa";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const versionData = JSON.parse(fs.readFileSync(path.resolve(__dirname, "public/version.json"), "utf-8"));
-const appVersion = versionData.version || "0.6.0";
+const appVersion = versionData.version || "0.7.0";
+
+function createApiMiddleware() {
+  return async (req: any, res: any, next: () => void) => {
+    const rawUrl = (req as { url?: string }).url || "";
+    const url = rawUrl.split("?")[0];
+    if (/^\/(\.env.*|\.git.*|config\.json.*|\.aws.*)/i.test(url)) {
+      res.statusCode = 404;
+      res.setHeader("Content-Type", "text/plain");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("X-Frame-Options", "DENY");
+      res.setHeader("Content-Security-Policy", "default-src 'none'");
+      return res.end("Not Found");
+    }
+
+    if (url === "/api/clear-cache" || url === "/api/infer" || url === "/api/score") {
+      try {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        const rawBody = Buffer.concat(chunks);
+        const ct = String(req.headers["content-type"] || "").toLowerCase();
+        if (ct.includes("application/json") && rawBody.length > 0) {
+          try {
+            req.body = JSON.parse(rawBody.toString("utf-8"));
+          } catch {
+            req.body = rawBody;
+          }
+        } else {
+          req.body = rawBody;
+        }
+
+        const vercelRes = {
+          status(code: number) {
+            res.statusCode = code;
+            return vercelRes;
+          },
+          setHeader(name: string, value: string) {
+            res.setHeader(name, value);
+            return vercelRes;
+          },
+          json(payload: unknown) {
+            if (!res.getHeader("Content-Type")) {
+              res.setHeader("Content-Type", "application/json; charset=utf-8");
+            }
+            res.end(JSON.stringify(payload));
+            return vercelRes;
+          },
+          send(payload: unknown) {
+            res.end(typeof payload === "string" ? payload : JSON.stringify(payload));
+            return vercelRes;
+          },
+        };
+
+        const modPath =
+          url === "/api/clear-cache"
+            ? "../../api/clear-cache.ts"
+            : url === "/api/infer"
+              ? "../../api/infer.ts"
+              : "../../api/score.ts";
+        const mod = await import(modPath);
+        await mod.default(req, vercelRes);
+        return;
+      } catch (err) {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        return res.end(JSON.stringify({ error: String(err) }));
+      }
+    }
+    next();
+  };
+}
 
 export default defineConfig({
   envDir: "../../",
@@ -23,21 +95,12 @@ export default defineConfig({
   },
   plugins: [
     {
-      name: "block-sensitive-files",
+      name: "unplastica-security-and-api",
       configureServer(server) {
-        server.middlewares.use((req, res, next) => {
-          const rawUrl = (req as { url?: string }).url || "";
-          const url = rawUrl.split("?")[0];
-          if (/^\/(\.env.*|\.git.*|config\.json.*|\.aws.*)/i.test(url)) {
-            res.statusCode = 404;
-            res.setHeader("Content-Type", "text/plain");
-            res.setHeader("X-Content-Type-Options", "nosniff");
-            res.setHeader("X-Frame-Options", "DENY");
-            res.setHeader("Content-Security-Policy", "default-src 'none'");
-            return res.end("Not Found");
-          }
-          next();
-        });
+        server.middlewares.use(createApiMiddleware());
+      },
+      configurePreviewServer(server) {
+        server.middlewares.use(createApiMiddleware());
       },
     },
     react(),
@@ -99,7 +162,7 @@ export default defineConfig({
   ],
   server: {
     headers: {
-      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self';",
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self';",
       "X-Content-Type-Options": "nosniff",
       "X-Frame-Options": "DENY",
     },
@@ -109,7 +172,27 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        manualChunks: { supabase: ["@supabase/supabase-js"] },
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+        manualChunks(id) {
+          if (id.includes("node_modules/react") || id.includes("node_modules/scheduler")) {
+            return "vendor-react";
+          }
+          if (id.includes("node_modules/@supabase")) {
+            return "supabase";
+          }
+          if (id.includes("/game/src/roster/animalRenderer") || id.includes("\\game\\src\\roster\\animalRenderer")) {
+            return "game-fauna";
+          }
+          if (id.includes("/game/src/roster/plantRenderer") || id.includes("\\game\\src\\roster\\plantRenderer")) {
+            return "game-flora";
+          }
+          if (id.includes("/game/src/game/renderers/") || id.includes("\\game\\src\\game\\renderers\\")) {
+            return "game-scenery";
+          }
+          return undefined;
+        },
       },
     },
   },

@@ -307,6 +307,7 @@ export const messages: Record<Language, Record<string, string>> = {
 };
 
 export function getLanguage(): Language {
+  if (typeof localStorage === "undefined") return "English";
   const stored = localStorage.getItem("unplastica-language");
   return stored === "Bahasa Melayu" || stored === "中文" || stored === "தமிழ்" ? stored : "English";
 }

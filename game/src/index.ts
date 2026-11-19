@@ -1,6 +1,8 @@
 import { TurtleRigController } from './turtle/rig';
 import { renderTurtle } from './turtle/renderer';
 import { ROSTER_ASSETS } from './roster/catalog';
+import { globalQualityController } from './engine/deviceProfile';
+import { framePerfTracker } from './engine/renderCache';
 import type {
   PlacedAnimal,
   PlacedPlant,
@@ -263,9 +265,9 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
       ? storedLang
       : 'English');
 
-  // Dynamic Performance & Resolution Scaling state
+  // Dynamic Performance & Resolution Scaling state (auto-selected by hardware capabilities)
   let handleResize = () => {};
-  let dynamicDprScale = 1.0;
+  let dynamicDprScale = globalQualityController.getConfig().dprScale;
   let lastDprAdjustmentTime = 0;
   const recentFrameTimes: number[] = [];
   let isTabVisible = !document.hidden;
@@ -2957,17 +2959,20 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     viewportHeight = LOGICAL_VIEW_HEIGHT;
     viewportWidth = cssW / viewScale;
 
-    // Dynamic resolution scaling according to hardware quality mode and real-time FPS
+    // Dynamic resolution scaling according to hardware capability tier and real-time FPS
     const quality = saveState.graphicQuality || 'dynamic';
     const nativeDpr = window.devicePixelRatio || 1;
     let effectiveDpr = 1.0;
     if (quality === 'performance') {
-      effectiveDpr = Math.min(1.05, nativeDpr);
+      globalQualityController.setTierOverride('low');
+      effectiveDpr = Math.min(1.05, nativeDpr * 0.72);
     } else if (quality === 'quality') {
+      globalQualityController.setTierOverride('high');
       effectiveDpr = Math.min(1.85, nativeDpr);
     } else {
-      // Dynamic mode (Auto): default to Quality (up to 1.65 native DPR) when spec allows, dynamically optimizing to maintain smooth 60 FPS
-      effectiveDpr = Math.max(0.9, Math.min(1.65, nativeDpr) * dynamicDprScale);
+      // Dynamic mode (Auto): high quality for capable devices, medium/low for lower capability devices dynamically
+      const tierCfg = globalQualityController.getConfig();
+      effectiveDpr = Math.max(0.68, Math.min(tierCfg.maxDpr, nativeDpr) * dynamicDprScale);
     }
     const dpr = Math.round(effectiveDpr * 100) / 100;
     worldCanvas.width = Math.round(cssW * dpr);
@@ -3423,38 +3428,57 @@ export function initApp(options?: SanctuaryGameOptions): () => void {
     }
 
     try {
-      const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameTime) / 1000));
+      const rawDeltaMs = Math.max(1, now - lastFrameTime);
+      const dt = Math.min(0.05, Math.max(0.001, rawDeltaMs / 1000));
       lastFrameTime = now;
 
-      // Dynamic Resolution Scaling: monitor rolling average frame times
+      // Dynamic Resolution & Quality Tier Scaling: monitor rolling average frame times and hardware tier
       recentFrameTimes.push(dt);
       if (recentFrameTimes.length > 35) recentFrameTimes.shift();
 
-      if (
-        saveState.graphicQuality === 'dynamic' &&
-        recentFrameTimes.length >= 25 &&
-        now - lastDprAdjustmentTime > 1800
-      ) {
-        const avgFrameDt = recentFrameTimes.reduce((a, b) => a + b, 0) / recentFrameTimes.length;
-        if (avgFrameDt > 0.022) {
-          // Under 45 FPS: downscale resolution dynamically
-          const nextScale = Math.max(0.68, dynamicDprScale - 0.12);
-          if (dynamicDprScale - nextScale > 0.04) {
-            dynamicDprScale = nextScale;
+      if (saveState.graphicQuality === 'dynamic') {
+        const qualityUpdate = globalQualityController.recordFrameStats({
+          frameDeltaMs: rawDeltaMs,
+          drawCallsEstimate: framePerfTracker.counters.drawCallsEstimate,
+          culledObjectsCount: framePerfTracker.counters.culledObjectsCount,
+          offscreenCacheHits: framePerfTracker.counters.offscreenCacheHits,
+        });
+        if (qualityUpdate.tierChanged) {
+          dynamicDprScale = qualityUpdate.config.dprScale;
+          lastDprAdjustmentTime = now;
+          handleResize();
+        } else if (
+          recentFrameTimes.length >= 25 &&
+          now - lastDprAdjustmentTime > 1800
+        ) {
+          const avgFrameDt = recentFrameTimes.reduce((a, b) => a + b, 0) / recentFrameTimes.length;
+          const targetMaxScale = qualityUpdate.config.dprScale;
+          if (avgFrameDt > 0.022) {
+            const nextScale = Math.max(0.68, dynamicDprScale - 0.12);
+            if (dynamicDprScale - nextScale > 0.04) {
+              dynamicDprScale = nextScale;
+              lastDprAdjustmentTime = now;
+              handleResize();
+            }
+          } else if (avgFrameDt < 0.0168 && dynamicDprScale < targetMaxScale) {
+            dynamicDprScale = Math.min(targetMaxScale, dynamicDprScale + 0.08);
             lastDprAdjustmentTime = now;
             handleResize();
           }
-        } else if (avgFrameDt < 0.0168 && dynamicDprScale < 1.0) {
-          // Stable 60 FPS: restore resolution smoothly
-          dynamicDprScale = Math.min(1.0, dynamicDprScale + 0.08);
-          lastDprAdjustmentTime = now;
-          handleResize();
         }
+      } else {
+        globalQualityController.recordFrameStats({
+          frameDeltaMs: rawDeltaMs,
+          drawCallsEstimate: framePerfTracker.counters.drawCallsEstimate,
+          culledObjectsCount: framePerfTracker.counters.culledObjectsCount,
+          offscreenCacheHits: framePerfTracker.counters.offscreenCacheHits,
+        });
       }
 
       cameraZoom += (targetCameraZoom - cameraZoom) * Math.min(1, dt * 10);
       stepSimulation(dt);
 
+      framePerfTracker.beginFrame();
       renderEcosystemWorld({
         ctx: ctx!,
         viewportWidth,
